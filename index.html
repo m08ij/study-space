@@ -544,7 +544,7 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
   </div>
   <div class="topbar-actions">
     <button class="icon-btn" id="serverStatus" title="جاري الفحص...">⏳</button>
-    <button class="icon-btn" id="cmdBtn" title="Ctrl+K">⌘</button>
+
     <button class="icon-btn" id="pdfBtn" title="تصدير PDF">🖨️</button>
     <button class="icon-btn" id="themeBtn" title="الثيمات">🎨</button>
     <button class="icon-btn" id="backupBtn" title="تصدير">💾</button>
@@ -3094,7 +3094,7 @@ function bindAllEvents(){
   var bb = document.getElementById('backupBtn'); if(bb) bb.addEventListener('click', function(){ downloadBackup(false); });
   var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreFromFile);
   var pdfBtn = document.getElementById('pdfBtn'); if(pdfBtn) pdfBtn.addEventListener('click', exportPDF);
-  var cmdBtn = document.getElementById('cmdBtn'); if(cmdBtn) cmdBtn.addEventListener('click', openCommandPalette);
+
   function bind(id, fn){ var el = document.getElementById(id); if(el) el.addEventListener('click', fn); }
   bind('btnAddClass', function(){ addClassSlot(); });
   bind('btnClearTt', clearTimetable);
@@ -3173,12 +3173,6 @@ document.addEventListener('keydown', function(e){
   if(e.key === '/' && !isTyping){
     e.preventDefault();
     var si = document.getElementById('searchInput'); if(si) si.focus();
-    return;
-  }
-
-  if((e.ctrlKey || e.metaKey) && e.key === 'k'){
-    e.preventDefault();
-    if(window.openCommandPalette) window.openCommandPalette();
     return;
   }
 
