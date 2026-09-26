@@ -544,7 +544,6 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
   </div>
   <div class="topbar-actions">
     <button class="icon-btn" id="serverStatus" title="جاري الفحص...">⏳</button>
-    <button class="icon-btn" id="translateBtn" title="English / عربي">🌐</button>
     <button class="icon-btn" id="cmdBtn" title="Ctrl+K">⌘</button>
     <button class="icon-btn" id="pdfBtn" title="تصدير PDF">🖨️</button>
     <button class="icon-btn" id="themeBtn" title="الثيمات">🎨</button>
@@ -1003,8 +1002,6 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
   </div>
 </div>
 
-<div id="google_translate_element" style="display:none"></div>
-
 <button class="fab-main" id="fabMain">+</button>
 <div class="fab-menu" id="fabMenu">
   <button class="fab-action" data-fab="task"><span class="fa-ic">📝</span> مهمة جديدة</button>
@@ -1126,7 +1123,7 @@ function gatherSnapshot(){
     pomoSessions: S.get('pomoSessions', 0), pomoFocus: S.get('pomoFocus', 0),
     studyLog: S.get('studyLog', {}), theme: S.get('theme', 'dark'),
     activeTab: S.get('activeTab', 'dashboard'), welcomeDone: S.get('welcomeDone', false),
-    openSems: S.get('openSems', [0]), siteLang: S.get('site_lang', 'ar')
+    openSems: S.get('openSems', [0])
   };
 }
 
@@ -1178,7 +1175,6 @@ function applyServerData(data){
     if(typeof data.activeTab === 'string') S.set('activeTab', data.activeTab);
     if(typeof data.welcomeDone === 'boolean') S.set('welcomeDone', data.welcomeDone);
     if(Array.isArray(data.openSems)) S.set('openSems', data.openSems);
-    if(typeof data.siteLang === 'string') S.set('site_lang', data.siteLang);
 
     TM.focus = timerSettings.focus * 60;
     TM.short = timerSettings.short * 60;
@@ -1303,44 +1299,6 @@ function buildThemePanel(){
 }
 function toggleThemePanel(){ var p = document.getElementById('themePanel'); if(p) p.classList.toggle('show'); }
 
-/* ==================== GOOGLE TRANSLATE ==================== */
-function googleTranslateElementInit(){
-  if(typeof google === 'undefined' || !google.translate) return;
-  new google.translate.TranslateElement({
-    pageLanguage: 'ar',
-    includedLanguages: 'en,ar',
-    autoDisplay: false
-  }, 'google_translate_element');
-}
-function initTranslate(){
-  var btn = document.getElementById('translateBtn'); if(!btn) return;
-  if(S.get('site_lang', 'ar') === 'en') setTimeout(function(){ applyTranslate('en'); }, 1000);
-  btn.addEventListener('click', function(){
-    var cur = S.get('site_lang', 'ar');
-    var next = cur === 'ar' ? 'en' : 'ar';
-    S.set('site_lang', next);
-    applyTranslate(next);
-    toast(next === 'en' ? '🌐 English' : '🌐 العربية', 'info', 1500);
-  });
-}
-function applyTranslate(lang){
-  var sel = document.querySelector('.goog-te-combo');
-  if(sel){
-    sel.value = lang;
-    sel.dispatchEvent(new Event('change'));
-  } else {
-    setTimeout(function(){ applyTranslate(lang); }, 500);
-    return;
-  }
-  if(lang === 'en'){
-    document.documentElement.setAttribute('dir', 'ltr');
-    document.documentElement.setAttribute('lang', 'en');
-  } else {
-    document.documentElement.setAttribute('dir', 'rtl');
-    document.documentElement.setAttribute('lang', 'ar');
-  }
-}
-
 /* ==================== COMMAND PALETTE ==================== */
 var CMD_ACTIONS = [
   {ic:'📝', t:'إضافة مهمة', run:function(){ switchTab('tasks'); setTimeout(addTask, 200); }},
@@ -1358,7 +1316,6 @@ var CMD_ACTIONS = [
   {ic:'📕', t:'وصف المواد', run:function(){ switchTab('coursedescriptions'); }},
   {ic:'📈', t:'إحصائيات', run:function(){ switchTab('stats'); }},
   {ic:'🎓', t:'روابط الجامعة', run:function(){ switchTab('hulinks'); }},
-  {ic:'🌐', t:'English / عربي', run:function(){ document.getElementById('translateBtn').click(); }},
   {ic:'🤖', t:'المساعد الذكي', run:function(){ if(window.toggleAI) window.toggleAI(); }},
   {ic:'🎨', t:'تغيير الثيم', run:function(){ toggleThemePanel(); }},
   {ic:'🖨️', t:'تصدير PDF', run:function(){ exportPDF(); }},
@@ -3311,7 +3268,6 @@ async function boot(){
   safeRun('History', initHistoryNavigation);
   safeRun('Bind events', bindAllEvents);
   safeRun('OCR bindings', initOcrBindings);
-  safeRun('Translate', initTranslate);
   safeRun('Pull refresh', initPullToRefresh);
 
   safeRun('Plan', renderPlan);
@@ -3370,16 +3326,5 @@ else { boot(); }
 <script src="ai-assistant.js"></script>
 <script src="widgets.js"></script>
 <script src="pwa.js"></script>
-<script type="text/javascript">
-function googleTranslateElementInit(){
-  if(typeof google === 'undefined' || !google.translate) return;
-  new google.translate.TranslateElement({
-    pageLanguage: 'ar',
-    includedLanguages: 'en,ar',
-    autoDisplay: false
-  }, 'google_translate_element');
-}
-</script>
-<script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
 </html>
