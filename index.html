@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0">
 <meta name="color-scheme" content="dark light">
 <title>مساحتي الدراسية 📚</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0f1a">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="مساحتي">
 <style>
 /* ==================== THEMES ==================== */
 :root,[data-theme="dark"]{
@@ -1042,7 +1048,11 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
 </div>
 
 <div class="toast-container" id="toastContainer"></div>
-
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Supabase config + client -->
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="courses-data.js"></script>
 
 <script>
@@ -1100,33 +1110,21 @@ function debugLog(msg){
   p._t = setTimeout(function(){ p.classList.remove('show'); }, 4000);
 }
 
-/* ==================== SERVER AUTO-SAVE ==================== */
+/* ==================== SUPABASE AUTO-SAVE ==================== */
 var serverOnline = false;
 var serverSaveTimer = null;
 var serverSaveInFlight = false;
 var bootSyncing = true;
 
-async function serverPing(){
-  try{ var res = await fetch('/status?_=' + Date.now(), {cache:'no-store'}); if(!res.ok) return false; var j = await res.json(); return !!(j && j.ok); }
-  catch(e){ return false; }
-}
-async function serverLoad(){
-  try{
-    var res = await fetch('/load?_=' + Date.now(), {cache:'no-store'});
-    if(!res.ok) return null;
-    var txt = await res.text();
-    if(!txt || txt.trim() === '' || txt.trim() === '{}') return null;
-    return JSON.parse(txt);
-  }catch(e){ return null; }
-}
 function queueServerSave(){
-  if(bootSyncing || !serverOnline) return;
+  if(bootSyncing) return;
   clearTimeout(serverSaveTimer);
-  serverSaveTimer = setTimeout(doServerSave, 400);
+  serverSaveTimer = setTimeout(doServerSave, 800);
 }
+
 function gatherSnapshot(){
   return {
-    version: 3,
+    version: 4,
     savedAt: new Date().toISOString(),
     space: space, notes: notes, gpaRows: gpaRows, timerSettings: timerSettings,
     pomoSessions: S.get('pomoSessions', 0), pomoFocus: S.get('pomoFocus', 0),
@@ -1135,49 +1133,45 @@ function gatherSnapshot(){
     openSems: S.get('openSems', [0])
   };
 }
+
 async function doServerSave(){
-  if(!serverOnline) return;
+  if(!window.SB) return;
   if(serverSaveInFlight){ queueServerSave(); return; }
   try{
     serverSaveInFlight = true;
-    await fetch('/save', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(gatherSnapshot())});
-    setServerStatus('ok');
-  }catch(e){ console.warn('Server save failed:', e); setServerStatus('err'); }
-  finally{ serverSaveInFlight = false; }
+    var ok = await window.SB.save(gatherSnapshot());
+    if(ok){
+      serverOnline = true;
+      setServerStatus('ok');
+    } else {
+      serverOnline = false;
+      setServerStatus('off');
+    }
+  }catch(e){
+    console.warn('Save failed:', e);
+    serverOnline = false;
+    setServerStatus('off');
+  } finally {
+    serverSaveInFlight = false;
+  }
 }
+
 function setServerStatus(state){
   var el = document.getElementById('serverStatus');
   if(!el) return;
-  if(state === 'ok'){ el.textContent = '☁️'; el.title = '✅ الحفظ التلقائي في الملف مُفعَّل'; el.style.color = 'var(--green)'; }
-  else if(state === 'err'){ el.textContent = '⚠️'; el.title = 'تعذّر الاتصال بالسيرفر'; el.style.color = 'var(--red)'; }
-  else{ el.textContent = '💾'; el.title = 'حفظ محلي فقط'; el.style.color = 'var(--muted)'; }
-}
-function applyServerData(data){
-  if(data.space && typeof data.space === 'object') space = Object.assign({}, defaultSpace, data.space);
-  else if(!space) space = Object.assign({}, defaultSpace);
-  if(Array.isArray(data.notes)) notes = data.notes;
-  if(Array.isArray(data.gpaRows)) gpaRows = data.gpaRows;
-  if(data.timerSettings) timerSettings = data.timerSettings;
-  if(data.pomoSessions !== undefined) S.set('pomoSessions', data.pomoSessions);
-  if(data.pomoFocus !== undefined) S.set('pomoFocus', data.pomoFocus);
-  if(data.studyLog) S.set('studyLog', data.studyLog);
-  if(data.theme) S.set('theme', data.theme);
-  if(data.activeTab) S.set('activeTab', data.activeTab);
-  if(data.welcomeDone) S.set('welcomeDone', true);
-  if(Array.isArray(data.openSems)) S.set('openSems', data.openSems);
-  S.set('space', space); S.set('notes', notes); S.set('gpaRows', gpaRows); S.set('timerSettings', timerSettings);
-}
-
-function scheduleBackup(){
-  clearTimeout(backupTimer);
-  var badge = document.getElementById('backupBadge');
-  var text = document.getElementById('backupText');
-  if(badge && text){
-    text.textContent = serverOnline ? '☁️ حُفظ في الملف' : '💾 حُفظ محليًا';
-    badge.classList.add('show');
+  if(state === 'ok'){
+    el.textContent = '☁️';
+    el.title = '✅ متصل بـ Supabase — حفظ تلقائي';
+    el.style.color = 'var(--green)';
+    el.onclick = null;
+  } else {
+    el.textContent = '💾';
+    el.title = '💾 حفظ محلي — اضغط لرمز المزامنة';
+    el.style.color = 'var(--muted)';
+    el.onclick = function(){
+      if(window.SB && window.SB.showSyncPanel) window.SB.showSyncPanel();
+    };
   }
-  backupTimer = setTimeout(function(){ if(badge) badge.classList.remove('show'); }, 1500);
-  queueServerSave();
 }
 
 /* ==================== HELPERS ==================== */
@@ -3231,19 +3225,28 @@ function safeRun(label, fn){
 }
 
 async function boot(){
-  console.log('🚀 Booting...');
-  var online = false;
-  try{ online = await serverPing(); }catch(e){}
-  serverOnline = online;
+  console.log('🚀 Booting V2...');
+
+  // 1) حمّل من localStorage أولًا (سريع)
+  safeRun('Load local data', loadAllData);
+
+  // 2) Supabase load في الخلفية
   var serverData = null;
-  if(online){ try{ serverData = await serverLoad(); }catch(e){} }
-  if(serverData){
-    console.log('📥 Loaded from server file');
-    safeRun('Apply server data', function(){ applyServerData(serverData); });
-  } else {
-    console.log('📥 Loading from localStorage');
-    safeRun('Load local data', loadAllData);
+  if(window.SB){
+    try{ serverData = await window.SB.load(); }
+    catch(e){ console.warn('Supabase load failed:', e); }
   }
+
+  if(serverData && serverData.data){
+    console.log('☁️ Loaded from Supabase');
+    serverOnline = true;
+    safeRun('Apply server data', function(){ applyServerData(serverData.data); });
+  } else {
+    console.log('💾 Using localStorage');
+    serverOnline = false;
+  }
+
+  // 3) مزامنة المؤقت
   safeRun('Sync timer', function(){
     TM.focus = timerSettings.focus * 60;
     TM.short = timerSettings.short * 60;
@@ -3251,17 +3254,29 @@ async function boot(){
     ts.remaining = TM[ts.mode];
     ts.total = TM[ts.mode];
   });
+
+  // 4) الثيمات
   safeRun('Build theme panel', function(){
     buildThemePanel();
     applyTheme(S.get('theme', 'dark'));
   });
+
+  // 5) dropdown التقديرات
   safeRun('Grade dropdown', function(){
     var sel = document.getElementById('whatIfGrade');
-    if(sel){ var opts = ''; Object.keys(GRADES).forEach(function(g){ opts += '<option>' + g + '</option>'; }); sel.innerHTML = opts; }
+    if(sel){
+      var opts = '';
+      Object.keys(GRADES).forEach(function(g){ opts += '<option>' + g + '</option>'; });
+      sel.innerHTML = opts;
+    }
   });
+
+  // 6) التنقل + الأحداث
   safeRun('History', initHistoryNavigation);
   safeRun('Bind events', bindAllEvents);
   safeRun('OCR bindings', initOcrBindings);
+
+  // 7) كل الـ renders
   safeRun('Plan', renderPlan);
   safeRun('Timetable', renderTimetable);
   safeRun('Courses', renderCourses);
@@ -3280,43 +3295,49 @@ async function boot(){
   safeRun('Quote', renderDailyQuote);
   safeRun('Dashboard', renderDashboard);
   safeRun('AI bindings', function(){ if(typeof window.bindAIEvents === 'function') window.bindAIEvents(); });
+
+  // 8) التبويب الأولي
   safeRun('Initial tab', function(){
     var tab = location.hash.slice(1) || S.get('activeTab', 'dashboard');
     if(document.getElementById(tab)) switchTab(tab, false);
     else switchTab('dashboard', false);
   });
+
+  // 9) الترحيب
   safeRun('Welcome', function(){
     var welcomeDone = S.get('welcomeDone', false);
     var hasName = space.profile && space.profile.name;
-    if(dataCorrupted){ console.warn('Data corrupted'); showWelcome(true); }
+    if(dataCorrupted){ showWelcome(true); }
     else if(!welcomeDone || !hasName){ showWelcome(false); }
     else {
       setTimeout(function(){
         try{
           var hour = new Date().getHours();
           var greet = hour < 12 ? 'صباح الخير' : 'مساء الخير';
-          toast(greet + ' ' + space.profile.name.split(' ')[0] + '! مساحتك جاهزة 📚', 'success', 3000);
+          toast(greet + ' ' + space.profile.name.split(' ')[0] + '! ☁️', 'success', 3000);
           checkReminders();
         }catch(err){ console.error(err); }
       }, 800);
     }
-    if(!storageAvailable){
-      setTimeout(function(){ toast('⚠️ التخزين غير متاح — لن يتم حفظ التعديلات', 'warn', 5000); }, 1500);
-    }
   });
+
+  // 10) اسمح بالحفظ الآن
   safeRun('Initial sync', function(){
     bootSyncing = false;
-    if(!serverOnline){ setServerStatus('off'); console.warn('⚠️ Server not reachable'); }
-    else if(!serverData){ doServerSave(); }
-    else { setServerStatus('ok'); }
+    setServerStatus(serverOnline ? 'ok' : 'off');
+    // أول مرة → ارفع البيانات المحلية إلى Supabase
+    if(!serverData && window.SB) doServerSave();
   });
+
   console.log('✅ Boot complete');
 }
-
 if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }
 else { boot(); }
 </script>
 <script src="ai-assistant.js"></script>
 <script src="widgets.js"></script>
+<script src="pwa.js"></script>
+</body>
+</html>
 </body>
 </html>

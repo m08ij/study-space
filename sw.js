@@ -1,7 +1,7 @@
 /* ============================================================
    ⚙️ sw.js — Service Worker للعمل بدون إنترنت
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v1';
+var CACHE_NAME = 'ss-cache-v2';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -17,7 +17,9 @@ var URLS_TO_CACHE = [
 self.addEventListener('install', function(e){
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(URLS_TO_CACHE).catch(function(){ /* تجاهل الأخطاء */ });
+      return cache.addAll(URLS_TO_CACHE).catch(function(err){
+        console.warn('SW cache addAll warning:', err);
+      });
     }).then(function(){ return self.skipWaiting(); })
   );
 });
@@ -39,7 +41,8 @@ self.addEventListener('fetch', function(e){
 
   // لا تخزّن طلبات Supabase
   if(url.indexOf('supabase.co') > -1) return;
-
+  // لا تخزّن طلبات CDN (تحمّل عبر الشبكة فقط)
+  if(url.indexOf('cdn.jsdelivr.net') > -1) return;
   // لا تخزّن طلبات غير GET
   if(e.request.method !== 'GET') return;
 
@@ -60,7 +63,6 @@ self.addEventListener('fetch', function(e){
   );
 });
 
-// إشعارات (لاحقًا)
 self.addEventListener('notificationclick', function(e){
   e.notification.close();
   e.waitUntil(
