@@ -12,4 +12,4 @@
 - ☁️ مزامنة سحابية برمز من 6 خانات
 - 🎨 9 ثيمات • 📱 قابل للتثبيت • 🌐 يعمل offline
 
-## 🔗 [تجربة مباشرة](https://m08jj.github.io/study-space/)
+## 🔗 [تجربة مباشرة](https://m08ij.github.io/study-space/)
