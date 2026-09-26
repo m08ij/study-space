@@ -12,17 +12,14 @@
   "dir": "rtl",
   "categories": ["education", "productivity"],
   "icons": [
-    { "src": "icons/icon-72.png",  "sizes": "72x72",   "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-96.png",  "sizes": "96x96",   "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-144.png", "sizes": "144x144", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "favicon-16x16.png",         "sizes": "16x16",   "type": "image/png" },
+    { "src": "favicon-32x32.png",         "sizes": "32x32",   "type": "image/png" },
+    { "src": "android-chrome-192x192.png","sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "android-chrome-512x512.png","sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
-    { "name": "المهام",    "url": "./index.html#tasks", "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }] },
-    { "name": "البومودورو","url": "./index.html#timer", "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }] },
-    { "name": "الامتحانات","url": "./index.html#exams", "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }] }
+    { "name": "المهام",    "url": "./index.html#tasks", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
+    { "name": "البومودورو","url": "./index.html#timer", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
+    { "name": "الامتحانات","url": "./index.html#exams", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] }
   ]
 }
