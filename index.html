@@ -12,17 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="مساحتي">
 <style>
-/* ==================== THEMES ==================== */
-:root,[data-theme="dark"]{
-  --bg:#0b0f1a;--bg2:#0f1522;--card:#141c2e;--card2:#1a2338;
-  --border:#243049;--border2:#2f3d5c;
-  --text:#e8eefb;--muted:#8a96b8;--muted2:#5b6885;
-  --cyan:#22d3ee;--purple:#a78bfa;--green:#34d399;--amber:#fbbf24;--red:#f87171;--pink:#f472b6;
-  --grad:linear-gradient(135deg,#22d3ee,#a78bfa);
-  --grad-soft:linear-gradient(135deg,rgba(34,211,238,.12),rgba(167,139,250,.12));
-  --shadow:0 8px 32px rgba(0,0,0,.35);--shadow-lg:0 20px 60px rgba(0,0,0,.5);
-  --glow:rgba(34,211,238,.35);--topbar-bg:rgba(15,21,34,.88);--radius:14px;--radius-lg:20px;
-}
+:root,[data-theme="dark"]{--bg:#0b0f1a;--bg2:#0f1522;--card:#141c2e;--card2:#1a2338;--border:#243049;--border2:#2f3d5c;--text:#e8eefb;--muted:#8a96b8;--muted2:#5b6885;--cyan:#22d3ee;--purple:#a78bfa;--green:#34d399;--amber:#fbbf24;--red:#f87171;--pink:#f472b6;--grad:linear-gradient(135deg,#22d3ee,#a78bfa);--grad-soft:linear-gradient(135deg,rgba(34,211,238,.12),rgba(167,139,250,.12));--shadow:0 8px 32px rgba(0,0,0,.35);--shadow-lg:0 20px 60px rgba(0,0,0,.5);--glow:rgba(34,211,238,.35);--topbar-bg:rgba(15,21,34,.88);--radius:14px;--radius-lg:20px}
 [data-theme="aurora"]{--bg:#04101a;--bg2:#071a28;--card:#0b2434;--card2:#0f2d41;--border:#1a4560;--border2:#256b8f;--text:#d9f5ff;--muted:#7ab9d4;--muted2:#4d8298;--cyan:#14e0c8;--purple:#a78bfa;--green:#34d399;--amber:#fbbf24;--red:#f87171;--pink:#f472b6;--grad:linear-gradient(135deg,#14e0c8,#a78bfa);--grad-soft:linear-gradient(135deg,rgba(20,224,200,.16),rgba(167,139,250,.16));--shadow:0 8px 32px rgba(0,0,0,.5);--shadow-lg:0 20px 60px rgba(0,0,0,.7);--glow:rgba(20,224,200,.5);--topbar-bg:rgba(7,26,40,.88)}
 [data-theme="ember"]{--bg:#0e0503;--bg2:#1a0b06;--card:#25110a;--card2:#33180d;--border:#4a2312;--border2:#6e351a;--text:#ffe8d6;--muted:#c99a78;--muted2:#996b4a;--cyan:#fb923c;--purple:#f97316;--green:#fbbf24;--amber:#fbbf24;--red:#ef4444;--pink:#f472b6;--grad:linear-gradient(135deg,#fb923c,#fbbf24);--grad-soft:linear-gradient(135deg,rgba(251,146,60,.16),rgba(251,191,36,.16));--shadow:0 8px 32px rgba(0,0,0,.55);--shadow-lg:0 20px 60px rgba(0,0,0,.75);--glow:rgba(251,146,60,.55);--topbar-bg:rgba(26,11,6,.88)}
 [data-theme="ocean"]{--bg:#071a2e;--bg2:#0a2540;--card:#0e3254;--card2:#143e66;--border:#1b4d7a;--border2:#2860a0;--text:#e0f2fe;--muted:#7eb6dd;--muted2:#4d84b3;--cyan:#38bdf8;--purple:#60a5fa;--green:#34d399;--amber:#fbbf24;--red:#f87171;--pink:#f472b6;--grad:linear-gradient(135deg,#38bdf8,#3b82f6);--grad-soft:linear-gradient(135deg,rgba(56,189,248,.15),rgba(59,130,246,.15));--shadow:0 8px 32px rgba(0,0,0,.4);--shadow-lg:0 20px 60px rgba(0,0,0,.55);--glow:rgba(56,189,248,.4);--topbar-bg:rgba(10,37,64,.88)}
@@ -45,7 +35,6 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--cyan),var(--purple));border-radius:10px;border:2px solid var(--bg2)}
 ::selection{background:var(--glow)}
 
-/* ==================== WELCOME ==================== */
 .welcome-overlay{position:fixed;inset:0;z-index:2000;display:none;align-items:center;justify-content:center;padding:20px;background:var(--bg);backdrop-filter:blur(15px);transition:opacity .5s}
 .welcome-overlay.show{display:flex}
 .welcome-overlay.hide{opacity:0;pointer-events:none}
@@ -61,7 +50,6 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 .welcome-card button{width:100%;padding:15px;background:var(--grad);border:none;color:#0b0f1a;font-family:inherit;font-size:1rem;font-weight:800;border-radius:14px;cursor:pointer;transition:.3s}
 .welcome-card button:hover{transform:translateY(-3px);box-shadow:0 15px 35px var(--glow)}
 
-/* ==================== TOPBAR ==================== */
 .topbar{position:fixed;top:0;right:0;left:0;height:62px;z-index:90;background:var(--topbar-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 20px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;white-space:nowrap;flex-shrink:0}
 .brand-icon{width:36px;height:36px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 14px var(--glow)}
@@ -75,11 +63,16 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 .search-item{padding:11px 16px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;font-size:.88rem}
 .search-item:hover{background:var(--card2)}
 .search-item .s-tag{font-size:.7rem;color:var(--cyan);background:var(--grad-soft);padding:2px 8px;border-radius:6px;white-space:nowrap}
-.topbar-actions{display:flex;gap:8px;margin-right:auto}
+.topbar-actions{display:flex;gap:8px;margin-right:auto;position:relative}
 .icon-btn{width:40px;height:40px;border-radius:11px;background:var(--card);border:1px solid var(--border);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:.2s;position:relative;overflow:hidden}
 .icon-btn:hover{background:var(--card2);border-color:var(--cyan);transform:translateY(-2px)}
+.settings-wrap{position:relative}
+.settings-menu{position:absolute;top:48px;left:0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:6px;min-width:210px;box-shadow:var(--shadow-lg);display:none;z-index:110}
+.settings-menu.show{display:block;animation:fade .15s}
+.settings-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:transparent;border:none;color:var(--text);font-family:inherit;font-size:.85rem;cursor:pointer;border-radius:8px;text-align:right;transition:.15s;font-weight:500}
+.settings-item:hover{background:var(--grad-soft);color:var(--cyan)}
+.settings-item span{font-size:1.1rem;line-height:1}
 
-/* ==================== THEME PANEL ==================== */
 .theme-panel{position:fixed;top:56px;left:20px;z-index:200;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:16px;width:280px;transform:scale(.95) translateY(-8px);opacity:0;pointer-events:none;transition:.25s}
 .theme-panel.show{transform:scale(1) translateY(0);opacity:1;pointer-events:auto}
 .theme-panel h4{font-size:.82rem;color:var(--muted);margin-bottom:12px;font-weight:700}
@@ -91,7 +84,6 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 .theme-swatch .sw-check{position:absolute;top:4px;left:4px;width:18px;height:18px;border-radius:50%;background:var(--cyan);color:#0b0f1a;display:none;align-items:center;justify-content:center;font-size:.7rem;font-weight:900}
 .theme-swatch.active .sw-check{display:flex}
 
-/* ==================== SIDEBAR ==================== */
 .sidebar{position:fixed;top:62px;right:0;bottom:0;width:250px;background:var(--bg2);border-left:1px solid var(--border);padding:14px 10px;overflow-y:auto;z-index:80;transition:transform .3s}
 .sidebar::-webkit-scrollbar{width:5px}
 .nav-section{font-size:.68rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;padding:14px 12px 6px 18px;font-weight:700;position:relative}
@@ -107,7 +99,6 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 @media(min-width:901px){.menu-toggle{display:none!important}.sidebar-backdrop{display:none!important}}
 @media(max-width:900px){.sidebar{transform:translateX(100%)}.sidebar.open{transform:translateX(0)}}
 
-/* ==================== MAIN ==================== */
 main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px;transition:.3s;position:relative;z-index:1}
 @media(max-width:900px){main{margin-right:0;padding:16px 14px 140px}}
 .section{display:none}
@@ -237,7 +228,6 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
 .note-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
 .note-card input{width:100%;background:transparent;border:none;color:var(--text);font-family:inherit;font-size:1rem;font-weight:700;outline:none;padding:4px 0}
 .note-card textarea{width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px;font-family:inherit;font-size:.86rem;resize:vertical;min-height:70px;outline:none;margin-top:8px}
-.note-card textarea:focus{border-color:var(--cyan)}
 
 .gpa-table{width:100%;border-collapse:collapse;font-size:.86rem;background:var(--card);border-radius:14px;overflow:hidden}
 .gpa-table th{background:var(--card2);padding:12px;text-align:right;color:var(--cyan);font-size:.8rem;font-weight:700}
@@ -266,7 +256,7 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
 
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
 .modal-backdrop.show{display:flex}
-.modal{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:26px;max-width:520px;width:100%;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;position:relative;overflow-x:hidden}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:26px;max-width:520px;width:100%;box-shadow:var(--shadow-lg);max-height:90vh;overflow-y:auto;position:relative}
 .modal::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:var(--grad);border-radius:20px 20px 0 0}
 .modal h3{font-size:1.15rem;margin-bottom:14px;color:var(--cyan)}
 .form-group{margin-bottom:13px}
@@ -432,34 +422,16 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
 .cd-course .cd-code{font-size:.7rem;color:var(--muted2);font-family:monospace;margin-bottom:8px}
 .cd-course .cd-desc{font-size:.85rem;color:var(--muted);line-height:1.8}
 
-/* ==================== COMMAND PALETTE ==================== */
-.cmd-palette{position:fixed;inset:0;z-index:6000;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);display:none;align-items:flex-start;justify-content:center;padding-top:15vh}
-.cmd-palette.show{display:flex;animation:fade .15s}
-.cmd-box{width:100%;max-width:520px;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden}
-.cmd-box input{width:100%;padding:18px 22px;background:transparent;border:none;color:var(--text);font-family:inherit;font-size:1rem;outline:none;border-bottom:1px solid var(--border)}
-.cmd-results{max-height:400px;overflow-y:auto}
-.cmd-item{padding:12px 22px;cursor:pointer;display:flex;align-items:center;gap:12px;font-size:.9rem;border-bottom:1px solid var(--border);transition:.15s}
-.cmd-item:last-child{border-bottom:none}
-.cmd-item:hover,.cmd-item.active{background:var(--grad-soft);color:var(--cyan)}
-.cmd-item .cmd-ic{font-size:1.2rem}
-
-/* ==================== SEMESTER CALC ==================== */
 .sc-progress{height:16px;background:var(--bg2);border-radius:10px;overflow:hidden;margin:12px 0}
 .sc-progress-fill{height:100%;background:var(--grad);border-radius:10px;transition:width .5s}
-
-/* ==================== GRADE TRACKER ==================== */
 .gt-item-row{display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--border);font-size:.82rem;align-items:center}
-
-/* ==================== PULL TO REFRESH ==================== */
-.ptr-indicator{position:fixed;top:70px;left:50%;transform:translateX(-50%) scale(0);width:40px;height:40px;border-radius:50%;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;z-index:9999;box-shadow:var(--shadow);transition:transform .2s;font-size:1.1rem}
 
 *{transition-timing-function:cubic-bezier(.4,0,.2,1)}
 
-/* ==================== PRINT / PDF ==================== */
 @media print{
   .topbar,.sidebar,.sidebar-backdrop,.fab-main,.fab-menu,.ai-fab,.ai-panel,
-  .theme-panel,.backup-badge,.toast-container,.cmd-palette,.lw-sidebar,.lw-expand-btn,
-  .lw-backdrop{display:none!important}
+  .theme-panel,.backup-badge,.toast-container,.lw-sidebar,.lw-expand-btn,
+  .lw-backdrop,.settings-menu{display:none!important}
   main{margin:0!important;padding:20px!important;max-width:100%!important}
   .section{display:none!important}
   .section.active{display:block!important;page-break-inside:avoid}
@@ -485,6 +457,7 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
   .search-wrap input{height:38px;font-size:.82rem;padding:0 38px 0 12px}
   .icon-btn{width:34px;height:34px;font-size:.85rem;border-radius:9px}
   .topbar-actions{gap:5px}
+  .settings-menu{left:auto;right:0}
   main{margin-top:56px;padding:14px 12px 130px}
   .sidebar{top:56px}
   .page-title{font-size:1.35rem}
@@ -544,11 +517,15 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
   </div>
   <div class="topbar-actions">
     <button class="icon-btn" id="serverStatus" title="جاري الفحص...">⏳</button>
-
-    <button class="icon-btn" id="pdfBtn" title="تصدير PDF">🖨️</button>
-    <button class="icon-btn" id="themeBtn" title="الثيمات">🎨</button>
-    <button class="icon-btn" id="backupBtn" title="تصدير">💾</button>
-    <button class="icon-btn" id="restoreBtn" title="استيراد">📥</button>
+    <div class="settings-wrap">
+      <button class="icon-btn" id="settingsBtn" title="الإعدادات">⚙️</button>
+      <div class="settings-menu" id="settingsMenu">
+        <button class="settings-item" id="themeBtn"><span>🎨</span> الثيمات</button>
+        <button class="settings-item" id="pdfBtn"><span>🖨️</span> تصدير PDF</button>
+        <button class="settings-item" id="backupBtn"><span>💾</span> تصدير نسخة</button>
+        <button class="settings-item" id="restoreBtn"><span>📥</span> استيراد نسخة</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -574,17 +551,13 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
   <div class="nav-item" data-tab="extracurricular"><span class="ic">🎯</span><span class="label">الأنشطة</span></div>
   <div class="nav-item" data-tab="budget"><span class="ic">💰</span><span class="label">الميزانية</span></div>
   <div class="nav-section">الأدوات</div>
-  <div class="nav-item" data-tab="needcalc"><span class="ic">🎯</span><span class="label">كم أحتاج؟</span></div>
-  <div class="nav-item" data-tab="semestercalc"><span class="ic">🎓</span><span class="label">حساب الترم</span></div>
-  <div class="nav-item" data-tab="gradetracker"><span class="ic">📊</span><span class="label">متتبع العلامات</span></div>
+  <div class="nav-item" data-tab="gradecalc"><span class="ic">📊</span><span class="label">علاماتي</span></div>
   <div class="nav-item" data-tab="notes"><span class="ic">📔</span><span class="label">ملاحظاتي</span></div>
   <div class="nav-item" data-tab="gpa"><span class="ic">📊</span><span class="label">حاسبة المعدل</span></div>
   <div class="nav-item" data-tab="plan"><span class="ic">📖</span><span class="label">الخطة الدراسية</span></div>
   <div class="nav-item" data-tab="coursedescriptions"><span class="ic">📕</span><span class="label">وصف المواد</span></div>
   <div class="nav-section">الجامعة</div>
   <div class="nav-item" data-tab="hulinks"><span class="ic">🎓</span><span class="label">روابط الجامعة</span></div>
-  <div class="nav-section">معلومات</div>
-  <div class="nav-item" data-tab="about"><span class="ic">ℹ️</span><span class="label">عن التطبيق</span></div>
 </aside>
 
 <main>
@@ -597,6 +570,11 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
       <div class="quote-text" id="dailyQuoteText">—</div>
       <div class="quote-author" id="dailyQuoteAuthor">—</div>
     </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><h3>🎓 تقدم الترم</h3>
+        <span class="card-action" data-goto="gradecalc">علاماتي ←</span></div>
+      <div id="dashTermProgress"></div>
+    </div>
     <div class="grid grid-4" style="margin-bottom:20px" id="dashStats"></div>
     <div class="grid grid-2" style="margin-bottom:16px">
       <div class="card">
@@ -608,13 +586,6 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
         <div class="card-head"><h3>⏰ مهام قادمة</h3>
           <span class="card-action" data-goto="tasks">الكل ←</span></div>
         <div id="upcomingTasks"></div>
-      </div>
-    </div>
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-head"><h3>🎓 روابط الجامعة</h3>
-        <span class="card-action" data-goto="hulinks">الكل ←</span></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:.82rem;color:var(--muted)">
-        <span>بوابة الطالب</span>·<span>البريد الجامعي</span>·<span>المكتبة</span>·<span>MyHU</span>·<span>Teams</span>·<span>Moodle</span>·<span>eFawateercom</span>
       </div>
     </div>
     <div class="grid grid-2" style="margin-bottom:16px">
@@ -894,113 +865,45 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
     <div class="grid grid-2" id="huSupportLinks"></div>
   </section>
 
-  <section id="needcalc" class="section">
+  <section id="gradecalc" class="section">
     <div class="page-head">
-      <h2 class="page-title">🎯 حاسبة العلامة المطلوبة</h2>
-      <p class="page-sub">احسب كم تحتاج في الفاينل للوصول لهدفك</p>
+      <h2 class="page-title">📊 علاماتي</h2>
+      <p class="page-sub">سجّل علاماتك + احسب كم تحتاج للفاينل</p>
     </div>
-    <div class="card" style="max-width:600px;margin:0 auto">
-      <div class="form-group">
-        <label>علامتك الحالية من 100</label>
-        <input id="ncCurrent" type="number" min="0" max="100" value="72">
-      </div>
-      <div class="form-group">
-        <label>وزن الفاينل (%)</label>
-        <input id="ncWeight" type="number" min="1" max="100" value="40">
-      </div>
-      <div class="form-group">
-        <label>العلامة الهدف</label>
-        <select id="ncTarget">
-          <option value="95">A — 95</option>
-          <option value="87">A- — 87</option>
-          <option value="82">B+ — 82</option>
-          <option value="77">B — 77</option>
-          <option value="72">B- — 72</option>
-          <option value="67">C+ — 67</option>
-          <option value="62">C — 62</option>
-          <option value="60" selected>نجاح — 60</option>
-        </select>
-      </div>
-      <button class="btn" style="width:100%" id="ncCalc">احسب</button>
-      <div id="ncResult" style="margin-top:18px;padding:18px;border-radius:12px;display:none;text-align:center"></div>
-    </div>
-  </section>
 
-  <section id="semestercalc" class="section">
-    <div class="page-head">
-      <h2 class="page-title">🎓 حساب الترم</h2>
-      <p class="page-sub">تابع تقدمك نحو التخرج</p>
-    </div>
     <div class="card" style="margin-bottom:16px">
-      <div class="grid grid-2" id="scStats"></div>
-      <div class="sc-progress"><div class="sc-progress-fill" id="scProgress" style="width:0%"></div></div>
-      <div style="text-align:center;color:var(--muted);font-size:.85rem" id="scText">—</div>
+      <h3>🎯 كم أحتاج في الفاينل؟</h3>
+      <div class="grid grid-2">
+        <div class="form-group"><label>علامتك الحالية من 100</label>
+          <input id="ncCurrent" type="number" min="0" max="100" value="72"></div>
+        <div class="form-group"><label>وزن الفاينل (%)</label>
+          <input id="ncWeight" type="number" min="1" max="100" value="40"></div>
+        <div class="form-group"><label>العلامة الهدف</label>
+          <select id="ncTarget">
+            <option value="95">A — 95</option>
+            <option value="87">A- — 87</option>
+            <option value="82">B+ — 82</option>
+            <option value="77">B — 77</option>
+            <option value="72">B- — 72</option>
+            <option value="67">C+ — 67</option>
+            <option value="62">C — 62</option>
+            <option value="60" selected>نجاح — 60</option>
+          </select></div>
+        <div class="form-group"><label>&nbsp;</label>
+          <button class="btn" style="width:100%" id="ncCalc">احسب</button></div>
+      </div>
+      <div id="ncResult" style="margin-top:12px;padding:14px;border-radius:10px;display:none;text-align:center"></div>
     </div>
+
     <div class="card">
-      <h3>📋 المواد المسجلة</h3>
-      <div id="scCoursesList"></div>
-    </div>
-  </section>
-
-  <section id="gradetracker" class="section">
-    <div class="page-head">
-      <h2 class="page-title">📊 متتبع العلامات</h2>
-      <p class="page-sub">سجّل علاماتك في كل مادة وتابع متوسطها</p>
-    </div>
-    <div class="controls">
-      <button class="btn" id="btnAddGrade">+ مادة</button>
-    </div>
-    <div id="gradeTrackerList"></div>
-  </section>
-
-  <section id="about" class="section">
-    <div class="page-head">
-      <h2 class="page-title">ℹ️ عن التطبيق</h2>
-      <p class="page-sub">مساحتي الدراسية — الإصدار 2.0</p>
-    </div>
-    <div class="card" style="text-align:center;padding:40px 20px">
-      <div style="font-size:4rem;margin-bottom:12px">📚</div>
-      <h3 style="font-size:1.4rem;margin-bottom:8px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">مساحتي الدراسية</h3>
-      <p style="color:var(--muted);margin-bottom:20px">مساحة دراسية شاملة للطالب الجامعي</p>
-      <div class="grid grid-2" style="max-width:600px;margin:20px auto;text-align:right">
-        <div class="card">
-          <h3>✨ المميزات</h3>
-          <ul style="font-size:.86rem;line-height:2;color:var(--muted);list-style:none;padding:0">
-            <li>📅 جدول + OCR</li>
-            <li>📝 مهام + امتحانات</li>
-            <li>⏱️ بومودورو + تركيز</li>
-            <li>🎯 حاسبة العلامة</li>
-            <li>📊 متتبع العلامات</li>
-            <li>🤖 مساعد ذكي</li>
-            <li>☁️ مزامنة سحابية</li>
-          </ul>
-        </div>
-        <div class="card">
-          <h3>🛠️ التقنيات</h3>
-          <ul style="font-size:.86rem;line-height:2;color:var(--muted);list-style:none;padding:0">
-            <li>HTML5 + CSS3</li>
-            <li>JavaScript (Vanilla)</li>
-            <li>Supabase (Cloud)</li>
-            <li>Tesseract.js (OCR)</li>
-            <li>Service Worker</li>
-            <li>PWA Ready</li>
-          </ul>
-        </div>
+      <div class="card-head">
+        <h3>📈 علامات المواد</h3>
+        <button class="btn btn-sm" id="btnAddGrade">+ مادة</button>
       </div>
-      <div style="margin-top:24px">
-        <a href="https://github.com/m08jj/study-space" target="_blank" class="btn" style="text-decoration:none">📦 الكود المصدري</a>
-      </div>
-      <p style="color:var(--muted2);font-size:.78rem;margin-top:24px">صُنع بحب 💙 لخدمة الطلاب</p>
+      <div id="gradeTrackerList"></div>
     </div>
   </section>
 </main>
-
-<div class="cmd-palette" id="cmdPalette">
-  <div class="cmd-box">
-    <input id="cmdInput" placeholder="اكتب أمر... (Ctrl+K)">
-    <div id="cmdResults" class="cmd-results"></div>
-  </div>
-</div>
 
 <button class="fab-main" id="fabMain">+</button>
 <div class="fab-menu" id="fabMenu">
@@ -1117,7 +1020,7 @@ function scheduleBackup(){
 
 function gatherSnapshot(){
   return {
-    version: 5,
+    version: 6,
     savedAt: new Date().toISOString(),
     space: space, notes: notes, gpaRows: gpaRows, timerSettings: timerSettings,
     pomoSessions: S.get('pomoSessions', 0), pomoFocus: S.get('pomoFocus', 0),
@@ -1299,119 +1202,19 @@ function buildThemePanel(){
 }
 function toggleThemePanel(){ var p = document.getElementById('themePanel'); if(p) p.classList.toggle('show'); }
 
-/* ==================== COMMAND PALETTE ==================== */
-var CMD_ACTIONS = [
-  {ic:'📝', t:'إضافة مهمة', run:function(){ switchTab('tasks'); setTimeout(addTask, 200); }},
-  {ic:'📚', t:'إضافة مادة', run:function(){ switchTab('courses'); setTimeout(addMyCourse, 200); }},
-  {ic:'⏳', t:'إضافة امتحان', run:function(){ switchTab('exams'); setTimeout(addExam, 200); }},
-  {ic:'📔', t:'إضافة ملاحظة', run:function(){ switchTab('notes'); setTimeout(addNote, 200); }},
-  {ic:'💰', t:'إضافة مصروف', run:function(){ switchTab('budget'); setTimeout(function(){ addBudgetItem('expense'); }, 200); }},
-  {ic:'📊', t:'لوحة التحكم', run:function(){ switchTab('dashboard'); }},
-  {ic:'📅', t:'الجدول', run:function(){ switchTab('timetable'); }},
-  {ic:'⏱️', t:'بومودورو', run:function(){ switchTab('timer'); }},
-  {ic:'🎯', t:'كم أحتاج في الفاينل؟', run:function(){ switchTab('needcalc'); }},
-  {ic:'🎓', t:'حساب الترم', run:function(){ switchTab('semestercalc'); }},
-  {ic:'📊', t:'متتبع العلامات', run:function(){ switchTab('gradetracker'); }},
-  {ic:'📖', t:'الخطة الدراسية', run:function(){ switchTab('plan'); }},
-  {ic:'📕', t:'وصف المواد', run:function(){ switchTab('coursedescriptions'); }},
-  {ic:'📈', t:'إحصائيات', run:function(){ switchTab('stats'); }},
-  {ic:'🎓', t:'روابط الجامعة', run:function(){ switchTab('hulinks'); }},
-  {ic:'🤖', t:'المساعد الذكي', run:function(){ if(window.toggleAI) window.toggleAI(); }},
-  {ic:'🎨', t:'تغيير الثيم', run:function(){ toggleThemePanel(); }},
-  {ic:'🖨️', t:'تصدير PDF', run:function(){ exportPDF(); }},
-  {ic:'☁️', t:'رمز المزامنة', run:function(){ if(window.SB) window.SB.showSyncPanel(); }},
-  {ic:'ℹ️', t:'عن التطبيق', run:function(){ switchTab('about'); }}
-];
-function openCommandPalette(){
-  var p = document.getElementById('cmdPalette'); if(!p) return;
-  p.classList.add('show');
-  var inp = document.getElementById('cmdInput');
-  inp.value = ''; inp.focus();
-  renderCommandResults('');
-  inp.oninput = function(){ renderCommandResults(inp.value); };
-  inp.onkeydown = function(e){
-    if(e.key === 'Escape'){ p.classList.remove('show'); }
-    if(e.key === 'Enter'){
-      var first = document.querySelector('.cmd-item');
-      if(first) first.click();
-    }
-  };
-  p.onclick = function(e){ if(e.target === p) p.classList.remove('show'); };
+/* ==================== SETTINGS MENU ==================== */
+function toggleSettingsMenu(){
+  var m = document.getElementById('settingsMenu'); if(!m) return;
+  m.classList.toggle('show');
 }
-window.openCommandPalette = openCommandPalette;
-
-function renderCommandResults(q){
-  var el = document.getElementById('cmdResults'); if(!el) return;
-  q = (q || '').toLowerCase().trim();
-  var matches = CMD_ACTIONS.filter(function(a){
-    return !q || a.t.toLowerCase().indexOf(q) > -1;
-  }).slice(0, 8);
-  if(!matches.length){
-    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:.85rem">لا نتائج</div>';
-    return;
-  }
-  el.innerHTML = matches.map(function(a, i){
-    return '<div class="cmd-item ' + (i === 0 ? 'active' : '') + '" data-i="' + i + '">' +
-      '<span class="cmd-ic">' + a.ic + '</span><span>' + a.t + '</span></div>';
-  }).join('');
-  el.querySelectorAll('.cmd-item').forEach(function(item){
-    item.onclick = function(){
-      var action = matches[parseInt(item.dataset.i)];
-      document.getElementById('cmdPalette').classList.remove('show');
-      if(action) action.run();
-    };
-  });
+function closeSettingsMenu(){
+  var m = document.getElementById('settingsMenu'); if(m) m.classList.remove('show');
 }
 
 /* ==================== PDF EXPORT ==================== */
 function exportPDF(){
   toast('🖨️ جاري تجهيز الملف...', 'info', 1500);
   setTimeout(function(){ window.print(); }, 400);
-}
-
-/* ==================== PULL TO REFRESH ==================== */
-function initPullToRefresh(){
-  var startY = 0, pulling = false, indicator = null;
-  var threshold = 80;
-
-  document.addEventListener('touchstart', function(e){
-    if(window.scrollY === 0 && e.touches.length === 1){
-      startY = e.touches[0].clientY;
-      pulling = true;
-    }
-  }, { passive: true });
-
-  document.addEventListener('touchmove', function(e){
-    if(!pulling) return;
-    var y = e.touches[0].clientY;
-    var diff = y - startY;
-    if(diff > 0 && diff < 200){
-      if(!indicator){
-        indicator = document.createElement('div');
-        indicator.className = 'ptr-indicator';
-        indicator.innerHTML = '🔄';
-        document.body.appendChild(indicator);
-      }
-      var scale = Math.min(1, diff / threshold);
-      indicator.style.transform = 'translateX(-50%) scale(' + scale + ') rotate(' + (diff * 3) + 'deg)';
-    }
-  }, { passive: true });
-
-  document.addEventListener('touchend', function(){
-    if(!pulling) return;
-    if(indicator){
-      var match = indicator.style.transform.match(/scale\(([^)]+)\)/);
-      var s = match ? parseFloat(match[1]) : 0;
-      if(s >= 0.95){
-        indicator.innerHTML = '⏳';
-        setTimeout(function(){ location.reload(); }, 300);
-      } else {
-        indicator.remove();
-        indicator = null;
-      }
-    }
-    pulling = false;
-  }, { passive: true });
 }
 
 /* ==================== SMART REMINDERS ==================== */
@@ -1772,7 +1575,7 @@ function switchTab(tab, pushHistory){
   S.set('activeTab', tab);
   if(pushHistory){ try{ history.pushState({tab:tab}, '', '#' + tab); }catch(e){} }
   else{ try{ history.replaceState({tab:tab}, '', '#' + tab); }catch(e){} }
-  closeSidebar(); window.scrollTo({top:0, behavior:'smooth'});
+  closeSidebar(); closeSettingsMenu(); window.scrollTo({top:0, behavior:'smooth'});
   var fns = {
     dashboard: renderDashboard, stats: renderStats, exams: renderExams,
     budget: renderBudget, extracurricular: renderEC,
@@ -1780,8 +1583,7 @@ function switchTab(tab, pushHistory){
     notes: renderNotes, gpa: renderGpa, flashcards: renderDecks,
     attendance: renderAttendance, timetable: renderTimetable,
     plan: renderPlan, coursedescriptions: renderCourseDescriptions,
-    hulinks: renderHuLinks, semestercalc: renderSemesterCalc,
-    gradetracker: renderGradeTracker
+    hulinks: renderHuLinks, gradecalc: renderGradeCalc
   };
   if(fns[tab]){ try{ fns[tab](); }catch(e){ console.error('Render error:', tab, e); } }
 }
@@ -2762,59 +2564,12 @@ function calcWhatIf(){
     '<span style="color:' + color + ';margin-right:8px">' + sign + ' ' + Math.abs(diff).toFixed(2) + '</span>';
 }
 
-/* ==================== NEED CALC ==================== */
-function calcNeed(){
-  var cur = parseFloat(document.getElementById('ncCurrent').value) || 0;
-  var w = parseFloat(document.getElementById('ncWeight').value) || 40;
-  var target = parseFloat(document.getElementById('ncTarget').value) || 60;
-  var remainingWeight = w;
-  var currentWeight = 100 - w;
-  var need = (target - cur * (currentWeight / 100)) / (remainingWeight / 100);
-  var res = document.getElementById('ncResult');
-  res.style.display = 'block';
-  res.style.background = need > 100 ? 'rgba(239,68,68,.12)' : need > 90 ? 'rgba(251,191,36,.12)' : 'rgba(52,211,153,.12)';
-  res.style.border = '1px solid ' + (need > 100 ? 'var(--red)' : need > 90 ? 'var(--amber)' : 'var(--green)');
-  var msg, color;
-  if(need <= 0){ msg = '🎉 مبروك! ضمنت العلامة'; color = 'var(--green)'; }
-  else if(need <= 60){ msg = '✅ تحتاج ' + need.toFixed(1) + '% فقط'; color = 'var(--green)'; }
-  else if(need <= 85){ msg = '💪 تحتاج ' + need.toFixed(1) + '%'; color = 'var(--cyan)'; }
-  else if(need <= 100){ msg = '⚠️ تحتاج ' + need.toFixed(1) + '% — شد حيلك!'; color = 'var(--amber)'; }
-  else { msg = '😅 مستحيل — ' + need.toFixed(1) + '% (>100)'; color = 'var(--red)'; }
-  res.innerHTML = '<div style="font-size:1.2rem;font-weight:800;color:' + color + '">' + msg + '</div>';
-}
-
-/* ==================== SEMESTER CALC ==================== */
-function renderSemesterCalc(){
-  var totalRequired = 0;
-  SEMESTERS.forEach(function(sem){ sem.courses.forEach(function(c){ totalRequired += c.h; }); });
-  var registered = space.courses.reduce(function(a,c){ return a + (c.hours || 0); }, 0);
-  var pct = totalRequired > 0 ? Math.round(registered / totalRequired * 100) : 0;
-  var statsEl = document.getElementById('scStats');
-  if(statsEl) statsEl.innerHTML =
-    '<div class="stat"><div class="ic">📚</div><div><div class="v">' + registered + '</div><div class="l">ساعات مسجلة</div></div></div>' +
-    '<div class="stat"><div class="ic">🎯</div><div><div class="v">' + totalRequired + '</div><div class="l">ساعات الخطة</div></div></div>' +
-    '<div class="stat"><div class="ic">📊</div><div><div class="v">' + pct + '%</div><div class="l">نسبة التقدم</div></div></div>' +
-    '<div class="stat"><div class="ic">⏳</div><div><div class="v">' + Math.max(0, totalRequired - registered) + '</div><div class="l">باقي</div></div></div>';
-  var pr = document.getElementById('scProgress'); if(pr) pr.style.width = pct + '%';
-  var txt = document.getElementById('scText');
-  if(txt) txt.textContent = 'أنجزت ' + registered + ' من ' + totalRequired + ' ساعة (' + pct + '%)';
-  var listEl = document.getElementById('scCoursesList');
-  if(!listEl) return;
-  if(!space.courses.length){ listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px">لا توجد مواد</div>'; return; }
-  var html = '';
-  space.courses.forEach(function(c){
-    html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.86rem">' +
-      '<span>' + esc(c.name) + '</span><span style="color:var(--cyan);font-weight:700">' + (c.hours || 3) + ' س</span></div>';
-  });
-  listEl.innerHTML = html;
-}
-
-/* ==================== GRADE TRACKER ==================== */
-function renderGradeTracker(){
-  var c = document.getElementById('gradeTrackerList'); if(!c) return;
+/* ==================== GRADE CALC (مدمج) ==================== */
+function renderGradeCalc(){
   if(!space.grades) space.grades = [];
+  var c = document.getElementById('gradeTrackerList'); if(!c) return;
   if(!space.grades.length){
-    c.innerHTML = '<div class="empty"><div class="ic">📊</div><p>لا توجد مواد</p></div>';
+    c.innerHTML = '<div class="empty"><div class="ic">📊</div><p>لا توجد مواد</p><p class="sub">اضغط "+ مادة" للبدء</p></div>';
     return;
   }
   var html = '';
@@ -2849,7 +2604,7 @@ function renderGradeTracker(){
     b.addEventListener('click', function(){
       var parts = b.dataset.gtDel.split('-');
       space.grades[parseInt(parts[0])].items.splice(parseInt(parts[1]), 1);
-      saveSpace(); renderGradeTracker();
+      saveSpace(); renderGradeCalc();
     });
   });
   c.querySelectorAll('[data-gt-remove]').forEach(function(b){
@@ -2857,7 +2612,7 @@ function renderGradeTracker(){
       var idx = parseInt(b.dataset.gtRemove);
       customConfirm('حذف "' + space.grades[idx].name + '"؟', function(){
         space.grades.splice(idx, 1);
-        saveSpace(); renderGradeTracker();
+        saveSpace(); renderGradeCalc();
       });
     });
   });
@@ -2867,7 +2622,7 @@ function addGradeCourse(){
     if(!data.name) return toast('أدخل اسمًا', 'warn');
     if(!space.grades) space.grades = [];
     space.grades.push({ name: data.name, items: [] });
-    saveSpace(); renderGradeTracker();
+    saveSpace(); renderGradeCalc();
   });
 }
 function addGradeItem(idx){
@@ -2879,8 +2634,27 @@ function addGradeItem(idx){
   ], {name:'', score:0, weight:10}, function(data){
     if(!data.name) return toast('أدخل اسمًا', 'warn');
     g.items.push({ name: data.name, score: parseFloat(data.score) || 0, weight: parseFloat(data.weight) || 0 });
-    saveSpace(); renderGradeTracker();
+    saveSpace(); renderGradeCalc();
   });
+}
+function calcNeed(){
+  var cur = parseFloat(document.getElementById('ncCurrent').value) || 0;
+  var w = parseFloat(document.getElementById('ncWeight').value) || 40;
+  var target = parseFloat(document.getElementById('ncTarget').value) || 60;
+  var remainingWeight = w;
+  var currentWeight = 100 - w;
+  var need = (target - cur * (currentWeight / 100)) / (remainingWeight / 100);
+  var res = document.getElementById('ncResult');
+  res.style.display = 'block';
+  res.style.background = need > 100 ? 'rgba(239,68,68,.12)' : need > 90 ? 'rgba(251,191,36,.12)' : 'rgba(52,211,153,.12)';
+  res.style.border = '1px solid ' + (need > 100 ? 'var(--red)' : need > 90 ? 'var(--amber)' : 'var(--green)');
+  var msg, color;
+  if(need <= 0){ msg = '🎉 مبروك! ضمنت العلامة'; color = 'var(--green)'; }
+  else if(need <= 60){ msg = '✅ تحتاج ' + need.toFixed(1) + '% فقط'; color = 'var(--green)'; }
+  else if(need <= 85){ msg = '💪 تحتاج ' + need.toFixed(1) + '%'; color = 'var(--cyan)'; }
+  else if(need <= 100){ msg = '⚠️ تحتاج ' + need.toFixed(1) + '% — شد حيلك!'; color = 'var(--amber)'; }
+  else { msg = '😅 مستحيل — ' + need.toFixed(1) + '% (>100)'; color = 'var(--red)'; }
+  res.innerHTML = '<div style="font-size:1.2rem;font-weight:800;color:' + color + '">' + msg + '</div>';
 }
 
 /* ==================== DASHBOARD ==================== */
@@ -2894,6 +2668,22 @@ function renderDashboard(){
     space.tasks.filter(function(t){ return !t.done; }).length + ' مهمة متبقية';
   var todayIdx = now.getDay(); var todayKey = DAYS_EN[todayIdx] || 'Sun';
   var todayStr = now.toISOString().slice(0,10);
+
+  /* Term progress */
+  var tp = document.getElementById('dashTermProgress');
+  if(tp){
+    var totalRequired = 0;
+    SEMESTERS.forEach(function(sem){ sem.courses.forEach(function(c){ totalRequired += c.h; }); });
+    var registered = space.courses.reduce(function(a,c){ return a + (c.hours || 0); }, 0);
+    var pct = totalRequired > 0 ? Math.round(registered / totalRequired * 100) : 0;
+    tp.innerHTML =
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:.86rem">' +
+        '<span style="color:var(--muted)">📚 ' + registered + ' / ' + totalRequired + ' ساعة</span>' +
+        '<span style="color:var(--cyan);font-weight:700">' + pct + '%</span></div>' +
+      '<div class="sc-progress"><div class="sc-progress-fill" style="width:' + pct + '%"></div></div>' +
+      '<div style="text-align:center;color:var(--muted2);font-size:.75rem;margin-top:6px">باقي ' + Math.max(0, totalRequired - registered) + ' ساعة للتخرج</div>';
+  }
+
   var pending = space.tasks.filter(function(t){ return !t.done; }).length;
   var income = (space.budget || []).filter(function(b){ return b.type === 'income'; }).reduce(function(a,b){ return a + (parseFloat(b.amount) || 0); }, 0);
   var expense = (space.budget || []).filter(function(b){ return b.type === 'expense'; }).reduce(function(a,b){ return a + (parseFloat(b.amount) || 0); }, 0);
@@ -2903,7 +2693,7 @@ function renderDashboard(){
     '<div class="stat"><div class="ic">📚</div><div><div class="v">' + space.courses.length + '</div><div class="l">مادة مسجّلة</div></div></div>' +
     '<div class="stat"><div class="ic">📝</div><div><div class="v">' + pending + '</div><div class="l">مهمة متبقية</div></div></div>' +
     '<div class="stat"><div class="ic">⏳</div><div><div class="v">' + space.exams.length + '</div><div class="l">امتحان قادم</div></div></div>' +
-    '<div class="stat"><div class="ic">🎓</div><div><div class="v">' + (space.grades ? space.grades.length : 0) + '</div><div class="l">مادة في المتتبع</div></div></div>';
+    '<div class="stat"><div class="ic">📊</div><div><div class="v">' + (space.grades ? space.grades.length : 0) + '</div><div class="l">مادة في علاماتي</div></div></div>';
   var tc = document.getElementById('todayClasses');
   if(tc){
     var todays = Object.entries(space.timetable).filter(function(kv){ return kv[0].indexOf(todayKey) === 0; })
@@ -3086,14 +2876,17 @@ function bindAllEvents(){
   var mt = document.getElementById('menuToggle'); if(mt) mt.addEventListener('click', toggleSidebar);
   var sbd = document.getElementById('sidebarBackdrop'); if(sbd) sbd.addEventListener('click', closeSidebar);
   var tb = document.getElementById('themeBtn');
-  if(tb) tb.addEventListener('click', function(e){ e.stopPropagation(); toggleThemePanel(); });
+  if(tb) tb.addEventListener('click', function(e){ e.stopPropagation(); closeSettingsMenu(); toggleThemePanel(); });
+  var sb = document.getElementById('settingsBtn');
+  if(sb) sb.addEventListener('click', function(e){ e.stopPropagation(); toggleSettingsMenu(); });
   document.addEventListener('click', function(e){
     var p = document.getElementById('themePanel');
     if(p && p.classList.contains('show') && !e.target.closest('#themePanel') && !e.target.closest('#themeBtn')) p.classList.remove('show');
+    if(!e.target.closest('.settings-wrap')) closeSettingsMenu();
   });
-  var bb = document.getElementById('backupBtn'); if(bb) bb.addEventListener('click', function(){ downloadBackup(false); });
-  var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', restoreFromFile);
-  var pdfBtn = document.getElementById('pdfBtn'); if(pdfBtn) pdfBtn.addEventListener('click', exportPDF);
+  var bb = document.getElementById('backupBtn'); if(bb) bb.addEventListener('click', function(){ closeSettingsMenu(); downloadBackup(false); });
+  var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', function(){ closeSettingsMenu(); restoreFromFile(); });
+  var pdfBtn = document.getElementById('pdfBtn'); if(pdfBtn) pdfBtn.addEventListener('click', function(){ closeSettingsMenu(); exportPDF(); });
 
   function bind(id, fn){ var el = document.getElementById(id); if(el) el.addEventListener('click', fn); }
   bind('btnAddClass', function(){ addClassSlot(); });
@@ -3197,13 +2990,13 @@ document.addEventListener('keydown', function(e){
   if(e.key === 'Escape'){
     var sr = document.getElementById('searchResults'); if(sr) sr.classList.remove('show');
     closeSidebar();
+    closeSettingsMenu();
     document.querySelectorAll('.modal-backdrop').forEach(function(m){ m.remove(); });
     var ap = document.getElementById('aiPanel'); if(ap) ap.classList.remove('show');
     var fm = document.getElementById('fabMenu'); if(fm) fm.classList.remove('show');
     var fmm = document.getElementById('fabMain'); if(fmm) fmm.classList.remove('active');
     var ai2 = document.getElementById('aiFab'); if(ai2) ai2.classList.remove('hidden');
     var tp = document.getElementById('themePanel'); if(tp) tp.classList.remove('show');
-    var cp = document.getElementById('cmdPalette'); if(cp) cp.classList.remove('show');
   }
 });
 
@@ -3262,7 +3055,6 @@ async function boot(){
   safeRun('History', initHistoryNavigation);
   safeRun('Bind events', bindAllEvents);
   safeRun('OCR bindings', initOcrBindings);
-  safeRun('Pull refresh', initPullToRefresh);
 
   safeRun('Plan', renderPlan);
   safeRun('Timetable', renderTimetable);
@@ -3278,6 +3070,7 @@ async function boot(){
   safeRun('Search', initSearch);
   safeRun('Quote', renderDailyQuote);
   safeRun('Dashboard', renderDashboard);
+  safeRun('GradeCalc', renderGradeCalc);
   safeRun('AI bindings', function(){ if(typeof window.bindAIEvents === 'function') window.bindAIEvents(); });
 
   safeRun('Initial tab', function(){
