@@ -3,7 +3,7 @@
    ⚠️ استبدل القيم بمفاتيحك من لوحة Supabase
    ============================================================ */
 window.SUPABASE_CONFIG = {
-  url: 'https://YOUR-PROJECT-ID.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.YOUR-KEY-HERE',
+  url: 'https://serlheaqobgnyuzfnqtl.supabase.co/rest/v1/',
+  anonKey: 'sb_publishable_vUjj_AksIR77ShK5JGf_Bw_fXspAXSk',
   bucket: 'course-files'
 };
