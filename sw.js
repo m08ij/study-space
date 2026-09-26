@@ -1,7 +1,7 @@
 /* ============================================================
    ⚙️ sw.js — Service Worker للعمل بدون إنترنت
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v3';
+var CACHE_NAME = 'ss-cache-v4';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -38,12 +38,11 @@ self.addEventListener('activate', function(e){
 
 self.addEventListener('fetch', function(e){
   var url = e.request.url;
-
-  // لا تخزّن طلبات Supabase
   if(url.indexOf('supabase.co') > -1) return;
-  // لا تخزّن طلبات CDN (تحمّل عبر الشبكة فقط)
   if(url.indexOf('cdn.jsdelivr.net') > -1) return;
-  // لا تخزّن طلبات غير GET
+  if(url.indexOf('translate.google.com') > -1) return;
+  if(url.indexOf('api.qrserver.com') > -1) return;
+  if(url.indexOf('open-meteo.com') > -1) return;
   if(e.request.method !== 'GET') return;
 
   e.respondWith(
@@ -57,7 +56,6 @@ self.addEventListener('fetch', function(e){
         }
         return response;
       }).catch(function(){ return cached; });
-
       return cached || fetchPromise;
     })
   );

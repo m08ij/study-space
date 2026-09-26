@@ -9,61 +9,36 @@
   var codeKey = 'ss_sync_code';
   var code = null;
 
-  /* ==================== أدوات ==================== */
   function genCode(){
     var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     var out = '';
-    for(var i = 0; i < 6; i++){
-      out += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    for(var i = 0; i < 6; i++){ out += chars.charAt(Math.floor(Math.random() * chars.length)); }
     return out;
   }
 
   function ensureCode(){
     if(code) return code;
     try{ code = localStorage.getItem(codeKey); }catch(e){}
-    if(!code){
-      code = genCode();
-      try{ localStorage.setItem(codeKey, code); }catch(e){}
-    }
+    if(!code){ code = genCode(); try{ localStorage.setItem(codeKey, code); }catch(e){} }
     return code;
   }
 
   function getCode(){ return ensureCode(); }
+  function setCode(newCode){ code = String(newCode || '').trim().toUpperCase(); try{ localStorage.setItem(codeKey, code); }catch(e){} return code; }
 
-  function setCode(newCode){
-    code = String(newCode || '').trim().toUpperCase();
-    try{ localStorage.setItem(codeKey, code); }catch(e){}
-    return code;
-  }
-
-  /* ==================== Init ==================== */
   function init(){
     if(client) return client;
-    if(!CFG.url || !CFG.anonKey || CFG.url.indexOf('YOUR-') > -1){
-      console.warn('⚠️ Supabase config missing');
-      return null;
-    }
-    if(typeof window.supabase === 'undefined' || !window.supabase.createClient){
-      console.warn('⚠️ Supabase SDK not loaded');
-      return null;
-    }
+    if(!CFG.url || !CFG.anonKey || CFG.url.indexOf('YOUR-') > -1) return null;
+    if(typeof window.supabase === 'undefined' || !window.supabase.createClient) return null;
     try{
-      client = window.supabase.createClient(CFG.url, CFG.anonKey, {
-        auth: { persistSession: false }
-      });
+      client = window.supabase.createClient(CFG.url, CFG.anonKey, { auth: { persistSession: false } });
       console.log('☁️ Supabase client ready');
-    }catch(e){
-      console.error('Supabase init failed:', e);
-      client = null;
-    }
+    }catch(e){ console.error('Supabase init failed:', e); client = null; }
     return client;
   }
 
-  /* ==================== Load ==================== */
   async function load(){
-    var c = init();
-    if(!c) return null;
+    var c = init(); if(!c) return null;
     var k = ensureCode();
     try{
       var res = await c.from('spaces').select('data, updated_at').eq('code', k).maybeSingle();
@@ -73,33 +48,21 @@
     }catch(e){ console.warn('Supabase load failed:', e); return null; }
   }
 
-  /* ==================== Save ==================== */
   async function save(snapshot){
-    var c = init();
-    if(!c) return false;
+    var c = init(); if(!c) return false;
     var k = ensureCode();
     try{
-      var res = await c.from('spaces').upsert({
-        code: k,
-        data: snapshot,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'code' });
+      var res = await c.from('spaces').upsert({ code: k, data: snapshot, updated_at: new Date().toISOString() }, { onConflict: 'code' });
       if(res.error){ console.warn('Supabase save error:', res.error); return false; }
       return true;
     }catch(e){ console.warn('Supabase save failed:', e); return false; }
   }
 
-  /* ==================== Storage: الملفات ==================== */
   async function uploadFile(path, blob, contentType){
-    var c = init();
-    if(!c) return { error: 'no client' };
-    var k = ensureCode();
-    var fullPath = k + '/' + path;
+    var c = init(); if(!c) return { error: 'no client' };
+    var k = ensureCode(); var fullPath = k + '/' + path;
     try{
-      var res = await c.storage.from(CFG.bucket).upload(fullPath, blob, {
-        upsert: true,
-        contentType: contentType || 'application/octet-stream'
-      });
+      var res = await c.storage.from(CFG.bucket).upload(fullPath, blob, { upsert: true, contentType: contentType || 'application/octet-stream' });
       if(res.error) return { error: res.error.message };
       var urlRes = c.storage.from(CFG.bucket).getPublicUrl(fullPath);
       return { url: urlRes.data.publicUrl, path: fullPath };
@@ -107,21 +70,15 @@
   }
 
   async function deleteFile(path){
-    var c = init();
-    if(!c) return false;
-    try{
-      var res = await c.storage.from(CFG.bucket).remove([path]);
-      return !res.error;
-    }catch(e){ return false; }
+    var c = init(); if(!c) return false;
+    try{ var res = await c.storage.from(CFG.bucket).remove([path]); return !res.error; }catch(e){ return false; }
   }
 
   function getPublicUrl(path){
-    var c = init();
-    if(!c) return '';
+    var c = init(); if(!c) return '';
     return c.storage.from(CFG.bucket).getPublicUrl(path).data.publicUrl;
   }
 
-  /* ==================== Sync code UI ==================== */
   function showSyncPanel(){
     var bd = document.createElement('div');
     bd.className = 'modal-backdrop show';
@@ -133,16 +90,18 @@
         '</p>' +
         '<div class="form-group">' +
           '<label>الرمز</label>' +
-		'<input id="syncCodeInput" value="' + getCode() + '" readonly ' +
-		'style="font-family:monospace;text-align:center;font-size:1.3rem;font-weight:800;direction:ltr;letter-spacing:4px">' +
+          '<input id="syncCodeInput" value="' + getCode() + '" readonly ' +
+          'style="font-family:monospace;text-align:center;font-size:1.3rem;font-weight:800;direction:ltr;letter-spacing:4px">' +
         '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
           '<button class="btn btn-sm" id="syncCopy" style="flex:1">📋 نسخ</button>' +
+          '<button class="btn btn-sm" id="syncShare" style="flex:1">📤 مشاركة</button>' +
           '<button class="btn btn-sm btn-ghost" id="syncChange" style="flex:1">🔄 تغيير</button>' +
           '<button class="btn btn-sm btn-ghost" id="syncClose" style="flex:1">إغلاق</button>' +
         '</div>' +
+        '<div id="syncQr" style="margin-top:14px;text-align:center;display:none"></div>' +
         '<div style="margin-top:14px;padding:10px;background:var(--grad-soft);border-radius:10px;font-size:.78rem;color:var(--muted);line-height:1.7">' +
-          '💡 احفظ هذا الرمز في مكان آمن. من يفقد الرمز يفقد الوصول لبياناته السحابية.' +
+          '💡 احفظ هذا الرمز في مكان آمن.' +
         '</div>' +
       '</div>';
     document.body.appendChild(bd);
@@ -150,36 +109,45 @@
     var input = bd.querySelector('#syncCodeInput');
     bd.querySelector('#syncCopy').onclick = function(){
       input.select();
-      try{
-        navigator.clipboard.writeText(input.value);
-        if(window.toast) window.toast('📋 نُسخ الرمز', 'success');
-      }catch(e){ document.execCommand('copy'); }
+      try{ navigator.clipboard.writeText(input.value); if(window.toast) window.toast('📋 نُسخ الرمز', 'success'); }
+      catch(e){ document.execCommand('copy'); }
+    };
+    bd.querySelector('#syncShare').onclick = function(){
+      var c = getCode();
+      var msg = '🎓 مساحتي الدراسية\n\n' +
+                'رمز المزامنة: ' + c + '\n\n' +
+                'افتح: ' + location.origin + location.pathname + '\n' +
+                'ثم اضغط 🔑 وأدخل الرمز لرؤية بياناتي.';
+      if(navigator.share){
+        navigator.share({ title: 'مساحتي الدراسية', text: msg }).catch(function(){});
+      } else if(navigator.clipboard){
+        navigator.clipboard.writeText(msg);
+        if(window.toast) window.toast('📋 نُسخ الرابط', 'success');
+      }
+      var qr = bd.querySelector('#syncQr');
+      if(qr && !qr.innerHTML){
+        qr.style.display = 'block';
+        qr.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(c) + '" alt="QR" style="border-radius:10px;background:#fff;padding:8px">' +
+          '<div style="font-size:.7rem;color:var(--muted);margin-top:8px">امسح الرمز بجوال آخر</div>';
+      }
     };
     bd.querySelector('#syncChange').onclick = function(){
       var v = prompt('أدخل رمزًا جديدًا (أو اتركه فارغًا لتوليد رمز جديد):', '');
       if(v === null) return;
       v = v.trim().toUpperCase();
       if(!v) v = genCode();
-      setCode(v);
-      input.value = v;
-      if(window.toast) window.toast('✅ تم تغيير الرمز، أعد تحميل الصفحة', 'success', 3000);
+      setCode(v); input.value = v;
+      if(window.toast) window.toast('✅ تم التغيير، أعد تحميل الصفحة', 'success', 3000);
     };
     bd.querySelector('#syncClose').onclick = function(){ bd.remove(); };
     bd.onclick = function(e){ if(e.target === bd) bd.remove(); };
   }
 
-  /* ==================== Exports ==================== */
   window.SB = {
-    init: init,
-    load: load,
-    save: save,
-    getCode: getCode,
-    setCode: setCode,
-    uploadFile: uploadFile,
-    deleteFile: deleteFile,
-    getPublicUrl: getPublicUrl,
-    showSyncPanel: showSyncPanel
+    init: init, load: load, save: save,
+    getCode: getCode, setCode: setCode,
+    uploadFile: uploadFile, deleteFile: deleteFile,
+    getPublicUrl: getPublicUrl, showSyncPanel: showSyncPanel
   };
-
   console.log('☁️ Supabase client module loaded');
 })();

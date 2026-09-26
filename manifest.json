@@ -18,8 +18,10 @@
     { "src": "android-chrome-512x512.png","sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
-    { "name": "المهام",    "url": "./index.html#tasks", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
-    { "name": "البومودورو","url": "./index.html#timer", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
-    { "name": "الامتحانات","url": "./index.html#exams", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] }
+    { "name": "إضافة مهمة",  "short_name": "مهمة",     "url": "./index.html#tasks",     "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
+    { "name": "البومودورو",  "short_name": "بومودورو", "url": "./index.html#timer",     "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
+    { "name": "الامتحانات",  "short_name": "امتحانات", "url": "./index.html#exams",     "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
+    { "name": "الجدول",      "short_name": "جدول",     "url": "./index.html#timetable", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
+    { "name": "الميزانية",   "short_name": "ميزانية",  "url": "./index.html#budget",    "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] }
   ]
 }

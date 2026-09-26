@@ -1,11 +1,10 @@
 /* ============================================================
-   🤖 ai-assistant.js — المساعد الذكي الخارق
+   🤖 ai-assistant.js — المساعد الذكي
    ============================================================ */
 (function(){
   'use strict';
 
-  /* ==================== الوصول الآمن للبيانات ==================== */
-  function getSpace(){ return window.space || {profile:{},timetable:{},courses:[],tasks:[],exams:[],attendance:{},decks:[],habits:[],budget:[],extracurricular:[],rewards:[],points:0,pointsLog:[]}; }
+  function getSpace(){ return window.space || {profile:{},timetable:{},courses:[],tasks:[],exams:[],attendance:{},decks:[],budget:[],extracurricular:[],grades:[]}; }
   function getNotes(){ return window.notes || []; }
   function getGpaRows(){ return window.gpaRows || []; }
   function getTimerSettings(){ return window.timerSettings || {focus:25,short:5,long:15}; }
@@ -17,7 +16,6 @@
   function getS(){ return window.S || {get:function(k,d){return d;},set:function(){}}; }
   function getCoursesDesc(){ return (typeof window.COURSES_DESC === 'object' && window.COURSES_DESC) ? window.COURSES_DESC : {}; }
 
-  /* ==================== خريطة الموقع ==================== */
   var SITE_MAP = {
     dashboard:        {name:'لوحة التحكم',     icon:'📊', desc:'نظرة عامة على كل شيء', keys:['لوحة','لوحه','dashboard','رئيسية','الرئيسية','الصفحة الرئيسية','البداية']},
     timetable:        {name:'الجدول الأسبوعي', icon:'📅', desc:'محاضراتك الأسبوعية + OCR', keys:['جدول','timetable','محاضرات','محاضرة','الأسبوع','الاسبوع']},
@@ -27,49 +25,49 @@
     attendance:       {name:'الحضور',          icon:'✅', desc:'تسجيل الحضور والغياب', keys:['حضور','attendance','غياب','غيابات']},
     timer:            {name:'بومودورو',        icon:'⏱️', desc:'مؤقت التركيز والراحة', keys:['بومودورو','pomodoro','مؤقت','timer','تايمر','تركيز']},
     flashcards:       {name:'بطاقات تعليمية',  icon:'🃏', desc:'مجموعات للمراجعة', keys:['بطاقات','بطاقة','flashcards','كاردز','فلاش','مراجعة']},
-    habits:           {name:'العادات',         icon:'🔁', desc:'تتبّع عاداتك اليومية', keys:['عادات','عادة','habits','تتبع']},
     stats:            {name:'إحصائيات',        icon:'📈', desc:'ساعات الدراسة ومؤشراتك', keys:['احصائيات','إحصائيات','stats','تحليلات','رسم']},
     extracurricular:  {name:'الأنشطة',         icon:'🎯', desc:'نوادي وتطوع', keys:['انشطة','أنشطة','extracurricular','نوادي','تطوع']},
     budget:           {name:'الميزانية',       icon:'💰', desc:'دخل ومصاريف ورصيد', keys:['ميزانية','budget','مصاريف','فلوس','مصروف','دخل','رصيد','مال']},
-    wellbeing:        {name:'الرفاهية',        icon:'💚', desc:'تمارين استرخاء', keys:['رفاهية','wellbeing','راحة','استرخاء','نفسي']},
     notes:            {name:'ملاحظاتي',        icon:'📔', desc:'تُحفظ تلقائيًا', keys:['ملاحظات','ملاحظة','notes','مذكرة']},
     gpa:              {name:'حاسبة المعدل',    icon:'📊', desc:'GPA + محاكي', keys:['معدل','gpa','تراكمي','علامات']},
     plan:             {name:'الخطة الدراسية',  icon:'📖', desc:'هندسة الحاسوب', keys:['خطة','plan','منهج','تخصص','فصول']},
     coursedescriptions:{name:'وصف المواد',     icon:'📕', desc:'شرح كل مادة', keys:['وصف','شرح','descriptions','تفاصيل','تعريف']},
-    rewards:          {name:'المكافآت',        icon:'🏆', desc:'نقاط ومكافآت', keys:['مكافآت','مكافأة','rewards','نقاط','جوائز']},
-    hulinks:          {name:'روابط الجامعة',   icon:'🎓', desc:'بوابة الطالب، البريد، المكتبة', keys:['روابط','بوابة','بريد','مكتبة','جامعة','هاشمية','teams','moodle','myhu']}
+    hulinks:          {name:'روابط الجامعة',   icon:'🎓', desc:'بوابة الطالب، البريد، المكتبة', keys:['روابط','بوابة','بريد','مكتبة','جامعة','هاشمية','teams','moodle','myhu']},
+    needcalc:         {name:'كم أحتاج؟',       icon:'🎯', desc:'حاسبة العلامة المطلوبة', keys:['كم احتاج','كم أحتاج','needcalc','فاينل']},
+    gradetracker:     {name:'متتبع العلامات',  icon:'📈', desc:'سجّل علاماتك في المواد', keys:['متتبع','علامات','درجات','tracker']},
+    termcalc:         {name:'حساب الترم',      icon:'🎓', desc:'كم ساعة سجلت؟', keys:['ترم','فصل','ساعات','credits','حساب الترم']},
+    about:            {name:'عن التطبيق',      icon:'ℹ️', desc:'معلومات وتفاصيل', keys:['عن التطبيق','about','معلومات']}
   };
 
-  /* ==================== أدلة الاستخدام ==================== */
   var HOWTO = {
-    tasks:'📝 **إضافة مهمة:**\n\n1️⃣ افتح "المهام"\n2️⃣ اضغط "+ مهمة"\n3️⃣ املأ: العنوان، النوع، المادة، تاريخ التسليم\n4️⃣ اضغط "حفظ"\n\n⚡ **سريع:** زر ➕ أسفل يسار الشاشة',
-    exams:'⏳ **إضافة امتحان:**\n\n1️⃣ افتح "الامتحانات"\n2️⃣ اضغط "+ امتحان"\n3️⃣ أدخل الاسم، المادة، التاريخ، الوقت\n4️⃣ اضغط "حفظ"\n\n✨ يظهر عدّاد تنازلي بالأيام',
-    attendance:'✅ **تسجيل الحضور:**\n\n1️⃣ افتح "الحضور"\n2️⃣ اضغط "+ مادة"\n3️⃣ بعد كل محاضرة اضغط "+ حاضر" أو "+ غائب"\n\n📊 المؤشرات:\n🟢 85%+ ممتاز\n🟡 75-84% تحذير\n🔴 أقل من 75% خطر',
-    timetable:'📅 **بناء الجدول:**\n\n🎨 **يدوي:** اضغط خلية فارغة "+"\n📸 **OCR:** ارفع صورة الجدول → "تحليل وملء الجدول"\n⚡ **تلقائي:** اضغط "توليد من موادي"\n🖨️ **طباعة:** زر "طباعة الجدول"',
-    timer:'⏱️ **بومودورو:**\n\n1️⃣ اختر نمط: تركيز (25د) / راحة (5د) / طويلة (15د)\n2️⃣ اضغط "▶ ابدأ"\n3️⃣ ستحصل على +10 نقاط عند الإكمال\n\n⚙️ تخصيص المدد: زر "تخصيص"',
-    gpa:'📊 **حساب المعدل:**\n\n1️⃣ افتح "حاسبة المعدل"\n2️⃣ أدخل اسم المادة + الساعات + التقدير\n3️⃣ المعدل يظهر أسفل الجدول\n\n🎯 جرّب محاكي "ماذا لو"',
-    budget:'💰 **الميزانية:**\n\n📈 زر "+ دخل"\n📉 زر "+ مصروف"\n\n🔍 فلاتر: تبويبات + تصنيفات\n📊 3 بطاقات ملخص أعلى القسم',
-    flashcards:'🃏 **البطاقات:**\n\n1️⃣ اضغط "+ مجموعة"\n2️⃣ اضغط المجموعة لفتحها\n3️⃣ أضف سؤال + جواب\n4️⃣ انقر لقلب البطاقة\n\n🗑 الحذف: زر بجانب كل مجموعة',
-    habits:'🔁 **العادات:**\n\n1️⃣ اضغط "+ عادة"\n2️⃣ اكتب الاسم\n3️⃣ يوميًا: انقر مربع اليوم\n\n📅 آخر 7 أيام ظاهرة',
-    courses:'📚 **المواد:**\n\n➕ **يدوي:** زر "+ مادة"\n📥 **من الخطة:** زر "استيراد من الخطة"\n\n✏️ تعديل • 🗑 حذف لكل بطاقة',
-    notes:'📔 **الملاحظات:**\n\n1️⃣ اضغط "+ ملاحظة"\n2️⃣ اكتب عنوان + محتوى\n3️⃣ الحفظ تلقائي',
-    rewards:'🏆 **المكافآت:**\n\n⭐ كسب النقاط:\n• مهمة: +5\n• جلسة تركيز: +10\n\n🎁 "+ إضافة" لإنشاء مكافأة',
-    stats:'📈 **الإحصائيات:**\n\n• مخطط آخر 7 أيام\n• إجمالي ساعات الدراسة\n• المتوسط اليومي\n• جلسات بومودورو\n• نسبة إنجاز المهام',
-    plan:'📖 **الخطة الدراسية:**\n\nخطة هندسة الحاسوب — 9 فصول / 5 سنوات\n\n🎯 اضغط أي سنة لعرضها\n👁️ اضغط عنوان الفصل للفتح',
-    coursedescriptions:'📕 **وصف المواد:**\n\n🔍 اكتب اسم المادة أو رقمها\n🎯 الفلترة حسب السنة\n\n💡 كل مادة: الكود، الساعات، الوصف',
-    wellbeing:'💚 **الرفاهية:**\n\n8 تمارين:\n🧘 تنفس • 🚶 مشي • 📝 تدوين\n💧 ماء • 🎵 موسيقى • 🌿 تمدد\n😴 قيلولة • 📵 فصل الشاشات',
-    extracurricular:'🎯 **الأنشطة:**\n\n➕ اضغط "+ نشاط"\n• اسم + تصنيف + ساعات + ملاحظات',
-    dashboard:'📊 **لوحة التحكم:**\n\n• 4 إحصائيات رئيسية\n• محاضرات اليوم\n• مهام الأسبوع\n• ملخص الميزانية\n• عادات اليوم',
-    hulinks:'🎓 **روابط الجامعة الهاشمية:**\n\n🔗 **الخدمات:**\n• 🎓 البوابة: reg1.hu.edu.jo\n• 📖 Moodle: elearning.hu.edu.jo\n• 📚 المكتبة: library.hu.edu.jo\n• 📝 الالتحاق: admission.hu.edu.jo\n\n📱 **التطبيقات:**\n• MyHU، Teams، Outlook، Zoom\n\n💰 **الرسوم:** eFawateercom'
+    tasks:'📝 **إضافة مهمة:**\n\n1️⃣ افتح "المهام"\n2️⃣ اضغط "+ مهمة"\n3️⃣ املأ البيانات\n4️⃣ اضغط "حفظ"\n\n⚡ **أسرع:** Ctrl+T',
+    exams:'⏳ **إضافة امتحان:**\n\n1️⃣ افتح "الامتحانات"\n2️⃣ اضغط "+ امتحان"\n3️⃣ أدخل البيانات\n4️⃣ اضغط "حفظ"',
+    attendance:'✅ **تسجيل الحضور:**\n\n1️⃣ افتح "الحضور"\n2️⃣ اضغط "+ مادة"\n3️⃣ بعد كل محاضرة اضغط "+ حاضر" أو "+ غائب"',
+    timetable:'📅 **بناء الجدول:**\n\n🎨 **يدوي:** اضغط خلية فارغة\n📸 **OCR:** ارفع صورة\n⚡ **تلقائي:** "توليد من موادي"',
+    timer:'⏱️ **بومودورو:**\n\n1️⃣ اختر النمط\n2️⃣ اضغط "▶ ابدأ"\n\n⌨️ اختصار: Ctrl+P',
+    gpa:'📊 **حساب المعدل:**\n\n1️⃣ افتح "حاسبة المعدل"\n2️⃣ أدخل المواد والتقديرات\n3️⃣ المعدل يظهر تلقائيًا',
+    budget:'💰 **الميزانية:**\n\n📈 زر "+ دخل"\n📉 زر "+ مصروف"\n\n🔍 فلاتر للتصنيفات',
+    flashcards:'🃏 **البطاقات:**\n\n1️⃣ اضغط "+ مجموعة"\n2️⃣ أضف بطاقات\n3️⃣ انقر لقلب البطاقة',
+    courses:'📚 **المواد:**\n\n➕ يدوي: زر "+ مادة"\n📥 من الخطة: زر "استيراد"',
+    notes:'📔 **الملاحظات:**\n\n1️⃣ اضغط "+ ملاحظة"\n2️⃣ اكتب\n3️⃣ حفظ تلقائي\n\n⌨️ اختصار: Ctrl+N',
+    stats:'📈 **الإحصائيات:**\n\n• مخطط آخر 7 أيام\n• إجمالي الساعات\n• جلسات بومودورو',
+    plan:'📖 **الخطة الدراسية:**\n\n9 فصول / 5 سنوات\n\n🎯 اضغط أي سنة لعرضها',
+    coursedescriptions:'📕 **وصف المواد:**\n\n🔍 ابحث بالاسم أو الرقم\n🎯 فلترة حسب السنة',
+    extracurricular:'🎯 **الأنشطة:**\n\n➕ اضغط "+ نشاط"\n• اسم + تصنيف + ساعات',
+    dashboard:'📊 **لوحة التحكم:**\n\n• إحصائيات رئيسية\n• محاضرات اليوم\n• مهام الأسبوع',
+    hulinks:'🎓 **روابط الجامعة:**\n\n• البوابة: reg1.hu.edu.jo\n• Moodle: elearning.hu.edu.jo\n• المكتبة: library.hu.edu.jo',
+    needcalc:'🎯 **كم أحتاج:**\n\n1️⃣ أدخل علامتك الحالية\n2️⃣ وزن الفاينل (%)\n3️⃣ العلامة الهدف\n4️⃣ احسب',
+    gradetracker:'📈 **متتبع العلامات:**\n\n1️⃣ أضف مادة\n2️⃣ سجّل كل علامة\n3️⃣ شاهد نسبتك',
+    termcalc:'🎓 **حساب الترم:**\n\n• يقرأ موادك المسجلة\n• يحسب الساعات الكلية\n• يقارنها بالخطة',
+    about:'ℹ️ **عن التطبيق:**\n\nمساحة دراسية شاملة\nمبنية بـ Vanilla JS\n\n📦 GitHub: m08jj/study-space'
   };
 
-  /* ==================== الاقتراحات ==================== */
   var SUGG_POOL = [
     'ملخص مساحتي','كم مهمة عندي؟','متى امتحاني القادم؟','كم معدلي؟','كم رصيدي؟',
     'كيف أضيف مهمة؟','كيف أستخدم بومودورو؟','افتح المهام','افتح الميزانية',
+    'كم أحتاج في الفاينل؟','افتح متتبع العلامات','كيف أضيف علامة؟',
     'شو الأقسام المتاحة؟','نصيحة دراسة','كيف أنظم وقتي؟',
-    'بوابة الطالب','كيف أضيف امتحان؟','كيف أحسب معدلي؟',
-    'شو المميزات؟','افتح روابط الجامعة','أفكار لجدول دراسي'
+    'بوابة الطالب','كيف أضيف امتحان؟','كيف أحسب معدلي؟','أفكار لجدول دراسي'
   ];
   function pickRandom(arr, n){
     var copy = arr.slice(); var out = [];
@@ -80,7 +78,6 @@
     return out;
   }
 
-  /* ==================== تطبيع النص العربي ==================== */
   function normalizeArabic(s){
     return String(s)
       .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
@@ -120,7 +117,6 @@
     return false;
   }
 
-  /* ==================== الوظائف ==================== */
   function toggleAI(){
     var p = document.getElementById('aiPanel'); if(!p) return;
     var willOpen = !p.classList.contains('show');
@@ -157,8 +153,8 @@
       '• كل الأقسام وكيف توصل لها\n' +
       '• روابط الجامعة الهاشمية\n\n' +
       '💡 **جرّب:**\n' +
-      '• "افتح المهام" أو "روح للرصيد"\n' +
-      '• "كيف أضيف امتحان؟"\n' +
+      '• "افتح المهام"\n' +
+      '• "كم أحتاج في الفاينل؟"\n' +
       '• "بوابة الطالب"\n' +
       '• "ملخص مساحتي"\n\n' +
       '📝 أفهم العامية والفصحى!';
@@ -197,7 +193,6 @@
     }, 450);
   }
 
-  /* ==================== المحرك الرئيسي ==================== */
   function aiRespond(q){
     var raw = String(q).trim();
     var lower = normalizeArabic(raw);
@@ -215,13 +210,12 @@
 
     return '🤔 ما فهمت "' + raw + '" تمامًا.\n\n' +
       '💡 **جرّب:**\n\n' +
-      '🧭 **للتنقل:**\n• "افتح المهام"\n• "روح للميزانية"\n\n' +
+      '🧭 **للتنقل:**\n• "افتح المهام"\n\n' +
       '❓ **للاستفسار:**\n• "كيف أضيف مهمة؟"\n\n' +
-      '📊 **بياناتك:**\n• "كم مهمة عندي؟"\n• "ملخص مساحتي"\n\n' +
-      '🎓 **الجامعة:**\n• "بوابة الطالب"\n• "روابط الجامعة"';
+      '📊 **بياناتك:**\n• "كم مهمة عندي؟"\n\n' +
+      '🎓 **الجامعة:**\n• "بوابة الطالب"';
   }
 
-  /* ==================== التنقل ==================== */
   var NAV_VERBS = ['افتح','روح','اذهب','خذني','انتقل','ودني','ابغى','ابي','اريد','شوف','عرض','اظهر','اعرض','سير','خدني'];
 
   function detectNavigation(lower){
@@ -274,7 +268,6 @@
     return null;
   }
 
-  /* ==================== استعلامات البيانات ==================== */
   function answerDataQuery(lower, today, now){
     var space = getSpace();
     var pending = space.tasks.filter(function(t){ return !t.done; });
@@ -288,7 +281,7 @@
     });
 
     if(lower.indexOf('مهام') > -1 || lower.indexOf('مهمه') > -1 || lower.indexOf('واجب') > -1){
-      if(!space.tasks.length) return '📝 ما عندك مهام مسجلة.\n\n➕ **لإضافة:** قسم المهام → "+ مهمة"';
+      if(!space.tasks.length) return '📝 ما عندك مهام.\n\n➕ قسم المهام → "+ مهمة"';
       var msg = '📝 **ملخص المهام:**\n• متبقية: **' + pending.length + '**\n• مكتملة: **' + done.length + '**\n• إجمالي: ' + space.tasks.length;
       if(overdue.length) msg += '\n\n⚠️ **متأخرة (' + overdue.length + '):**\n' + overdue.slice(0,4).map(function(t){ return '• ' + t.title; }).join('\n');
       if(dueToday.length) msg += '\n\n📌 **مستحقة اليوم (' + dueToday.length + '):**\n' + dueToday.slice(0,4).map(function(t){ return '• ' + t.title; }).join('\n');
@@ -304,14 +297,7 @@
       var next = upcoming[0];
       var days = Math.ceil((new Date(next.date) - new Date(today)) / 86400000);
       var out = '⏳ **أقرب امتحان:**\n📝 ' + next.name + '\n📅 ' + next.date + ' (**بعد ' + days + ' يوم**)' +
-        (next.course ? '\n📚 ' + next.course : '') + (next.time ? '\n⏰ ' + next.time : '') + (next.room ? '\n📍 ' + next.room : '');
-      if(upcoming.length > 1){
-        out += '\n\n**القادمة:**';
-        upcoming.slice(1,5).forEach(function(e){
-          var d = Math.ceil((new Date(e.date) - new Date(today)) / 86400000);
-          out += '\n• ' + e.name + ' — بعد ' + d + ' يوم';
-        });
-      }
+        (next.course ? '\n📚 ' + next.course : '') + (next.time ? '\n⏰ ' + next.time : '');
       return out;
     }
 
@@ -335,31 +321,22 @@
       var inc = space.budget.filter(function(b){ return b.type === 'income'; }).reduce(function(a,b){ return a + (parseFloat(b.amount)||0); }, 0);
       var exp = space.budget.filter(function(b){ return b.type === 'expense'; }).reduce(function(a,b){ return a + (parseFloat(b.amount)||0); }, 0);
       var bal = inc - exp;
-      return '💰 **الميزانية:**\n\n📈 دخل: **' + inc.toFixed(0) + '** د\n📉 مصروف: **' + exp.toFixed(0) + '** د\n💼 رصيد: **' + bal.toFixed(0) + '** د ' + (bal >= 0 ? '👍' : '⚠️') +
-        (bal < 0 ? '\n\n⚠️ رصيدك بالسالب! راجع مصاريفك.' : '');
+      return '💰 **الميزانية:**\n\n📈 دخل: **' + inc.toFixed(0) + '** د\n📉 مصروف: **' + exp.toFixed(0) + '** د\n💼 رصيد: **' + bal.toFixed(0) + '** د ' + (bal >= 0 ? '👍' : '⚠️');
     }
 
-    if(lower.indexOf('نقاط') > -1 || lower.indexOf('مكافآت') > -1 || lower.indexOf('مكافاه') > -1){
-      return '⭐ **نقاطك:** ' + (space.points || 0) + '\n\n💰 استبدلها من قسم **المكافآت**.\n\n🎯 كسب المزيد:\n• مهمة: +5\n• جلسة: +10';
-    }
-
-    if(lower.indexOf('عادات') > -1 || lower.indexOf('عاده') > -1){
-      if(!space.habits.length) return '🔁 ما عندك عادات.\n\n➕ قسم العادات → "+ عادة"';
-      var doneToday = space.habits.filter(function(h){ return h.log && h.log[today]; }).length;
-      var pct = Math.round(doneToday / space.habits.length * 100);
-      return '🔁 **عاداتك:**\n• إجمالي: ' + space.habits.length + '\n• أنجزت اليوم: **' + doneToday + '** (' + pct + '%)' +
-        (doneToday === space.habits.length ? '\n\n🎉 أكملت كل عاداتك!' : '\n\n💪 باقي ' + (space.habits.length - doneToday));
+    if(lower.indexOf('نقاط') > -1){
+      return '⭐ **نقاطك:** ' + (space.points || 0);
     }
 
     if(lower.indexOf('بومودورو') > -1 || lower.indexOf('جلسات') > -1){
       var S = getS(); var s = S.get('pomoSessions', 0); var f = S.get('pomoFocus', 0);
       var tset = getTimerSettings();
-      return '⏱️ **بومودورو:**\n\n🎯 جلسات: **' + s + '**\n⏳ دقائق التركيز: **' + f + '** (' + (f/60).toFixed(1) + ' ساعة)\n\n📌 الإعداد: ' + tset.focus + '+' + tset.short + ' د';
+      return '⏱️ **بومودورو:**\n\n🎯 جلسات: **' + s + '**\n⏳ دقائق: **' + f + '** (' + (f/60).toFixed(1) + ' ساعة)\n\n📌 الإعداد: ' + tset.focus + '+' + tset.short + ' د';
     }
 
     if(lower.indexOf('حضور') > -1 || lower.indexOf('غياب') > -1){
       var att = Object.entries(space.attendance || {});
-      if(!att.length) return '✅ ما عندك مواد للحضور.\n\n➕ قسم الحضور → "+ مادة"';
+      if(!att.length) return '✅ ما عندك مواد للحضور.';
       var low = []; var lines = [];
       att.forEach(function(kv){
         var a = kv[1]; var t = a.present + a.absent;
@@ -374,7 +351,7 @@
     }
 
     if(lower.indexOf('مواد') > -1 || lower.indexOf('موادي') > -1){
-      if(!space.courses.length) return '📚 ما عندك مواد.\n\n📥 قسم موادي → "استيراد من الخطة"';
+      if(!space.courses.length) return '📚 ما عندك مواد.';
       var totalHrs = space.courses.reduce(function(a,c){ return a + (c.hours||0); }, 0);
       var list = space.courses.slice(0,10).map(function(c){ return '• ' + c.name; });
       return '📚 **موادك (' + space.courses.length + '، ' + totalHrs + ' ساعة):**\n\n' + list.join('\n');
@@ -382,12 +359,27 @@
 
     if(lower.indexOf('ملاحظات') > -1 || lower.indexOf('ملاحظه') > -1){
       var notes = getNotes();
-      if(!notes.length) return '📔 ما عندك ملاحظات.\n\n➕ قسم ملاحظاتي → "+ ملاحظة"';
+      if(!notes.length) return '📔 ما عندك ملاحظات.';
       return '📔 **ملاحظاتك:** ' + notes.length + '\n\nآخر: **' + (notes[0].title || 'بدون عنوان') + '**';
     }
 
-    if(lower.indexOf('ملخص') > -1 || lower.indexOf('وضعي') > -1 ||
-       lower.indexOf('احصائيات') > -1 || lower.indexOf('كل شي') > -1){
+    if(lower.indexOf('متتبع') > -1 || lower.indexOf('علاماتي') > -1){
+      var grades = space.grades || [];
+      if(!grades.length) return '📈 ما عندك مواد في متتبع العلامات.\n\n➕ قسم "متتبع العلامات" → "+ مادة"';
+      var out2 = '📈 **متتبع العلامات:**\n\n';
+      grades.forEach(function(g){
+        var total = 0, earned = 0;
+        g.items.forEach(function(it){
+          total += parseFloat(it.weight) || 0;
+          earned += (parseFloat(it.score) || 0) * (parseFloat(it.weight) || 0) / 100;
+        });
+        var pct = total > 0 ? (earned / total * 100) : 0;
+        out2 += '• ' + g.name + ': **' + pct.toFixed(1) + '%**\n';
+      });
+      return out2;
+    }
+
+    if(lower.indexOf('ملخص') > -1 || lower.indexOf('وضعي') > -1 || lower.indexOf('كل شي') > -1){
       return buildFullSummary(today, pending, done, overdue, dueToday);
     }
 
@@ -413,7 +405,6 @@
     var exp = space.budget.filter(function(b){ return b.type === 'expense'; }).reduce(function(a,b){ return a + (parseFloat(b.amount)||0); }, 0);
     var bal = inc - exp;
     var totalCards = space.decks.reduce(function(a,d){ return a + d.cards.length; }, 0);
-    var doneHabits = space.habits.filter(function(h){ return h.log && h.log[today]; }).length;
 
     return '📊 **ملخص مساحة ' + name + '**\n━━━━━━━━━━━━━━━\n\n' +
       '📚 **الدراسة:**\n' +
@@ -424,17 +415,14 @@
       '⏱️ **المذاكرة:**\n' +
       '• جلسات: ' + S.get('pomoSessions', 0) + '\n' +
       '• دقائق: ' + S.get('pomoFocus', 0) + '\n' +
-      '• عادات اليوم: ' + doneHabits + '/' + space.habits.length + '\n' +
       '• بطاقات: ' + totalCards + '\n\n' +
       '💰 **المالية:**\n' +
       '• دخل: ' + inc.toFixed(0) + ' د\n' +
       '• مصروف: ' + exp.toFixed(0) + ' د\n' +
       '• رصيد: **' + bal.toFixed(0) + '** د ' + (bal >= 0 ? '👍' : '⚠️') + '\n\n' +
-      '🏆 النقاط: ' + (space.points || 0) + '\n' +
       '📔 الملاحظات: ' + notes.length;
   }
 
-  /* ==================== روابط الجامعة ==================== */
   var HU_NAV_KEYS = ['روابط','جامعه','جامعة','هاشميه','هاشمية','بوابه','بوابة','بريد','ايميل','مكتبه','مكتبة','library','teams','moodle','myhu','تطبيق','رسوم','دفع','efawateer','قبول','تسجيل','sis','apl','reg1','elearning','ادخال'];
 
   function answerHuLinks(lower){
@@ -444,64 +432,43 @@
     }
     if(!found) return null;
 
-    if(lower.indexOf('بوابه الطالب') > -1 || lower.indexOf('بوابة الطالب') > -1 || lower.indexOf('sis') > -1 || lower.indexOf('reg1') > -1){
-      return '🎓 **بوابة الطالب الرسمية:**\n\n🔗 **https://reg1.hu.edu.jo/**\n\n📌 تجد فيها:\n• الرسوم الجامعية\n• الجدول الدراسي\n• العلامات\n• البريد الجامعي\n• الهوية الجامعية\n\n🔑 **الدخول:** رقمك الجامعي + كلمة السر';
+    if(lower.indexOf('بوابه الطالب') > -1 || lower.indexOf('sis') > -1 || lower.indexOf('reg1') > -1){
+      return '🎓 **بوابة الطالب:**\n\n🔗 **https://reg1.hu.edu.jo/**\n\n📌 الرسوم، الجدول، العلامات، البريد';
     }
-    if(lower.indexOf('moodle') > -1 || lower.indexOf('elearning') > -1 || lower.indexOf('تعلم الكتروني') > -1){
-      return '📖 **منصة التعلم الإلكتروني (Moodle):**\n\n🔗 **https://elearning.hu.edu.jo/**\n\n📌 تجد فيها:\n• موادك الدراسية\n• الواجبات\n• الاختبارات القصيرة\n• المحاضرات المسجلة\n\n🔑 الدخول بالبريد الجامعي';
+    if(lower.indexOf('moodle') > -1 || lower.indexOf('elearning') > -1){
+      return '📖 **Moodle:**\n\n🔗 **https://elearning.hu.edu.jo/**\n\n📌 المواد والواجبات';
     }
-    if(lower.indexOf('بريد') > -1 || lower.indexOf('ايميل') > -1){
-      return '📧 **البريد الجامعي:**\n\n1️⃣ ادخل: reg1.hu.edu.jo\n2️⃣ اذهب لخانة "البريد الإلكتروني"\n3️⃣ يظهر بريدك وكلمة السر\n\n💡 **يُستخدم للدخول على:**\n• Microsoft Teams\n• Moodle\n• Outlook';
+    if(lower.indexOf('بريد') > -1){
+      return '📧 **البريد الجامعي:**\n\n• ادخل: reg1.hu.edu.jo\n• خانة "البريد الإلكتروني"\n• للدخول على Teams و Moodle';
     }
     if(lower.indexOf('مكتبه') > -1 || lower.indexOf('مكتبة') > -1){
-      return '📚 **المكتبة الرقمية:**\n\n🔗 **https://library.hu.edu.jo/**\n\n📖 المحتوى:\n• كتب إلكترونية\n• قواعد بيانات علمية (IEEE, Springer)\n• رسائل جامعية\n• متاح من خارج الحرم الجامعي';
+      return '📚 **المكتبة:**\n\n🔗 **https://library.hu.edu.jo/**';
     }
     if(lower.indexOf('teams') > -1){
-      return '💬 **Microsoft Teams:**\n\n🔗 **https://teams.microsoft.com/**\n\n📌 للمحاضرات والاجتماعات\n\n🔑 الدخول بالبريد الجامعي';
+      return '💬 **Teams:**\n\n🔗 **https://teams.microsoft.com/**';
     }
-    if(lower.indexOf('outlook') > -1){
-      return '📧 **Outlook الجامعي:**\n\n🔗 **https://outlook.office.com/mail/**\n\n💡 للبريد الإلكتروني الرسمي';
+    if(lower.indexOf('رسوم') > -1 || lower.indexOf('دفع') > -1){
+      return '💰 **دفع الرسوم:**\n\n🔗 **https://www.efawateercom.jo/**';
     }
-    if(lower.indexOf('myhu') > -1 || lower.indexOf('تطبيق') > -1){
-      return '📱 **تطبيق MyHU:**\n\n• iPhone: App Store\n• Android: Google Play\n\n✨ بوابة الطالب، البريد، الجدول، العلامات';
-    }
-    if(lower.indexOf('رسوم') > -1 || lower.indexOf('دفع') > -1 || lower.indexOf('efawateer') > -1){
-      return '💰 **دفع الرسوم:**\n\n🔗 **https://www.efawateercom.jo/**\n\n📌 الخطوات:\n1️⃣ فئة المفوتر: تعليم\n2️⃣ المفوتر: الجامعة الهاشمية\n3️⃣ الخدمة: الرسوم الجامعية\n4️⃣ رقم الاشتراك: رقمك الجامعي';
-    }
-    if(lower.indexOf('قبول') > -1 || lower.indexOf('تسجيل') > -1 || lower.indexOf('التحاق') > -1){
-      return '📋 **القبول والتسجيل:**\n\n🔗 **https://admission.hu.edu.jo/**\n\n📌 للطلبة الجدد والمستجدين';
-    }
-    return '🎓 **روابط الجامعة الهاشمية:**\n\n• 🎓 بوابة الطالب: **reg1.hu.edu.jo**\n• 📖 التعلم الإلكتروني: **elearning.hu.edu.jo**\n• 📚 المكتبة: **library.hu.edu.jo**\n• 📝 الالتحاق: **admission.hu.edu.jo**\n• 💰 الرسوم: **efawateercom.jo**\n\n📍 للكل: قسم "روابط الجامعة"';
+    return '🎓 **روابط الجامعة:**\n\n• 🎓 reg1.hu.edu.jo\n• 📖 elearning.hu.edu.jo\n• 📚 library.hu.edu.jo\n• 💰 efawateercom.jo';
   }
 
-  /* ==================== معلومات الموقع ==================== */
   function answerSiteInfo(lower){
-    if(lower.indexOf('اقسام') > -1 || lower.indexOf('أقسام') > -1 || lower.indexOf('قائمه') > -1 || lower.indexOf('صفحات') > -1){
+    if(lower.indexOf('اقسام') > -1 || lower.indexOf('قائمه') > -1){
       var keys = Object.keys(SITE_MAP);
       var out = '🗺️ **أقسام الموقع (' + keys.length + '):**\n\n';
       keys.forEach(function(k){
         var s = SITE_MAP[k];
         out += s.icon + ' **' + s.name + '** — ' + s.desc + '\n';
       });
-      out += '\n💡 قول "افتح [اسم]"';
       return out;
     }
-    if(lower.indexOf('مميزات') > -1 || lower.indexOf('خصائص') > -1 || lower.indexOf('شو يقدر') > -1){
-      return '✨ **المميزات:**\n\n📅 جدول + OCR\n📚 مواد + استيراد\n📝 مهام\n⏳ امتحانات\n✅ حضور\n⏱️ بومودورو\n🃏 بطاقات\n🔁 عادات\n📈 إحصائيات\n🎯 أنشطة\n💰 ميزانية\n💚 رفاهية\n📔 ملاحظات\n📊 GPA\n📖 خطة\n📕 وصف مواد\n🏆 مكافآت\n🎓 روابط الجامعة\n\n🎨 9 ثيمات • 💾 حفظ تلقائي';
-    }
-    if(lower.indexOf('حفظ') > -1 || lower.indexOf('backup') > -1 || lower.indexOf('نسخه') > -1){
-      return '💾 **الحفظ:**\n\n☁️ تلقائي عبر السيرفر\n💾 نسخة في المتصفح\n\n🔵 **المؤشر:** زر ☁️ أعلى\n• ☁️ أخضر = متصل\n• 💾 رمادي = محلي\n• ⚠️ أحمر = فشل\n\n📤 تصدير: زر 💾\n📥 استيراد: زر 📥';
-    }
-    if(lower.indexOf('ثيم') > -1 || lower.indexOf('الوان') > -1){
-      return '🎨 **الثيمات (9):**\n\n🌙 داكن • 🌊 محيط • 🌅 غروب\n🌲 غابة • 👑 ملكي • 🤖 سايبربانك\n🌌 منتصف الليل • ✨ شفق • 🔥 جمر\n\n📍 **للتغيير:** زر 🎨';
-    }
-    if(lower.indexOf('من انت') > -1 || lower.indexOf('مين انت') > -1 || lower.indexOf('عرف نفسك') > -1){
-      return '🤖 **أنا مساعدك الذكي:**\n\n✨ أعرف:\n• كل بياناتك\n• كل الأقسام\n• شرح كل ميزة\n• روابط الجامعة\n• وصف المواد\n\n💡 جرّب: "افتح المهام"';
-    }
-    if(lower.indexOf('شكرا') > -1 || lower.indexOf('مشكور') > -1 || lower.indexOf('تسلم') > -1){
+    if(lower.indexOf('شكرا') > -1 || lower.indexOf('مشكور') > -1){
       return '🙏 على الرحب والسعة! 💙';
     }
-    if(lower.indexOf('وداعا') > -1 || lower.indexOf('باي') > -1) return '👋 إلى اللقاء! 📚';
+    if(lower.indexOf('من انت') > -1 || lower.indexOf('مين انت') > -1){
+      return '🤖 **أنا مساعدك الذكي**\n\n✨ أعرف بياناتك وكل الأقسام';
+    }
     if(/^(مرحبا|هلا|اهلا|هاي|السلام عليكم|صباح|مساء|hi|hello)/.test(lower)){
       if(lower.indexOf('السلام عليكم') > -1) return '👋 وعليكم السلام!';
       if(lower.indexOf('صباح') > -1) return '☀️ صباح النور!';
@@ -512,30 +479,19 @@
     return null;
   }
 
-  /* ==================== نصائح ==================== */
   function answerTips(lower){
     var tips = getTips(); var quotes = getQuotes();
     if(lower.indexOf('نصيحه') > -1 || lower.indexOf('نصائح') > -1) return tips[Math.floor(Math.random() * tips.length)];
-    if(lower.indexOf('وقت') > -1 || lower.indexOf('تنظيم') > -1 || lower.indexOf('انظم') > -1){
-      return '⏰ **لتنظيم وقتك:**\n\n1️⃣ ادرس بنفس الوقت يوميًا\n2️⃣ استخدم بومودورو\n3️⃣ رتّب الأولويات\n4️⃣ خذ راحة كل ساعة\n5️⃣ لا تذاكر أكثر من ساعتين';
+    if(lower.indexOf('وقت') > -1 || lower.indexOf('تنظيم') > -1){
+      return '⏰ **لتنظيم وقتك:**\n\n1️⃣ ادرس بنفس الوقت\n2️⃣ بومودورو\n3️⃣ رتّب الأولويات\n4️⃣ راحة كل ساعة';
     }
-    if(lower.indexOf('جدول') > -1 && (lower.indexOf('افكار') > -1 || lower.indexOf('دراس') > -1)){
-      return '📅 **أفكار لجدول:**\n\n🌅 **صباح (8-12):** مواد صعبة\n☀️ **ظهر:** محاضرات + راحة\n🌤️ **عصر (4-7):** واجبات\n🌆 **مساء (7-10):** مراجعة\n🌙 **قبل النوم:** قراءة خفيفة';
-    }
-    if(lower.indexOf('محبط') > -1 || lower.indexOf('تعبان') > -1 || lower.indexOf('زهقت') > -1){
+    if(lower.indexOf('محبط') > -1 || lower.indexOf('تعبان') > -1){
       var q = quotes[Math.floor(Math.random()*quotes.length)];
-      return '💪 **لا تيأس!**\n\n✨ "' + q.t + '"\n— ' + q.a + '\n\n🎯 أنت قادر!';
-    }
-    if(lower.indexOf('امتحان') > -1 && (lower.indexOf('استعد') > -1 || lower.indexOf('راجع') > -1)){
-      return '📝 **الاستعداد للامتحان:**\n\n📅 قبل أسبوع: مراجعة شاملة\n📅 قبل 3 أيام: ركّز على الصعب\n📅 الليلة السابقة: نوم مبكر\n\n☕ يوم الامتحان: فطور خفيف، اذهب مبكرًا';
-    }
-    if(lower.indexOf('مذاكره') > -1 || lower.indexOf('اذاكر') > -1){
-      return '📚 **نصائح المذاكرة:**\n\n✅ ادرس بنشاط\n✅ لخّص بأسلوبك\n✅ اختبر نفسك\n✅ اشرح لشخص آخر\n❌ لا تسهر قبل الامتحان';
+      return '💪 **لا تيأس!**\n\n✨ "' + q.t + '"\n— ' + q.a;
     }
     return null;
   }
 
-  /* ==================== بحث وصف المواد ==================== */
   function searchCourseDescription(lower){
     var CD = getCoursesDesc(); if(!CD) return null;
     var keys = Object.keys(CD); if(!keys.length) return null;
@@ -555,13 +511,10 @@
     if(!raw || raw.length < 3) return null;
     var space = getSpace(); var q = raw.toLowerCase();
     var mc = space.courses.find(function(c){ return c.name && c.name.toLowerCase().indexOf(q) > -1; });
-    if(mc) return '📚 **وجدتها:**\n\n📖 ' + mc.name + (mc.code ? '\n🔢 ' + mc.code : '') + (mc.hours ? '\n⏱️ ' + mc.hours + ' س' : '');
-    var mt = space.tasks.find(function(t){ return t.title && t.title.toLowerCase().indexOf(q) > -1; });
-    if(mt) return '📝 **وجدتها:**\n\n📌 ' + mt.title + (mt.due ? '\n📅 ' + mt.due : '') + '\n✅ ' + (mt.done ? 'مكتملة' : 'قيد الانتظار');
+    if(mc) return '📚 **وجدتها:**\n\n📖 ' + mc.name;
     return null;
   }
 
-  /* ==================== ربط الأحداث ==================== */
   function bindAIEvents(){
     var aiFab = document.getElementById('aiFab');
     var aiClose = document.getElementById('aiClose');
@@ -576,7 +529,6 @@
     }
   }
 
-  /* ==================== التصدير ==================== */
   window.toggleAI = toggleAI;
   window.initAI = initAI;
   window.addAIMessage = addAIMessage;
@@ -584,7 +536,6 @@
   window.aiRespond = aiRespond;
   window.bindAIEvents = bindAIEvents;
 
-  /* ==================== التشغيل ==================== */
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ setTimeout(bindAIEvents, 200); });
   } else {
