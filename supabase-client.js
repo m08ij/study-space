@@ -58,25 +58,65 @@
     }catch(e){ console.warn('Supabase save failed:', e); return false; }
   }
 
-  async function uploadFile(path, blob, contentType){
-    var c = init(); if(!c) return { error: 'no client' };
-    var k = ensureCode(); var fullPath = k + '/' + path;
+  /* ==================== COURSE FILES ==================== */
+  async function listCourseFiles(courseId){
+    var c = init(); if(!c) return [];
+    var k = ensureCode();
+    var path = k + '/courses/' + courseId;
     try{
-      var res = await c.storage.from(CFG.bucket).upload(fullPath, blob, { upsert: true, contentType: contentType || 'application/octet-stream' });
-      if(res.error) return { error: res.error.message };
-      var urlRes = c.storage.from(CFG.bucket).getPublicUrl(fullPath);
-      return { url: urlRes.data.publicUrl, path: fullPath };
-    }catch(e){ return { error: e.message }; }
+      var res = await c.storage.from(CFG.bucket).list(path, {limit: 100, sortBy: {column:'created_at', order:'desc'}});
+      if(res.error){ console.warn('list files error:', res.error); return []; }
+      return (res.data || []).map(function(f){
+        var urlRes = c.storage.from(CFG.bucket).getPublicUrl(path + '/' + f.name);
+        return {
+          name: f.name,
+          size: f.metadata ? f.metadata.size : 0,
+          mimetype: f.metadata ? f.metadata.mimetype : '',
+          createdAt: f.created_at,
+          url: urlRes.data.publicUrl,
+          path: path + '/' + f.name
+        };
+      });
+    }catch(e){ console.warn('listCourseFiles failed:', e); return []; }
   }
 
-  async function deleteFile(path){
+  async function uploadCourseFile(courseId, file){
+    var c = init(); if(!c) return {error: 'no client'};
+    var k = ensureCode();
+    var safeName = Date.now() + '_' + String(file.name || 'file').replace(/[^\w.\-]/g, '_');
+    var path = k + '/courses/' + courseId + '/' + safeName;
+    try{
+      var res = await c.storage.from(CFG.bucket).upload(path, file, {
+        upsert: false,
+        contentType: file.type || 'application/octet-stream',
+        cacheControl: '3600'
+      });
+      if(res.error) return {error: res.error.message || 'فشل الرفع'};
+      var urlRes = c.storage.from(CFG.bucket).getPublicUrl(path);
+      return {url: urlRes.data.publicUrl, path: path, name: safeName};
+    }catch(e){ return {error: e.message || 'خطأ غير متوقع'}; }
+  }
+
+  async function deleteCourseFile(path){
     var c = init(); if(!c) return false;
-    try{ var res = await c.storage.from(CFG.bucket).remove([path]); return !res.error; }catch(e){ return false; }
+    try{
+      var res = await c.storage.from(CFG.bucket).remove([path]);
+      return !res.error;
+    }catch(e){ return false; }
   }
 
-  function getPublicUrl(path){
-    var c = init(); if(!c) return '';
-    return c.storage.from(CFG.bucket).getPublicUrl(path).data.publicUrl;
+  function formatFileSize(bytes){
+    if(!bytes || bytes < 1024) return (bytes || 0) + ' B';
+    if(bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  function getFileIcon(name){
+    var ext = String(name || '').split('.').pop().toLowerCase();
+    var map = {pdf:'📄', doc:'📝', docx:'📝', ppt:'📊', pptx:'📊', xls:'📊', xlsx:'📊', txt:'📃', md:'📃',
+      jpg:'🖼️', jpeg:'🖼️', png:'🖼️', gif:'🖼️', webp:'🖼️', svg:'🖼️',
+      zip:'🗜️', rar:'🗜️', '7z':'🗜️', mp4:'🎬', mov:'🎬', mp3:'🎵', wav:'🎵'};
+    return map[ext] || '📎';
   }
 
   function showSyncPanel(){
@@ -132,87 +172,36 @@
       }
     };
     bd.querySelector('#syncChange').onclick = function(){
-      var v = prompt('أدخل رمزًا جديدًا (أو اتركه فارغًا لتوليد رمز جديد):', '');
-      if(v === null) return;
-      v = v.trim().toUpperCase();
-      if(!v) v = genCode();
-      setCode(v); input.value = v;
-      if(window.toast) window.toast('✅ تم التغيير، أعد تحميل الصفحة', 'success', 3000);
+      // استخدم showModal إن وجد
+      if(typeof window.showModal === 'function'){
+        var newCode = prompt('أدخل رمزًا جديدًا (أو اتركه فارغًا لتوليد رمز جديد):', '');
+        if(newCode === null) return;
+        newCode = newCode.trim().toUpperCase();
+        if(!newCode) newCode = genCode();
+        setCode(newCode); input.value = newCode;
+        if(window.toast) window.toast('✅ تم التغيير، أعد تحميل الصفحة', 'success', 3000);
+      } else {
+        var v = prompt('أدخل رمزًا جديدًا:', '');
+        if(v === null) return;
+        v = v.trim().toUpperCase();
+        if(!v) v = genCode();
+        setCode(v); input.value = v;
+        if(window.toast) window.toast('✅ تم التغيير، أعد تحميل الصفحة', 'success', 3000);
+      }
     };
     bd.querySelector('#syncClose').onclick = function(){ bd.remove(); };
     bd.onclick = function(e){ if(e.target === bd) bd.remove(); };
   }
-	/* ==================== COURSE FILES ==================== */
-async function listCourseFiles(courseId){
-  var c = init(); if(!c) return [];
-  var k = ensureCode();
-  var path = k + '/courses/' + courseId;
-  try{
-    var res = await c.storage.from(CFG.bucket).list(path, {limit: 100, sortBy: {column:'created_at', order:'desc'}});
-    if(res.error){ console.warn('list files error:', res.error); return []; }
-    return (res.data || []).map(function(f){
-      var urlRes = c.storage.from(CFG.bucket).getPublicUrl(path + '/' + f.name);
-      return {
-        name: f.name,
-        size: f.metadata ? f.metadata.size : 0,
-        mimetype: f.metadata ? f.metadata.mimetype : '',
-        createdAt: f.created_at,
-        url: urlRes.data.publicUrl,
-        path: path + '/' + f.name
-      };
-    });
-  }catch(e){ console.warn('listCourseFiles failed:', e); return []; }
-}
 
-async function uploadCourseFile(courseId, file){
-  var c = init(); if(!c) return {error: 'no client'};
-  var k = ensureCode();
-  // Clean filename
-  var safeName = Date.now() + '_' + String(file.name || 'file').replace(/[^\w.\-]/g, '_');
-  var path = k + '/courses/' + courseId + '/' + safeName;
-  try{
-    var res = await c.storage.from(CFG.bucket).upload(path, file, {
-      upsert: false,
-      contentType: file.type || 'application/octet-stream',
-      cacheControl: '3600'
-    });
-    if(res.error) return {error: res.error.message || 'فشل الرفع'};
-    var urlRes = c.storage.from(CFG.bucket).getPublicUrl(path);
-    return {url: urlRes.data.publicUrl, path: path, name: safeName};
-  }catch(e){ return {error: e.message || 'خطأ غير متوقع'}; }
-}
-
-async function deleteCourseFile(path){
-  var c = init(); if(!c) return false;
-  try{
-    var res = await c.storage.from(CFG.bucket).remove([path]);
-    return !res.error;
-  }catch(e){ return false; }
-}
-
-function formatFileSize(bytes){
-  if(!bytes || bytes < 1024) return (bytes || 0) + ' B';
-  if(bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-}
-
-function getFileIcon(name){
-  var ext = String(name || '').split('.').pop().toLowerCase();
-  var map = {pdf:'📄', doc:'📝', docx:'📝', ppt:'📊', pptx:'📊', xls:'📊', xlsx:'📊', txt:'📃', md:'📃',
-    jpg:'🖼️', jpeg:'🖼️', png:'🖼️', gif:'🖼️', webp:'🖼️', svg:'🖼️',
-    zip:'🗜️', rar:'🗜️', '7z':'🗜️', mp4:'🎬', mov:'🎬', mp3:'🎵', wav:'🎵'};
-  return map[ext] || '📎';
-}
   window.SB = {
-	listCourseFiles: listCourseFiles,
-	uploadCourseFile: uploadCourseFile,
-	deleteCourseFile: deleteCourseFile,
-	formatFileSize: formatFileSize,
-	getFileIcon: getFileIcon,
     init: init, load: load, save: save,
     getCode: getCode, setCode: setCode,
-    uploadFile: uploadFile, deleteFile: deleteFile,
-    getPublicUrl: getPublicUrl, showSyncPanel: showSyncPanel
+    listCourseFiles: listCourseFiles,
+    uploadCourseFile: uploadCourseFile,
+    deleteCourseFile: deleteCourseFile,
+    formatFileSize: formatFileSize,
+    getFileIcon: getFileIcon,
+    showSyncPanel: showSyncPanel
   };
   console.log('☁️ Supabase client module loaded');
 })();
