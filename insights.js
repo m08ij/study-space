@@ -262,16 +262,35 @@
         '</div>' +
       '</div>';
 
-    // أضفه قبل القسم الأخير (إحصائيات الدراسة)
-    var lastCard = dash.querySelector('.card:last-child');
-    if(lastCard) dash.insertBefore(section, lastCard);
-    else dash.appendChild(section);
+    // ✅ الحل: البحث عن آخر .card هو ابن مباشر لـ dashboard فقط
+    var lastCard = null;
+    var children = dash.children;
+    for(var i = 0; i < children.length; i++){
+      var ch = children[i];
+      if(ch.classList && ch.classList.contains('card')) lastCard = ch;
+    }
 
+    // أضفه قبل آخر card، أو في النهاية لو ما لقى
+    try{
+      if(lastCard && lastCard.parentNode === dash){
+        dash.insertBefore(section, lastCard);
+      } else {
+        dash.appendChild(section);
+      }
+    }catch(e){
+      console.warn('Fallback append:', e);
+      dash.appendChild(section);
+    }
+
+    // اربط زر التحديث
     var refresh = document.getElementById('insightsRefresh');
-    if(refresh) refresh.addEventListener('click', function(){
-      renderInsights();
-      if(typeof window.toast === 'function') window.toast('🔄 حُدّثت التحليلات', 'success');
-    });
+    if(refresh && !refresh._bound){
+      refresh._bound = true;
+      refresh.addEventListener('click', function(){
+        renderInsights();
+        if(typeof window.toast === 'function') window.toast('🔄 حُدّثت التحليلات', 'success');
+      });
+    }
   }
 
   /* ============ Hook على renderDashboard ============ */
