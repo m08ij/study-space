@@ -206,7 +206,9 @@
     applyTheme('dark');
     assertEq('العودة للداكن', document.documentElement.getAttribute('data-theme'), 'dark');
     if(original && original !== 'dark') applyTheme(original);
-    assert('THEMES بها كل الثيمات', ['dark','ocean','sunset','forest','royal','cyberpunk','midnight','aurora','ember'].every(function(id){
+	assert('THEMES بها كل الثيمات', ['dark','dracula','sakura','nord','ocean','royal','cyberpunk','midnight','aurora'].every(function(id){
+  return THEMES.some(function(t){ return t.id === id; });
+	}));
       return THEMES.some(function(t){ return t.id === id; });
     }));
   }
@@ -247,25 +249,39 @@
     var navItems = document.querySelectorAll('.nav-item');
     assert('عناصر التنقل موجودة', navItems.length > 0, navItems.length + ' عنصر');
 
-    // Test navigation via redirect
-    switchTab('stats', false);
-    setTimeout(function(){
-      assert('stats → dashboard', document.getElementById('dashboard').classList.contains('active'));
+    // اختبار redirect stats → dashboard (متزامن، بدون setTimeout)
+    try{
+      var beforeActive = document.querySelector('.section.active');
+      if(beforeActive) beforeActive.classList.remove('active');
+      switchTab('stats', false);
+      var dash = document.getElementById('dashboard');
+      var ok = dash && dash.classList.contains('active');
+      assert('stats → dashboard', ok, ok ? '' : 'dashboard مش فعال');
+    }catch(e){
+      assert('stats → dashboard', false, e.message);
+    }
+
+    // اختبار gpa → gradecalc
+    try{
       switchTab('gpa', false);
-      setTimeout(function(){
-        assert('gpa → gradecalc', document.getElementById('gradecalc').classList.contains('active'));
-        switchTab('dashboard', false);
-      }, 100);
-    }, 100);
+      var gc = document.getElementById('gradecalc');
+      var ok2 = gc && gc.classList.contains('active');
+      assert('gpa → gradecalc', ok2, ok2 ? '' : 'gradecalc مش فعال');
+    }catch(e){
+      assert('gpa → gradecalc', false, e.message);
+    }
+
+    // رجوع للوحة
+    try{ switchTab('dashboard', false); }catch(e){}
   }
 
   function testSubTabs(){
     console.log('%c📑 SubTabs', 'color:#22d3ee;font-weight:bold');
     var gcTabs = document.querySelectorAll('[data-gc-tab]');
     assert('تبويبات gradecalc موجودة', gcTabs.length === 3, gcTabs.length + ' تبويب');
-    var planTabs = document.querySelectorAll('[data-plan-tab]');
-    assert('تبويبات plan موجودة', planTabs.length === 2, planTabs.length + ' تبويب');
-  }
+	var planTabs = document.querySelectorAll('[data-plan-tab]');
+	assert('تبويبات plan موجودة', planTabs.length === 3, planTabs.length + ' تبويب');
+	}
 
   function testDOMIds(){
     console.log('%c🆔 DOM IDs', 'color:#22d3ee;font-weight:bold');
