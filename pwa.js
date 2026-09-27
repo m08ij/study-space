@@ -1,5 +1,5 @@
 /* ============================================================
-   📱 pwa.js — تسجيل Service Worker + زر التثبيت
+   📱 pwa.js — تسجيل Service Worker + زر التثبيت + زر المزامنة
    ============================================================ */
 (function(){
   'use strict';
@@ -36,66 +36,55 @@
   });
 
   function showInstallBtn(){
-    if(document.getElementById('pwaInstallBtn')) return;
+    var btn = document.getElementById('pwaInstallBtn');
+    if(!btn) return;
+    btn.style.display = 'flex';
+  }
 
-    var btn = document.createElement('button');
-    btn.id = 'pwaInstallBtn';
-    btn.className = 'icon-btn';
-    btn.title = 'تثبيت التطبيق';
-    btn.innerHTML = '📲';
-    btn.style.cssText = 'background:linear-gradient(135deg,#a78bfa,#f472b6);color:#fff;border:none';
+  function hideInstallBtn(){
+    var btn = document.getElementById('pwaInstallBtn');
+    if(btn) btn.style.display = 'none';
+  }
 
-    var actions = document.querySelector('.topbar-actions');
-    if(actions) actions.insertBefore(btn, actions.firstChild);
-
+  function bindInstallBtn(){
+    var btn = document.getElementById('pwaInstallBtn');
+    if(!btn || btn._pwaBound) return;
+    btn._pwaBound = true;
     btn.addEventListener('click', async function(){
-      if(!deferredPrompt) return;
+      // إغلاق القائمة
+      var menu = document.getElementById('settingsMenu');
+      if(menu) menu.classList.remove('show');
+      if(!deferredPrompt){
+        if(window.toast) window.toast('التطبيق مثبت بالفعل أو غير مدعوم', 'info', 2200);
+        return;
+      }
       deferredPrompt.prompt();
       var choice = await deferredPrompt.userChoice;
-      if(choice.outcome === 'accepted'){
-        console.log('✅ User accepted install');
-      } else {
-        console.log('❌ User dismissed install');
-      }
+      if(choice.outcome === 'accepted') console.log('✅ User accepted install');
+      else console.log('❌ User dismissed install');
       deferredPrompt = null;
       hideInstallBtn();
     });
   }
 
-  function hideInstallBtn(){
-    var b = document.getElementById('pwaInstallBtn');
-    if(b) b.remove();
-  }
-
-  /* ==================== عرض رمز المزامنة في Topbar ==================== */
-  function injectSyncBtn(){
-    var actions = document.querySelector('.topbar-actions');
-    if(!actions) return;
-    if(document.getElementById('syncCodeBtn')) return;
-
-    var btn = document.createElement('button');
-    btn.id = 'syncCodeBtn';
-    btn.className = 'icon-btn';
-    btn.title = 'رمز المزامنة السحابية';
-    btn.innerHTML = '🔑';
-    btn.style.cssText = 'background:linear-gradient(135deg,#34d399,#22d3ee);color:#0b0f1a;border:none';
-
-    var status = document.getElementById('serverStatus');
-    if(status && status.parentNode){
-      status.parentNode.insertBefore(btn, status.nextSibling);
-    } else {
-      actions.insertBefore(btn, actions.firstChild);
-    }
-
+  /* ==================== زر المزامنة في الإعدادات ==================== */
+  function bindSyncBtn(){
+    var btn = document.getElementById('syncCodeBtn');
+    if(!btn || btn._syncBound) return;
+    btn._syncBound = true;
     btn.addEventListener('click', function(){
+      var menu = document.getElementById('settingsMenu');
+      if(menu) menu.classList.remove('show');
       if(window.SB && window.SB.showSyncPanel) window.SB.showSyncPanel();
+      else if(window.toast) window.toast('خدمة المزامنة غير متوفرة', 'warn', 2200);
     });
   }
 
   /* ==================== Init ==================== */
   function init(){
     registerSW();
-    setTimeout(injectSyncBtn, 400);
+    setTimeout(bindInstallBtn, 400);
+    setTimeout(bindSyncBtn, 400);
   }
 
   if(document.readyState === 'loading'){

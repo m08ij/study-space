@@ -50,7 +50,7 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 .welcome-card button{width:100%;padding:15px;background:var(--grad);border:none;color:#0b0f1a;font-family:inherit;font-size:1rem;font-weight:800;border-radius:14px;cursor:pointer;transition:.3s}
 .welcome-card button:hover{transform:translateY(-3px);box-shadow:0 15px 35px var(--glow)}
 
-.topbar{position:fixed;top:0;right:0;left:0;height:62px;z-index:90;background:var(--topbar-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 20px}
+.topbar{position:fixed;top:10px;right:14px;left:14px;height:60px;z-index:90;background:var(--topbar-bg);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--border);border-radius:999px;display:flex;align-items:center;gap:14px;padding:0 16px;box-shadow:0 10px 40px rgba(0,0,0,.28),0 2px 10px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.06)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;white-space:nowrap;flex-shrink:0}
 .brand-icon{width:36px;height:36px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:1.1rem;box-shadow:0 4px 14px var(--glow)}
 .brand-name{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-size:.95rem}
@@ -67,13 +67,14 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 .icon-btn{width:40px;height:40px;border-radius:11px;background:var(--card);border:1px solid var(--border);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:.2s;position:relative;overflow:hidden}
 .icon-btn:hover{background:var(--card2);border-color:var(--cyan);transform:translateY(-2px)}
 .settings-wrap{position:relative}
-.settings-menu{position:absolute;top:48px;left:0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:6px;min-width:210px;box-shadow:var(--shadow-lg);display:none;z-index:110}
+.settings-menu{position:absolute;top:48px;left:0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:6px;min-width:230px;box-shadow:var(--shadow-lg);display:none;z-index:110}
 .settings-menu.show{display:block;animation:fade .15s}
 .settings-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:transparent;border:none;color:var(--text);font-family:inherit;font-size:.85rem;cursor:pointer;border-radius:8px;text-align:right;transition:.15s;font-weight:500}
 .settings-item:hover{background:var(--grad-soft);color:var(--cyan)}
 .settings-item span{font-size:1.1rem;line-height:1}
+.settings-divider{height:1px;background:var(--border);margin:4px 6px}
 
-.theme-panel{position:fixed;top:56px;left:20px;z-index:200;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:16px;width:280px;transform:scale(.95) translateY(-8px);opacity:0;pointer-events:none;transition:.25s}
+.theme-panel{position:fixed;top:78px;left:20px;z-index:200;background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:16px;width:280px;transform:scale(.95) translateY(-8px);opacity:0;pointer-events:none;transition:.25s}
 .theme-panel.show{transform:scale(1) translateY(0);opacity:1;pointer-events:auto}
 .theme-panel h4{font-size:.82rem;color:var(--muted);margin-bottom:12px;font-weight:700}
 .theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -84,7 +85,7 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 .theme-swatch .sw-check{position:absolute;top:4px;left:4px;width:18px;height:18px;border-radius:50%;background:var(--cyan);color:#0b0f1a;display:none;align-items:center;justify-content:center;font-size:.7rem;font-weight:900}
 .theme-swatch.active .sw-check{display:flex}
 
-.sidebar{position:fixed;top:62px;right:0;bottom:0;width:250px;background:var(--bg2);border-left:1px solid var(--border);padding:14px 10px;overflow-y:auto;z-index:80;transition:transform .3s}
+.sidebar{position:fixed;top:80px;right:0;bottom:0;width:250px;background:var(--bg2);border-left:1px solid var(--border);padding:14px 10px;overflow-y:auto;z-index:80;transition:transform .3s}
 .sidebar::-webkit-scrollbar{width:5px}
 .nav-section{font-size:.68rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;padding:14px 12px 6px 18px;font-weight:700;position:relative}
 .nav-section::before{content:'';position:absolute;right:8px;top:50%;transform:translateY(-50%);width:4px;height:4px;border-radius:50%;background:var(--cyan);opacity:.6}
@@ -99,7 +100,7 @@ body::after{width:600px;height:600px;bottom:-250px;left:-150px;background:radial
 @media(min-width:901px){.menu-toggle{display:none!important}.sidebar-backdrop{display:none!important}}
 @media(max-width:900px){.sidebar{transform:translateX(100%)}.sidebar.open{transform:translateX(0)}}
 
-main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px;transition:.3s;position:relative;z-index:1}
+main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px;transition:.3s;position:relative;z-index:1}
 @media(max-width:900px){main{margin-right:0;padding:16px 14px 140px}}
 .section{display:none}
 .section.active{display:block;animation:fade .35s}
@@ -108,6 +109,13 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
 .page-title{font-size:1.7rem;font-weight:800;margin-bottom:4px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;position:relative;display:inline-block}
 .page-title::after{content:'';position:absolute;bottom:-6px;right:0;width:56px;height:3px;background:var(--grad);border-radius:3px;opacity:.75}
 .page-sub{color:var(--muted);font-size:.88rem;margin-top:8px}
+
+.section-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;padding:5px;background:var(--bg2);border-radius:14px;border:1px solid var(--border);width:fit-content;max-width:100%}
+.section-tab{padding:9px 18px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;border-radius:10px;transition:.2s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.section-tab:hover{color:var(--text);background:var(--card)}
+.section-tab.active{background:var(--grad);color:#0b0f1a;box-shadow:0 4px 14px var(--glow)}
+.subsection{display:none}
+.subsection.active{display:block;animation:fade .3s}
 
 .grid{display:grid;gap:16px}
 .grid-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
@@ -337,14 +345,6 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
 .daily-quote .quote-author{font-size:.75rem;color:var(--muted);margin-top:8px;font-weight:600}
 .daily-quote::before{content:'❝';position:absolute;top:-10px;right:16px;font-size:2.5rem;color:var(--cyan);opacity:.3;line-height:1}
 
-.ec-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.ec-card .ec-icon{font-size:1.8rem;min-width:40px;text-align:center}
-.ec-card .ec-info{flex:1}
-.ec-card .ec-name{font-weight:700;font-size:.92rem}
-.ec-card .ec-meta{font-size:.75rem;color:var(--muted);margin-top:4px}
-.ec-card .ec-hours{font-size:1.2rem;font-weight:800;color:var(--purple);text-align:center}
-.ec-card .ec-hours .lbl{font-size:.6rem;color:var(--muted);font-weight:400;display:block}
-
 .hu-hero{display:flex;align-items:center;gap:20px;background:var(--grad-soft);border:1px solid var(--glow);border-radius:var(--radius-lg);padding:24px;margin-bottom:8px;position:relative;overflow:hidden}
 .hu-hero::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:var(--grad)}
 .hu-hero-icon{font-size:3rem;width:70px;height:70px;border-radius:18px;background:var(--card);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px var(--glow);flex-shrink:0}
@@ -442,45 +442,10 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
 }
 
 @media(max-width:600px){
-  .fab-main{bottom:16px;left:16px;width:50px;height:50px;font-size:1.4rem}
-  .ai-fab{bottom:76px;left:16px;width:50px;height:50px;font-size:1.4rem}
-  .fab-menu{bottom:76px;left:16px}
-  .theme-panel{width:calc(100vw - 40px);left:20px}
-  .ai-panel{top:56px;bottom:0;left:0;right:0;width:auto;height:auto;max-height:none;border-radius:0;border:none;z-index:450;transform:translateY(30px)}
-  .ai-panel.show{transform:translateY(0)}
-  .ai-messages{padding:14px 12px}
-  .ai-suggestions{padding:8px 12px 12px;max-height:130px}
-  .ai-input-wrap{padding:10px 12px;padding-bottom:calc(10px + env(safe-area-inset-bottom))}
-  .topbar{padding:0 12px;gap:8px;height:56px}
-  .brand-name{display:none}
-  .brand-icon{width:34px;height:34px;font-size:1rem}
-  .search-wrap input{height:38px;font-size:.82rem;padding:0 38px 0 12px}
-  .icon-btn{width:34px;height:34px;font-size:.85rem;border-radius:9px}
-  .topbar-actions{gap:5px}
-  .settings-menu{left:auto;right:0}
-  main{margin-top:56px;padding:14px 12px 130px}
-  .sidebar{top:56px}
-  .page-title{font-size:1.35rem}
-  .card{padding:16px;border-radius:12px}
-  .stat{padding:14px;gap:10px}
-  .stat .ic{width:40px;height:40px;font-size:1.1rem}
-  .stat .v{font-size:1.25rem}
-  .btn{padding:9px 14px;font-size:.82rem}
-  .btn-sm{padding:5px 10px;font-size:.74rem}
-  .chip{padding:6px 12px;font-size:.74rem}
-  .timer-display{font-size:3rem}
-  .mini-timer{flex-direction:column;align-items:flex-start;gap:10px}
-  .timetable td{min-width:80px;height:48px}
-  .exam-card{flex-direction:column;align-items:flex-start;gap:8px}
-  .exam-countdown{align-self:flex-end}
-  .hu-link{padding:12px;gap:10px}
-  .hu-link-icon{width:40px;height:40px;font-size:1.2rem}
-  .gpa-table th{padding:8px 6px;font-size:.72rem}
-  .gpa-table td{padding:6px}
-  .gpa-table input,.gpa-table select{padding:7px 8px;font-size:.78rem}
-  .gpa-result .big{font-size:2.3rem}
-  .modal{padding:20px 16px;border-radius:16px}
-  .toast{font-size:.8rem;padding:10px 14px}
+  .topbar{top:8px;right:8px;left:8px;height:54px;padding:0 12px;gap:8px}
+  main{margin-top:74px;padding:14px 12px 130px}
+  .sidebar{top:72px}
+  .theme-panel{width:calc(100vw - 40px);left:20px;top:72px}
 }
 @media(max-width:400px){
   .icon-btn{width:32px;height:32px;font-size:.8rem}
@@ -521,6 +486,9 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
       <button class="icon-btn" id="settingsBtn" title="الإعدادات">⚙️</button>
       <div class="settings-menu" id="settingsMenu">
         <button class="settings-item" id="themeBtn"><span>🎨</span> الثيمات</button>
+        <button class="settings-item" id="pwaInstallBtn" style="display:none"><span>📲</span> تثبيت التطبيق</button>
+        <button class="settings-item" id="syncCodeBtn"><span>☁️</span> المزامنة السحابية</button>
+        <div class="settings-divider"></div>
         <button class="settings-item" id="pdfBtn"><span>🖨️</span> تصدير PDF</button>
         <button class="settings-item" id="backupBtn"><span>💾</span> تصدير نسخة</button>
         <button class="settings-item" id="restoreBtn"><span>📥</span> استيراد نسخة</button>
@@ -546,16 +514,11 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
   <div class="nav-section">المذاكرة</div>
   <div class="nav-item" data-tab="timer"><span class="ic">⏱️</span><span class="label">بومودورو</span></div>
   <div class="nav-item" data-tab="flashcards"><span class="ic">🃏</span><span class="label">بطاقات تعليمية</span></div>
-  <div class="nav-item" data-tab="stats"><span class="ic">📈</span><span class="label">إحصائيات</span></div>
-  <div class="nav-section">الحياة الجامعية</div>
-  <div class="nav-item" data-tab="extracurricular"><span class="ic">🎯</span><span class="label">الأنشطة</span></div>
-  <div class="nav-item" data-tab="budget"><span class="ic">💰</span><span class="label">الميزانية</span></div>
   <div class="nav-section">الأدوات</div>
   <div class="nav-item" data-tab="gradecalc"><span class="ic">📊</span><span class="label">علاماتي</span></div>
+  <div class="nav-item" data-tab="budget"><span class="ic">💰</span><span class="label">الميزانية</span></div>
   <div class="nav-item" data-tab="notes"><span class="ic">📔</span><span class="label">ملاحظاتي</span></div>
-  <div class="nav-item" data-tab="gpa"><span class="ic">📊</span><span class="label">حاسبة المعدل</span></div>
-  <div class="nav-item" data-tab="plan"><span class="ic">📖</span><span class="label">الخطة الدراسية</span></div>
-  <div class="nav-item" data-tab="coursedescriptions"><span class="ic">📕</span><span class="label">وصف المواد</span></div>
+  <div class="nav-item" data-tab="plan"><span class="ic">📖</span><span class="label">الخطة والمواد</span></div>
   <div class="nav-section">الجامعة</div>
   <div class="nav-item" data-tab="hulinks"><span class="ic">🎓</span><span class="label">روابط الجامعة</span></div>
 </aside>
@@ -615,10 +578,18 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
         <div id="dashBudget"></div>
       </div>
     </div>
-    <div class="card">
+    <div class="card" style="margin-bottom:16px">
       <div class="card-head"><h3>📔 آخر الملاحظات</h3>
         <span class="card-action" data-goto="notes">الكل ←</span></div>
       <div id="dashNotes"></div>
+    </div>
+
+    <!-- 📈 إحصائيات مدموجة -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><h3>📈 إحصائيات الدراسة</h3></div>
+      <div class="chart-title">⏱️ ساعات الدراسة (آخر 7 أيام)</div>
+      <div class="bar-chart" id="studyChart"></div>
+      <div class="grid grid-3" id="statsCards" style="margin-top:24px"></div>
     </div>
   </section>
 
@@ -736,21 +707,6 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
     <div id="decksList"></div>
   </section>
 
-  <section id="stats" class="section">
-    <div class="page-head"><h2 class="page-title">📈 إحصائيات</h2><p class="page-sub">تحليلات أدائك</p></div>
-    <div class="chart-container">
-      <div class="chart-title">⏱️ ساعات الدراسة (آخر 7 أيام)</div>
-      <div class="bar-chart" id="studyChart"></div>
-    </div>
-    <div class="grid grid-3" id="statsCards"></div>
-  </section>
-
-  <section id="extracurricular" class="section">
-    <div class="page-head"><h2 class="page-title">🎯 الأنشطة</h2><p class="page-sub">أنشطتك اللامنهجية</p></div>
-    <div class="controls"><button class="btn" id="btnAddEC">+ نشاط</button></div>
-    <div id="ecList"></div>
-  </section>
-
   <section id="budget" class="section">
     <div class="page-head"><h2 class="page-title">💰 الميزانية</h2><p class="page-sub">دخلك ومصاريفك</p></div>
     <div class="budget-summary" id="budgetSummary"></div>
@@ -777,70 +733,134 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
     <div id="notesList"></div>
   </section>
 
-  <section id="gpa" class="section">
-    <div class="page-head"><h2 class="page-title">📊 حاسبة المعدل</h2><p class="page-sub">معدلك التراكمي</p></div>
-    <div class="controls">
-      <button class="btn btn-sm" id="btnAddGpa">+ مادة</button>
-      <button class="btn btn-sm btn-ghost" id="btnLoadGpaSample">📋 مثال</button>
-      <button class="btn btn-sm btn-danger" id="btnClearGpa">🗑 مسح</button>
+  <!-- 📊 علاماتي (مدمج فيه: كم أحتاج + متتبع + حاسبة المعدل) -->
+  <section id="gradecalc" class="section">
+    <div class="page-head">
+      <h2 class="page-title">📊 علاماتي</h2>
+      <p class="page-sub">علاماتك + كم تحتاج + حاسبة المعدل</p>
     </div>
-    <div style="overflow-x:auto">
-      <table class="gpa-table">
-        <thead><tr><th style="width:45%">المادة</th><th style="width:15%">الساعات</th>
-          <th style="width:30%">التقدير</th><th style="width:10%"></th></tr></thead>
-        <tbody id="gpaBody"></tbody>
-      </table>
+
+    <div class="section-tabs">
+      <button class="section-tab active" data-gc-tab="need">🎯 كم أحتاج</button>
+      <button class="section-tab" data-gc-tab="tracker">📈 علاماتي</button>
+      <button class="section-tab" data-gc-tab="gpa">📊 حاسبة المعدل</button>
     </div>
-    <div class="gpa-result">
-      <div style="color:var(--muted);font-size:.84rem">المعدل التراكمي</div>
-      <div class="big" id="gpaVal">0.00</div>
-      <div class="gpa-details">
-        <div><div class="v" id="gpaHrs">0</div><div class="l">مجموع الساعات</div></div>
-        <div><div class="v" id="gpaCourses">0</div><div class="l">عدد المواد</div></div>
-        <div><div class="v" id="gpaGrade">—</div><div class="l">التقدير</div></div>
+
+    <!-- Subtab 1: كم أحتاج -->
+    <div class="subsection active" data-gc-sub="need">
+      <div class="card">
+        <h3>🎯 كم أحتاج في الفاينل؟</h3>
+        <div class="grid grid-2">
+          <div class="form-group"><label>علامتك الحالية من 100</label>
+            <input id="ncCurrent" type="number" min="0" max="100" value="72"></div>
+          <div class="form-group"><label>وزن الفاينل (%)</label>
+            <input id="ncWeight" type="number" min="1" max="100" value="40"></div>
+          <div class="form-group"><label>العلامة الهدف</label>
+            <select id="ncTarget">
+              <option value="95">A — 95</option>
+              <option value="87">A- — 87</option>
+              <option value="82">B+ — 82</option>
+              <option value="77">B — 77</option>
+              <option value="72">B- — 72</option>
+              <option value="67">C+ — 67</option>
+              <option value="62">C — 62</option>
+              <option value="60" selected>نجاح — 60</option>
+            </select></div>
+          <div class="form-group"><label>&nbsp;</label>
+            <button class="btn" style="width:100%" id="ncCalc">احسب</button></div>
+        </div>
+        <div id="ncResult" style="margin-top:12px;padding:14px;border-radius:10px;display:none;text-align:center"></div>
       </div>
     </div>
-    <div class="card" style="margin-top:18px">
-      <h3>🎯 محاكي "ماذا لو"</h3>
-      <div class="grid grid-2">
-        <div class="form-group"><label>الساعات</label>
-          <input id="whatIfHrs" type="number" value="3" min="1" max="6"></div>
-        <div class="form-group"><label>التقدير المتوقع</label>
-          <select id="whatIfGrade"></select></div>
-        <div class="form-group"><label>&nbsp;</label>
-          <button class="btn" style="width:100%" id="btnCalcWhatIf">احسب</button></div>
+
+    <!-- Subtab 2: متتبع العلامات -->
+    <div class="subsection" data-gc-sub="tracker">
+      <div class="card">
+        <div class="card-head">
+          <h3>📈 علامات المواد</h3>
+          <button class="btn btn-sm" id="btnAddGrade">+ مادة</button>
+        </div>
+        <div id="gradeTrackerList"></div>
       </div>
-      <div id="whatIfResult" style="margin-top:12px;padding:14px;background:var(--grad-soft);border-radius:10px;font-size:.86rem;color:var(--cyan);font-weight:600;display:none"></div>
+    </div>
+
+    <!-- Subtab 3: حاسبة المعدل -->
+    <div class="subsection" data-gc-sub="gpa">
+      <div class="controls">
+        <button class="btn btn-sm" id="btnAddGpa">+ مادة</button>
+        <button class="btn btn-sm btn-ghost" id="btnLoadGpaSample">📋 مثال</button>
+        <button class="btn btn-sm btn-danger" id="btnClearGpa">🗑 مسح</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="gpa-table">
+          <thead><tr><th style="width:45%">المادة</th><th style="width:15%">الساعات</th>
+            <th style="width:30%">التقدير</th><th style="width:10%"></th></tr></thead>
+          <tbody id="gpaBody"></tbody>
+        </table>
+      </div>
+      <div class="gpa-result">
+        <div style="color:var(--muted);font-size:.84rem">المعدل التراكمي</div>
+        <div class="big" id="gpaVal">0.00</div>
+        <div class="gpa-details">
+          <div><div class="v" id="gpaHrs">0</div><div class="l">مجموع الساعات</div></div>
+          <div><div class="v" id="gpaCourses">0</div><div class="l">عدد المواد</div></div>
+          <div><div class="v" id="gpaGrade">—</div><div class="l">التقدير</div></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:18px">
+        <h3>🎯 محاكي "ماذا لو"</h3>
+        <div class="grid grid-2">
+          <div class="form-group"><label>الساعات</label>
+            <input id="whatIfHrs" type="number" value="3" min="1" max="6"></div>
+          <div class="form-group"><label>التقدير المتوقع</label>
+            <select id="whatIfGrade"></select></div>
+          <div class="form-group"><label>&nbsp;</label>
+            <button class="btn" style="width:100%" id="btnCalcWhatIf">احسب</button></div>
+        </div>
+        <div id="whatIfResult" style="margin-top:12px;padding:14px;background:var(--grad-soft);border-radius:10px;font-size:.86rem;color:var(--cyan);font-weight:600;display:none"></div>
+      </div>
     </div>
   </section>
 
+  <!-- 📖 الخطة والمواد (مدمج) -->
   <section id="plan" class="section">
-    <div class="page-head"><h2 class="page-title">📖 الخطة الدراسية</h2><p class="page-sub">خطة هندسة الحاسوب</p></div>
-    <div class="controls">
-      <button class="chip active" data-filter="all">الكل</button>
-      <button class="chip" data-filter="1">سنة 1</button>
-      <button class="chip" data-filter="2">سنة 2</button>
-      <button class="chip" data-filter="3">سنة 3</button>
-      <button class="chip" data-filter="4">سنة 4</button>
-      <button class="chip" data-filter="5">سنة 5</button>
+    <div class="page-head">
+      <h2 class="page-title">📖 الخطة والمواد</h2>
+      <p class="page-sub">خطة هندسة الحاسوب + وصف المواد</p>
     </div>
-    <div id="semesters"></div>
-  </section>
 
-  <section id="coursedescriptions" class="section">
-    <div class="page-head"><h2 class="page-title">📕 وصف المواد</h2>
-      <p class="page-sub">مرجع كامل لمواد خطة هندسة الحاسوب</p></div>
-    <div class="controls">
-      <input type="search" id="cdSearch" placeholder="🔍 ابحث باسم المادة أو رقمها..."
-        style="flex:1;min-width:220px;padding:10px 14px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:10px;font-family:inherit;font-size:.86rem;outline:none">
-      <button class="chip active" data-cd-year="all">الكل</button>
-      <button class="chip" data-cd-year="1">سنة 1</button>
-      <button class="chip" data-cd-year="2">سنة 2</button>
-      <button class="chip" data-cd-year="3">سنة 3</button>
-      <button class="chip" data-cd-year="4">سنة 4</button>
-      <button class="chip" data-cd-year="5">سنة 5</button>
+    <div class="section-tabs">
+      <button class="section-tab active" data-plan-tab="plan">📖 الخطة الدراسية</button>
+      <button class="section-tab" data-plan-tab="desc">📕 وصف المواد</button>
     </div>
-    <div id="cdList"></div>
+
+    <!-- Subtab: خطة -->
+    <div class="subsection active" data-plan-sub="plan">
+      <div class="controls">
+        <button class="chip active" data-filter="all">الكل</button>
+        <button class="chip" data-filter="1">سنة 1</button>
+        <button class="chip" data-filter="2">سنة 2</button>
+        <button class="chip" data-filter="3">سنة 3</button>
+        <button class="chip" data-filter="4">سنة 4</button>
+        <button class="chip" data-filter="5">سنة 5</button>
+      </div>
+      <div id="semesters"></div>
+    </div>
+
+    <!-- Subtab: وصف -->
+    <div class="subsection" data-plan-sub="desc">
+      <div class="controls">
+        <input type="search" id="cdSearch" placeholder="🔍 ابحث باسم المادة أو رقمها..."
+          style="flex:1;min-width:220px;padding:10px 14px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:10px;font-family:inherit;font-size:.86rem;outline:none">
+        <button class="chip active" data-cd-year="all">الكل</button>
+        <button class="chip" data-cd-year="1">سنة 1</button>
+        <button class="chip" data-cd-year="2">سنة 2</button>
+        <button class="chip" data-cd-year="3">سنة 3</button>
+        <button class="chip" data-cd-year="4">سنة 4</button>
+        <button class="chip" data-cd-year="5">سنة 5</button>
+      </div>
+      <div id="cdList"></div>
+    </div>
   </section>
 
   <section id="hulinks" class="section">
@@ -863,45 +883,6 @@ main{margin-right:250px;margin-top:62px;padding:24px 28px 120px;max-width:1300px
     <div class="grid grid-2" id="huAppLinks"></div>
     <h3 style="margin:20px 0 12px;font-size:1rem;color:var(--cyan)">🆘 الدعم والمساعدة</h3>
     <div class="grid grid-2" id="huSupportLinks"></div>
-  </section>
-
-  <section id="gradecalc" class="section">
-    <div class="page-head">
-      <h2 class="page-title">📊 علاماتي</h2>
-      <p class="page-sub">سجّل علاماتك + احسب كم تحتاج للفاينل</p>
-    </div>
-
-    <div class="card" style="margin-bottom:16px">
-      <h3>🎯 كم أحتاج في الفاينل؟</h3>
-      <div class="grid grid-2">
-        <div class="form-group"><label>علامتك الحالية من 100</label>
-          <input id="ncCurrent" type="number" min="0" max="100" value="72"></div>
-        <div class="form-group"><label>وزن الفاينل (%)</label>
-          <input id="ncWeight" type="number" min="1" max="100" value="40"></div>
-        <div class="form-group"><label>العلامة الهدف</label>
-          <select id="ncTarget">
-            <option value="95">A — 95</option>
-            <option value="87">A- — 87</option>
-            <option value="82">B+ — 82</option>
-            <option value="77">B — 77</option>
-            <option value="72">B- — 72</option>
-            <option value="67">C+ — 67</option>
-            <option value="62">C — 62</option>
-            <option value="60" selected>نجاح — 60</option>
-          </select></div>
-        <div class="form-group"><label>&nbsp;</label>
-          <button class="btn" style="width:100%" id="ncCalc">احسب</button></div>
-      </div>
-      <div id="ncResult" style="margin-top:12px;padding:14px;border-radius:10px;display:none;text-align:center"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <h3>📈 علامات المواد</h3>
-        <button class="btn btn-sm" id="btnAddGrade">+ مادة</button>
-      </div>
-      <div id="gradeTrackerList"></div>
-    </div>
   </section>
 </main>
 
@@ -1554,6 +1535,27 @@ function logStudySession(minutes){
 }
 
 /* ==================== NAV ==================== */
+var TAB_REDIRECTS = {
+  'gpa': {tab:'gradecalc', subTab:'gpa'},
+  'coursedescriptions': {tab:'plan', subTab:'desc'},
+  'stats': {tab:'dashboard'},
+  'extracurricular': {tab:'dashboard'}
+};
+
+function switchSubTab(sectionId, subKey){
+  var section = document.getElementById(sectionId); if(!section) return;
+  var tabs = section.querySelectorAll('.section-tab');
+  var subs = section.querySelectorAll('.subsection');
+  tabs.forEach(function(t){
+    if(sectionId === 'gradecalc') t.classList.toggle('active', t.dataset.gcTab === subKey);
+    else if(sectionId === 'plan') t.classList.toggle('active', t.dataset.planTab === subKey);
+  });
+  subs.forEach(function(s){
+    if(sectionId === 'gradecalc') s.classList.toggle('active', s.dataset.gcSub === subKey);
+    else if(sectionId === 'plan') s.classList.toggle('active', s.dataset.planSub === subKey);
+  });
+}
+
 function initHistoryNavigation(){
   if(historyInitialized) return;
   historyInitialized = true;
@@ -1566,6 +1568,14 @@ function initHistoryNavigation(){
 }
 function switchTab(tab, pushHistory){
   if(pushHistory === undefined) pushHistory = true;
+
+  // Handle redirects for merged/removed tabs
+  var redirect = TAB_REDIRECTS[tab];
+  if(redirect){
+    if(redirect.subTab){ setTimeout(function(){ switchSubTab(redirect.tab, redirect.subTab); }, 60); }
+    tab = redirect.tab;
+  }
+
   var nav = document.querySelector('.nav-item[data-tab="' + tab + '"]');
   var sec = document.getElementById(tab);
   if(!nav || !sec) return;
@@ -1577,15 +1587,15 @@ function switchTab(tab, pushHistory){
   else{ try{ history.replaceState({tab:tab}, '', '#' + tab); }catch(e){} }
   closeSidebar(); closeSettingsMenu(); window.scrollTo({top:0, behavior:'smooth'});
   var fns = {
-    dashboard: renderDashboard, stats: renderStats, exams: renderExams,
-    budget: renderBudget, extracurricular: renderEC,
-    courses: renderCourses, tasks: renderTasks,
-    notes: renderNotes, gpa: renderGpa, flashcards: renderDecks,
+    dashboard: renderDashboard, exams: renderExams,
+    budget: renderBudget, courses: renderCourses, tasks: renderTasks,
+    notes: renderNotes, flashcards: renderDecks,
     attendance: renderAttendance, timetable: renderTimetable,
-    plan: renderPlan, coursedescriptions: renderCourseDescriptions,
-    hulinks: renderHuLinks, gradecalc: renderGradeCalc
+    plan: renderPlan, hulinks: renderHuLinks, gradecalc: renderGradeCalc
   };
   if(fns[tab]){ try{ fns[tab](); }catch(e){ console.error('Render error:', tab, e); } }
+  // ensure GPA section content renders when gradecalc opens
+  if(tab === 'gradecalc'){ try{ renderGpa(); }catch(e){} }
 }
 function toggleSidebar(){
   if(window.innerWidth > 900) return;
@@ -2240,67 +2250,6 @@ function showCardSession(d){
   render();
 }
 
-/* ==================== EC ==================== */
-function renderEC(){
-  var c = document.getElementById('ecList'); if(!c) return;
-  if(!space.extracurricular || !space.extracurricular.length){
-    c.innerHTML = '<div class="empty"><div class="ic">🎯</div><p>لا توجد أنشطة</p></div>';
-    return;
-  }
-  var catIcon = {club:'🎭', volunteer:'🤝', sport:'⚽', work:'💼', other:'🎯'};
-  var html = '';
-  space.extracurricular.forEach(function(a){
-    html += '<div class="ec-card"><div class="ec-icon">' + (catIcon[a.category] || '🎯') + '</div>' +
-      '<div class="ec-info"><div class="ec-name">' + esc(a.name) + '</div>' +
-      '<div class="ec-meta">' + esc(a.notes || '') + '</div></div>' +
-      '<div class="ec-hours">' + (a.hours || 0) + '<span class="lbl">ساعة</span></div>' +
-      '<div style="display:flex;gap:4px"><button class="btn btn-sm btn-ghost" data-edit-ec="' + a.id + '">✏️</button>' +
-      '<button class="btn btn-sm btn-danger" data-del-ec="' + a.id + '">🗑</button></div></div>';
-  });
-  c.innerHTML = html;
-  c.querySelectorAll('[data-edit-ec]').forEach(function(b){ b.addEventListener('click', function(){ editEC(b.dataset.editEc); }); });
-  c.querySelectorAll('[data-del-ec]').forEach(function(b){ b.addEventListener('click', function(){ deleteEC(b.dataset.delEc); }); });
-}
-function addExtracurricular(){
-  showModal('نشاط جديد', [
-    {key:'name', label:'اسم النشاط'},
-    {key:'category', label:'التصنيف', type:'select', options: [
-      {v:'club', l:'نادي'}, {v:'volunteer', l:'تطوع'}, {v:'sport', l:'رياضة'}, {v:'work', l:'عمل'}, {v:'other', l:'أخرى'}]},
-    {key:'hours', label:'الساعات', type:'number'},
-    {key:'notes', label:'ملاحظات', type:'textarea'}
-  ], {name:'', category:'club', hours:0, notes:''}, function(data){
-    if(!data.name) return toast('أدخل اسمًا', 'warn');
-    if(!space.extracurricular) space.extracurricular = [];
-    space.extracurricular.push(Object.assign({id: uid()}, data, {hours: parseInt(data.hours) || 0}));
-    saveSpace(); renderEC();
-  });
-}
-function editEC(id){
-  var a = space.extracurricular.find(function(x){ return x.id === id; }); if(!a) return;
-  showModal('تعديل', [
-    {key:'name', label:'الاسم'},
-    {key:'category', label:'التصنيف', type:'select', options: [
-      {v:'club', l:'نادي'}, {v:'volunteer', l:'تطوع'}, {v:'sport', l:'رياضة'}, {v:'work', l:'عمل'}, {v:'other', l:'أخرى'}]},
-    {key:'hours', label:'الساعات', type:'number'},
-    {key:'notes', label:'ملاحظات', type:'textarea'}
-  ], a, function(data){
-    a.name = data.name; a.category = data.category; a.hours = parseInt(data.hours) || 0; a.notes = data.notes;
-    saveSpace(); renderEC();
-  }, function(){
-    customConfirm('حذف "' + a.name + '"؟', function(){
-      space.extracurricular = space.extracurricular.filter(function(x){ return x.id !== id; });
-      saveSpace(); renderEC();
-    });
-  });
-}
-function deleteEC(id){
-  var a = space.extracurricular.find(function(x){ return x.id === id; });
-  customConfirm('حذف "' + (a ? a.name : 'النشاط') + '"؟', function(){
-    space.extracurricular = space.extracurricular.filter(function(x){ return x.id !== id; });
-    saveSpace(); renderEC();
-  });
-}
-
 /* ==================== BUDGET ==================== */
 function renderBudget(){
   var sumEl = document.getElementById('budgetSummary'); if(!sumEl) return;
@@ -2564,7 +2513,7 @@ function calcWhatIf(){
     '<span style="color:' + color + ';margin-right:8px">' + sign + ' ' + Math.abs(diff).toFixed(2) + '</span>';
 }
 
-/* ==================== GRADE CALC (مدمج) ==================== */
+/* ==================== GRADE CALC ==================== */
 function renderGradeCalc(){
   if(!space.grades) space.grades = [];
   var c = document.getElementById('gradeTrackerList'); if(!c) return;
@@ -2669,7 +2618,6 @@ function renderDashboard(){
   var todayIdx = now.getDay(); var todayKey = DAYS_EN[todayIdx] || 'Sun';
   var todayStr = now.toISOString().slice(0,10);
 
-  /* Term progress */
   var tp = document.getElementById('dashTermProgress');
   if(tp){
     var totalRequired = 0;
@@ -2759,6 +2707,8 @@ function renderDashboard(){
       dn.innerHTML = hn;
     }
   }
+  // 📈 إحصائيات مدموجة
+  try{ renderStats(); }catch(e){}
   updateTimerUI();
 }
 
@@ -2888,6 +2838,15 @@ function bindAllEvents(){
   var rb = document.getElementById('restoreBtn'); if(rb) rb.addEventListener('click', function(){ closeSettingsMenu(); restoreFromFile(); });
   var pdfBtn = document.getElementById('pdfBtn'); if(pdfBtn) pdfBtn.addEventListener('click', function(){ closeSettingsMenu(); exportPDF(); });
 
+  // Subtabs: gradecalc
+  document.querySelectorAll('[data-gc-tab]').forEach(function(btn){
+    btn.addEventListener('click', function(){ switchSubTab('gradecalc', btn.dataset.gcTab); });
+  });
+  // Subtabs: plan
+  document.querySelectorAll('[data-plan-tab]').forEach(function(btn){
+    btn.addEventListener('click', function(){ switchSubTab('plan', btn.dataset.planTab); });
+  });
+
   function bind(id, fn){ var el = document.getElementById(id); if(el) el.addEventListener('click', fn); }
   bind('btnAddClass', function(){ addClassSlot(); });
   bind('btnClearTt', clearTimetable);
@@ -2904,7 +2863,6 @@ function bindAllEvents(){
   bind('btnAddAtt', addAttendanceCourse);
   bind('btnTimerSettings', openTimerSettings);
   bind('btnAddDeck', addDeck);
-  bind('btnAddEC', addExtracurricular);
   bind('btnAddIncome', function(){ addBudgetItem('income'); });
   bind('btnAddExpense', function(){ addBudgetItem('expense'); });
   bind('btnClearBudget', clearBudget);
@@ -3071,6 +3029,7 @@ async function boot(){
   safeRun('Quote', renderDailyQuote);
   safeRun('Dashboard', renderDashboard);
   safeRun('GradeCalc', renderGradeCalc);
+  safeRun('CourseDesc', renderCourseDescriptions);
   safeRun('AI bindings', function(){ if(typeof window.bindAIEvents === 'function') window.bindAIEvents(); });
 
   safeRun('Initial tab', function(){
