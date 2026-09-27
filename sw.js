@@ -1,12 +1,19 @@
 /* ============================================================
-   ⚙️ sw.js — Service Worker للعمل بدون إنترنت
+   ⚙️ sw.js — Service Worker v18
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v16';
+var CACHE_NAME = 'ss-cache-v20';   // ← غيّره من v19
 var URLS_TO_CACHE = [
   './',
   './index.html',
   './courses-data.js',
   './ai-assistant.js',
+  './ai-assistant-plus.js',
+  './plan-simulator.js',
+  './plan-enhance.js',
+  './calendar-sync.js',
+  './insights.js',
+  './courses-files-plus.js',
+  './qc-fix.js',                    // 🆕
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
@@ -27,11 +34,7 @@ self.addEventListener('install', function(e){
 self.addEventListener('activate', function(e){
   e.waitUntil(
     caches.keys().then(function(keys){
-      return Promise.all(
-        keys.map(function(k){
-          if(k !== CACHE_NAME) return caches.delete(k);
-        })
-      );
+      return Promise.all(keys.map(function(k){ if(k !== CACHE_NAME) return caches.delete(k); }));
     }).then(function(){ return self.clients.claim(); })
   );
 });
@@ -43,6 +46,7 @@ self.addEventListener('fetch', function(e){
   if(url.indexOf('translate.google.com') > -1) return;
   if(url.indexOf('api.qrserver.com') > -1) return;
   if(url.indexOf('open-meteo.com') > -1) return;
+  if(url.indexOf('aladhan.com') > -1) return;
   if(e.request.method !== 'GET') return;
 
   e.respondWith(
@@ -50,9 +54,7 @@ self.addEventListener('fetch', function(e){
       var fetchPromise = fetch(e.request).then(function(response){
         if(response && response.status === 200){
           var clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache){
-            cache.put(e.request, clone).catch(function(){});
-          });
+          caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, clone).catch(function(){}); });
         }
         return response;
       }).catch(function(){ return cached; });
