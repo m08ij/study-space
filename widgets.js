@@ -184,6 +184,21 @@
         renderWeatherBody();
       }
     },
+		prayer: {
+  title: 'مواقيت الصلاة · طبربور', icon: '🕌', default: true,
+  html: function(){
+    return '<div class="lw-card" data-widget="prayer">' +
+      '<div class="lw-title"><span class="lw-ic">🕌</span> مواقيت الصلاة · طبربور' +
+      '<button class="lw-refresh" data-action="refresh-prayer">⟳</button></div>' +
+      '<div id="lwPrayerBody"><div class="lw-weather-loading"><div class="lw-spinner"></div> جاري التحميل...</div></div></div>';
+  },
+  attach: function(card){
+    var btn = card.querySelector('[data-action="refresh-prayer"]');
+    if(btn) btn.addEventListener('click', function(){ loadPrayerTimes(true); });
+    renderPrayerBody();
+    if(!prayerData) loadPrayerTimes(false);
+  }
+},
     events: {
       title: 'الأحداث القادمة', icon: '📅', default: true,
       html: function(){
@@ -623,7 +638,136 @@
     obs.observe(sem, {childList:true, subtree:true});
     enhancePlan();
   }
+/* ==================== PRAYER TIMES ==================== */
+var PRAYER_CACHE_KEY = 'lw_prayer_cache_v1';
+var PRAYER_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 ساعات
+var prayerData = null;
 
+var PRAYER_NAMES = {
+  Fajr:    {ar: 'الفجر',   ic: '🌙'},
+  Sunrise: {ar: 'الشروق',  ic: '🌅'},
+  Dhuhr:   {ar: 'الظهر',   ic: '☀️'},
+  Asr:     {ar: 'العصر',   ic: '🌤️'},
+  Maghrib: {ar: 'المغرب',  ic: '🌇'},
+  Isha:    {ar: 'العشاء',  ic: '🌙'}
+};
+
+function getNextPrayer(){
+  if(!prayerData || !prayerData.timings) return null;
+  var now = new Date();
+  var nowMin = now.getHours() * 60 + now.getMinutes();
+  var order = ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
+  for(var i = 0; i < order.length; i++){
+    var t = prayerData.timings[order[i]];
+    if(!t) continue;
+    var parts = t.split(':');
+    var m = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    if(m > nowMin){
+      var diff = m - nowMin;
+      return {key: order[i], name: PRAYER_NAMES[order[i]].ar, icon: PRAYER_NAMES[order[i]].ic, time: t.substring(0,5), diff: diff};
+    }
+  }
+  // بعد العشاء → الفجر بكرة
+  var fajr = prayerData.timings.Fajr;
+  if(fajr){
+    var fp = fajr.split(':');
+    var fm = parseInt(fp[0], 10) * 60 + parseInt(fp[1], 10);
+    var diff2 = (24 * 60 - nowMin) + fm;
+    return {key:'Fajr', name:'الفجر', icon:'🌙', time: fajr.substring(0,5), diff: diff2, tomorrow: true};
+  }
+  return null;
+}
+
+function renderPrayerBody(){
+  var body = document.getElementById('lwPrayerBody');
+  if(!body) return;
+  if(!prayerData || !prayerData.timings){
+    body.innerHTML = '<div class="lw-weather-loading"><div class="lw-spinner"></div> جاري التحميل...</div>';
+    return;
+  }
+
+  var next = getNextPrayer();
+  var order = ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha'];
+  var now = new Date();
+  var nowMin = now.getHours() * 60 + now.getMinutes();
+
+  var html = '';
+
+  // Next prayer banner
+  if(next){
+    var hh = Math.floor(next.diff / 60);
+    var mm = next.diff % 60;
+    var diffStr = hh > 0 ? (hh + ' س ' + mm + ' د') : (mm + ' دقيقة');
+    html += '<div style="background:var(--grad-soft);border:1px solid var(--glow);border-radius:12px;padding:12px;margin-bottom:12px;text-align:center">' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-bottom:4px">الصلاة القادمة' + (next.tomorrow ? ' (غدًا)' : '') + '</div>' +
+      '<div style="font-size:1.1rem;font-weight:800;color:var(--cyan)">' + next.icon + ' ' + next.name + ' — ' + next.time + '</div>' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-top:4px">بعد ' + diffStr + '</div>' +
+    '</div>';
+  }
+
+  // All prayers list
+  order.forEach(function(key){
+    var t = prayerData.timings[key];
+    if(!t) return;
+    var displayTime = t.substring(0,5);
+    var parts = displayTime.split(':');
+    var pMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    var isPast = pMin < nowMin;
+    var isNext = next && next.key === key && !next.tomorrow;
+
+    html += '<div class="lw-item" style="' + (isNext ? 'background:var(--grad-soft);border-radius:8px;padding:8px;margin:2px 0' : '') + '">' +
+      '<div class="lw-item-ic">' + PRAYER_NAMES[key].ic + '</div>' +
+      '<div class="lw-item-body">' +
+        '<div class="lw-item-title" style="' + (isPast ? 'opacity:.5' : '') + '">' + PRAYER_NAMES[key].ar + '</div>' +
+      '</div>' +
+      '<div style="font-weight:700;font-size:.85rem;color:' + (isNext ? 'var(--cyan)' : (isPast ? 'var(--muted2)' : 'var(--text)')) + '">' + displayTime + '</div>' +
+    '</div>';
+  });
+
+  // Hijri date
+  if(prayerData.date && prayerData.date.hijri){
+    var h = prayerData.date.hijri;
+    var hijriStr = (h.day || '') + ' ' + (h.month && h.month.ar ? h.month.ar : '') + ' ' + (h.year || '') + ' هـ';
+    html += '<div style="text-align:center;font-size:.7rem;color:var(--muted2);margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">' + hijriStr + '</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+function loadPrayerTimes(force){
+  // Cache check
+  if(!force){
+    try{
+      var cache = JSON.parse(localStorage.getItem(PRAYER_CACHE_KEY) || 'null');
+      if(cache && Date.now() - cache.ts < PRAYER_CACHE_TTL){
+        prayerData = cache.data;
+        renderPrayerBody();
+        return;
+      }
+    }catch(e){}
+  }
+
+  if(force){ prayerData = null; renderPrayerBody(); }
+
+  // Aladhan API — Tabarbour, Amman (method 23 = Jordan Ministry of Awqaf)
+  var url = 'https://api.aladhan.com/v1/timings?latitude=31.9856&longitude=35.9531&method=23&school=0';
+
+  fetch(url, {cache: 'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if(!j || j.code !== 200 || !j.data) return;
+      prayerData = {
+        timings: j.data.timings,
+        date: j.data.date,
+        meta: j.data.meta
+      };
+      try{
+        localStorage.setItem(PRAYER_CACHE_KEY, JSON.stringify({ts: Date.now(), data: prayerData}));
+      }catch(e){}
+      renderPrayerBody();
+    })
+    .catch(function(){});
+}
   function init(){
     injectCSS();
     injectHTML();
@@ -632,12 +776,14 @@
     initSidebar();
     initFocusScreen();
     loadWeather(false);
+	loadPrayerTimes(false);
     rotateQuote(false);
     setInterval(function(){ rotateQuote(true); }, 60 * 1000);
     watchPlan();
     setInterval(function(){
       if(enabledWidgets.indexOf('events') > -1) renderEventsBody();
       if(enabledWidgets.indexOf('pomodoro') > -1) renderPomodoroBody();
+	    if(enabledWidgets.indexOf('prayer') > -1) renderPrayerBody(); // تحديث العرض كل دقيقتين
     }, 2 * 60 * 1000);
     setInterval(function(){ if(enabledWidgets.indexOf('events') > -1) renderEventsBody(); }, 30 * 1000);
     if(window.S && typeof window.S.set === 'function' && !window.S._lwWrapped){

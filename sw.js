@@ -1,7 +1,7 @@
 /* ============================================================
    ⚙️ sw.js — Service Worker للعمل بدون إنترنت
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v8';
+var CACHE_NAME = 'ss-cache-v9';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -63,12 +63,19 @@ self.addEventListener('fetch', function(e){
 
 self.addEventListener('notificationclick', function(e){
   e.notification.close();
+  var data = e.notification.data || {};
+  var tab = data.tab || 'dashboard';
   e.waitUntil(
-    clients.matchAll({ type: 'window' }).then(function(list){
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list){
       for(var i = 0; i < list.length; i++){
-        if(list[i].url.indexOf('index.html') > -1) return list[i].focus();
+        var c = list[i];
+        if(c.url.indexOf('index.html') > -1 || c.url.indexOf(location.origin) === 0){
+          c.focus();
+          c.postMessage({type:'navigate', tab: tab});
+          return;
+        }
       }
-      if(clients.openWindow) return clients.openWindow('./index.html');
+      if(clients.openWindow) return clients.openWindow('./index.html#' + tab);
     })
   );
 });

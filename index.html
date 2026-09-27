@@ -116,6 +116,30 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 .section-tab.active{background:var(--grad);color:#0b0f1a;box-shadow:0 4px 14px var(--glow)}
 .subsection{display:none}
 .subsection.active{display:block;animation:fade .3s}
+/* ===== ملفات المواد ===== */
+.course-file-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;transition:.2s}
+.course-file-item:hover{border-color:var(--cyan)}
+.course-file-item .cf-icon{font-size:1.3rem;flex-shrink:0}
+.course-file-item .cf-info{flex:1;min-width:0}
+.course-file-item .cf-name{font-size:.82rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.course-file-item .cf-meta{font-size:.68rem;color:var(--muted2);margin-top:2px}
+.course-file-item .cf-actions{display:flex;gap:4px}
+.course-files-list{max-height:200px;overflow-y:auto;margin-top:10px}
+.upload-course-btn{padding:6px 12px;background:var(--grad-soft);border:1px dashed var(--glow);border-radius:10px;color:var(--cyan);cursor:pointer;font-family:inherit;font-size:.78rem;font-weight:700;width:100%;margin-top:8px;transition:.2s}
+.upload-course-btn:hover{background:var(--grad);color:#0b0f1a;border-style:solid}
+.upload-progress-bar{height:6px;background:var(--bg2);border-radius:6px;overflow:hidden;margin-top:8px;display:none}
+.upload-progress-bar .inner{height:100%;background:var(--grad);width:0;transition:width .3s}
+/* ===== إشعارات ===== */
+.notif-item{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:8px}
+.notif-item .notif-icon{width:42px;height:42px;border-radius:12px;background:var(--grad-soft);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+.notif-item .notif-body{flex:1;min-width:0}
+.notif-item .notif-title{font-weight:700;font-size:.9rem;margin-bottom:3px}
+.notif-item .notif-desc{font-size:.75rem;color:var(--muted);line-height:1.5}
+.notif-item .notif-time{font-size:.7rem;color:var(--cyan);font-weight:700;background:var(--grad-soft);padding:3px 10px;border-radius:8px;white-space:nowrap}
+.notif-status{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:12px;font-size:.85rem;margin-bottom:14px}
+.notif-status.granted{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:var(--green)}
+.notif-status.denied{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.notif-status.default{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:var(--amber)}
 
 .grid{display:grid;gap:16px}
 .grid-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
@@ -485,6 +509,7 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
     <div class="settings-wrap">
       <button class="icon-btn" id="settingsBtn" title="الإعدادات">⚙️</button>
       <div class="settings-menu" id="settingsMenu">
+	    <button class="settings-item" id="notifBtn"><span>🔔</span> <span id="notifBtnText">تفعيل الإشعارات</span></button>
         <button class="settings-item" id="themeBtn"><span>🎨</span> الثيمات</button>
         <button class="settings-item" id="pwaInstallBtn" style="display:none"><span>📲</span> تثبيت التطبيق</button>
         <button class="settings-item" id="syncCodeBtn"><span>☁️</span> المزامنة السحابية</button>
@@ -942,7 +967,7 @@ var ocrImageDataURL = '';
 var tesseractLoading = null;
 var backupTimer = null;
 var lastW = window.innerWidth;
-
+var NOTIF_ASKED_KEY = 'ss_notif_asked';
 var storageAvailable = (function(){
   try{ var k='__test__'; localStorage.setItem(k,'x'); localStorage.removeItem(k); return true; }
   catch(e){ return false; }
@@ -1204,26 +1229,44 @@ function checkSmartReminders(){
   var today = new Date().toISOString().slice(0,10);
   var now = new Date();
   var hour = now.getHours();
-  if(hour < 8 || hour > 23) return;
 
   var reminders = [];
   var dueToday = space.tasks.filter(function(t){ return !t.done && t.due === today; });
-  if(dueToday.length) reminders.push('📌 ' + dueToday.length + ' مهمة مستحقة اليوم!');
+  if(dueToday.length){
+    reminders.push({t:'📌 ' + dueToday.length + ' مهمة مستحقة اليوم!', b: dueToday.slice(0,3).map(function(x){return x.title;}).join(' · '), tag:'due-today'});
+  }
 
   var upcomingExams = (space.exams || []).filter(function(e){
     if(!e.date) return false;
     var days = Math.ceil((new Date(e.date) - now) / 86400000);
     return days >= 0 && days <= 3;
   });
-  if(upcomingExams.length) reminders.push('⏳ ' + upcomingExams.length + ' امتحان قريب! ابدأ المراجعة');
+  upcomingExams.forEach(function(e){
+    var days = Math.ceil((new Date(e.date) - now) / 86400000);
+    var when = days === 0 ? 'اليوم!' : days === 1 ? 'غدًا!' : 'بعد ' + days + ' أيام';
+    reminders.push({t:'⏳ امتحان ' + when, b: e.name + (e.time ? ' — الساعة ' + e.time : ''), tag:'exam-' + e.date});
+  });
 
   var overdue = space.tasks.filter(function(t){ return !t.done && t.due && t.due < today; });
-  if(overdue.length) reminders.push('⚠️ ' + overdue.length + ' مهمة متأخرة!');
+  if(overdue.length){
+    reminders.push({t:'⚠️ ' + overdue.length + ' مهمة متأخرة!', b: overdue.slice(0,3).map(function(x){return x.title;}).join(' · '), tag:'overdue', requireInteraction:true});
+  }
 
-  reminders.forEach(function(msg, i){
-    setTimeout(function(){ toast(msg, 'warn', 5000); }, 2000 + i * 3000);
+  // Toast reminders (only during waking hours)
+  if(hour >= 8 && hour <= 23){
+    reminders.forEach(function(r, i){
+      setTimeout(function(){ toast(r.t, 'warn', 5000); }, 2000 + i * 3000);
+    });
+  }
+
+  // Browser notifications (any time)
+  reminders.forEach(function(r, i){
+    setTimeout(function(){
+      showNotif(r.t, r.b, {tag: r.tag, requireInteraction: !!r.requireInteraction});
+    }, 1500 + i * 2500);
   });
 }
+
 
 /* ==================== DATA ==================== */
 var SEMESTERS = [
@@ -1482,7 +1525,11 @@ function completeSession(){
     S.set('pomoSessions', ts.sessions); S.set('pomoFocus', ts.focusMin);
     logStudySession(timerSettings.focus);
     confetti(); toast('🎉 أكملت جلسة تركيز!', 'success', 4000);
-  } else { toast('انتهت الراحة!', 'info', 4000); }
+    showNotif('🎉 أكملت جلسة تركيز!', 'خذ راحة ' + timerSettings.short + ' دقائق قبل الجلسة التالية.', {tag:'pomo-done'});
+  } else {
+    toast('انتهت الراحة!', 'info', 4000);
+    showNotif('☕ انتهت الراحة', 'جاهز للتركيز من جديد؟', {tag:'pomo-rest'});
+  }
   ts.remaining = ts.total; updateTimerUI();
 }
 function playBeep(){
@@ -1894,18 +1941,132 @@ function renderCourses(){
   }
   var html = '';
   space.courses.forEach(function(c){
-    html += '<div class="card">' +
+    html += '<div class="card" data-course-card="' + c.id + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:10px">' +
         '<div><div style="font-weight:700;font-size:.98rem">' + esc(c.name) + '</div>' +
         (c.code ? '<div style="font-size:.7rem;color:var(--muted2);font-family:monospace">' + esc(c.code) + '</div>' : '') + '</div>' +
         '<span class="badge">' + (c.hours || 3) + ' ساعات</span></div>' +
       '<div style="display:flex;gap:6px;margin-top:12px">' +
         '<button class="btn btn-sm btn-ghost" data-edit-course="' + c.id + '">✏️</button>' +
-        '<button class="btn btn-sm btn-danger" data-del-course="' + c.id + '">🗑</button></div></div>';
+        '<button class="btn btn-sm btn-danger" data-del-course="' + c.id + '">🗑</button></div>' +
+
+      // Files section
+      '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          '<span style="font-size:.78rem;font-weight:700;color:var(--muted)">📎 ملفات المادة</span>' +
+          '<span style="font-size:.68rem;color:var(--muted2)" data-files-count="' + c.id + '">—</span>' +
+        '</div>' +
+        '<div class="course-files-list" data-files-list="' + c.id + '">' +
+          '<div style="text-align:center;padding:10px;font-size:.75rem;color:var(--muted2)">جاري التحميل...</div>' +
+        '</div>' +
+        '<button class="upload-course-btn" data-upload-course="' + c.id + '">📤 رفع ملف</button>' +
+        '<input type="file" style="display:none" data-file-input="' + c.id + '">' +
+        '<div class="upload-progress-bar" data-upload-progress="' + c.id + '"><div class="inner"></div></div>' +
+      '</div>' +
+    '</div>';
   });
   g.innerHTML = html;
+
   g.querySelectorAll('[data-edit-course]').forEach(function(b){ b.addEventListener('click', function(){ editMyCourse(b.dataset.editCourse); }); });
   g.querySelectorAll('[data-del-course]').forEach(function(b){ b.addEventListener('click', function(){ deleteMyCourse(b.dataset.delCourse); }); });
+  g.querySelectorAll('[data-upload-course]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var inp = g.querySelector('[data-file-input="' + b.dataset.uploadCourse + '"]');
+      if(inp) inp.click();
+    });
+  });
+  g.querySelectorAll('[data-file-input]').forEach(function(inp){
+    inp.addEventListener('change', function(e){
+      var f = e.target.files[0]; if(!f) return;
+      handleCourseFileUpload(inp.dataset.fileInput, f);
+      inp.value = '';
+    });
+  });
+
+  // Load files for each course
+  space.courses.forEach(function(c){ loadCourseFilesForCard(c.id); });
+}
+
+async function loadCourseFilesForCard(courseId){
+  var list = document.querySelector('[data-files-list="' + courseId + '"]');
+  var count = document.querySelector('[data-files-count="' + courseId + '"]');
+  if(!list) return;
+
+  if(!window.SB || !window.SB.listCourseFiles){
+    list.innerHTML = '<div style="text-align:center;padding:10px;font-size:.75rem;color:var(--muted2)">المزامنة غير مفعّلة</div>';
+    return;
+  }
+
+  try{
+    var files = await window.SB.listCourseFiles(courseId);
+    if(!files.length){
+      list.innerHTML = '<div style="text-align:center;padding:10px;font-size:.75rem;color:var(--muted2)">ما في ملفات بعد</div>';
+      if(count) count.textContent = '0 ملف';
+      return;
+    }
+    if(count) count.textContent = files.length + ' ملف';
+
+    var html = '';
+    files.forEach(function(f){
+      var icon = window.SB.getFileIcon(f.name);
+      var size = window.SB.formatFileSize(f.size);
+      html += '<div class="course-file-item">' +
+        '<div class="cf-icon">' + icon + '</div>' +
+        '<div class="cf-info">' +
+          '<div class="cf-name" title="' + esc(f.name) + '">' + esc(f.name.replace(/^\d+_/, '')) + '</div>' +
+          '<div class="cf-meta">' + size + '</div>' +
+        '</div>' +
+        '<div class="cf-actions">' +
+          '<a class="btn btn-sm btn-ghost" href="' + esc(f.url) + '" target="_blank" rel="noopener" title="فتح">👁️</a>' +
+          '<button class="btn btn-sm btn-danger" data-del-file="' + esc(f.path) + '" data-course="' + courseId + '" title="حذف">🗑</button>' +
+        '</div>' +
+      '</div>';
+    });
+    list.innerHTML = html;
+
+    list.querySelectorAll('[data-del-file]').forEach(function(b){
+      b.addEventListener('click', function(){
+        customConfirm('حذف الملف؟', async function(){
+          var ok = await window.SB.deleteCourseFile(b.dataset.delFile);
+          if(ok){ toast('🗑 حُذف', 'success', 1500); loadCourseFilesForCard(b.dataset.course); }
+          else toast('فشل الحذف', 'warn', 2000);
+        });
+      });
+    });
+  }catch(e){
+    list.innerHTML = '<div style="text-align:center;padding:10px;font-size:.75rem;color:var(--red)">فشل التحميل</div>';
+  }
+}
+
+async function handleCourseFileUpload(courseId, file){
+  if(!window.SB || !window.SB.uploadCourseFile){
+    toast('خدمة الرفع غير متوفرة', 'warn', 2500); return;
+  }
+  // 25 MB limit
+  if(file.size > 25 * 1024 * 1024){
+    toast('⚠️ الملف كبير — الحد 25 MB', 'warn', 3500); return;
+  }
+
+  var progress = document.querySelector('[data-upload-progress="' + courseId + '"]');
+  if(progress){ progress.style.display = 'block'; progress.querySelector('.inner').style.width = '30%'; }
+
+  toast('📤 جاري الرفع...', 'info', 2000);
+
+  try{
+    var res = await window.SB.uploadCourseFile(courseId, file);
+    if(progress) progress.querySelector('.inner').style.width = '100%';
+    setTimeout(function(){ if(progress) progress.style.display = 'none'; }, 800);
+
+    if(res.error){
+      toast('❌ ' + res.error, 'warn', 3500);
+      return;
+    }
+    toast('✅ تم الرفع!', 'success', 2000);
+    loadCourseFilesForCard(courseId);
+  }catch(e){
+    if(progress) progress.style.display = 'none';
+    toast('فشل الرفع', 'warn', 2500);
+  }
 }
 function addMyCourse(){
   showModal('إضافة مادة', [
@@ -2814,7 +2975,111 @@ function toggleFabMenu(){
     if(ai) ai.classList.add('hidden');
   }
 }
+function updateNotifBtn(){
+  var txt = document.getElementById('notifBtnText');
+  if(!txt) return;
+  var perm = getNotifPermission();
+  if(perm === 'granted') txt.textContent = 'الإشعارات (مفعّلة ✅)';
+  else if(perm === 'denied') txt.textContent = 'الإشعارات (محظورة ❌)';
+  else if(perm === 'unsupported') txt.textContent = 'الإشعارات (غير مدعومة)';
+  else txt.textContent = 'تفعيل الإشعارات';
+}
+/* ==================== BROWSER NOTIFICATIONS ==================== */
+function isNotifSupported(){
+  return 'Notification' in window;
+}
 
+function getNotifPermission(){
+  if(!isNotifSupported()) return 'unsupported';
+  return Notification.permission;
+}
+
+async function requestNotifPermission(){
+  if(!isNotifSupported()){ toast('المتصفح ما يدعم الإشعارات', 'warn', 2500); return 'unsupported'; }
+  try{
+    var perm = await Notification.requestPermission();
+    S.set(NOTIF_ASKED_KEY, true);
+    if(perm === 'granted'){
+      toast('🔔 تم تفعيل الإشعارات!', 'success', 3000);
+      showNotif('✅ تم التفعيل', 'رح توصلك تنبيهات المهام والامتحانات والبومودورو هنا.');
+    } else if(perm === 'denied'){
+      toast('⚠️ رفضت الإشعارات — فعّلها من إعدادات المتصفح', 'warn', 4000);
+    }
+    if(typeof updateNotifBtn === 'function') updateNotifBtn();
+    return perm;
+  }catch(e){ return 'error'; }
+}
+
+function showNotif(title, body, options){
+  options = options || {};
+  if(!isNotifSupported()) return false;
+  if(Notification.permission !== 'granted') return false;
+
+  var opts = {
+    body: body || '',
+    icon: './android-chrome-192x192.png',
+    badge: './favicon-32x32.png',
+    dir: 'rtl',
+    lang: 'ar',
+    tag: options.tag || 'ss-notif-' + Date.now(),
+    requireInteraction: options.requireInteraction || false,
+    silent: options.silent || false
+  };
+  if(options.data) opts.data = options.data;
+
+  // Try through SW first (so notificationclick handler works)
+  if(navigator.serviceWorker && navigator.serviceWorker.controller){
+    navigator.serviceWorker.ready.then(function(reg){
+      reg.showNotification(title, opts).catch(function(){
+        try{ new Notification(title, opts); }catch(e){}
+      });
+    }).catch(function(){
+      try{ new Notification(title, opts); }catch(e){}
+    });
+    return true;
+  }
+
+  // Fallback: direct Notification
+  try{
+    var n = new Notification(title, opts);
+    n.onclick = function(){
+      window.focus();
+      if(options.data && options.data.tab) switchTab(options.data.tab);
+      n.close();
+    };
+    return true;
+  }catch(e){ return false; }
+}
+
+// Exam reminder interval — يجب أن يكون خارج showNotif
+setInterval(function(){
+  if(!space || !space.exams) return;
+  if(!isNotifSupported() || Notification.permission !== 'granted') return;
+  var now = new Date();
+  var today = now.toISOString().slice(0,10);
+  var nowMinutes = now.getHours() * 60 + now.getMinutes();
+  var fired = S.get('notif_fired_exams', {}) || {};
+
+  space.exams.forEach(function(e){
+    if(!e.date || !e.time) return;
+    if(e.date !== today) return;
+    var parts = (e.time || '').split(':');
+    var hh = parseInt(parts[0], 10); var mm = parseInt(parts[1], 10) || 0;
+    if(isNaN(hh)) return;
+    var examMin = hh * 60 + mm;
+    var diff = examMin - nowMinutes;
+    var key = e.id + '-' + e.date;
+    if(diff === 120 && !fired[key + '-2h']){
+      fired[key + '-2h'] = true;
+      showNotif('⏰ امتحان بعد ساعتين!', e.name + (e.room ? ' — قاعة ' + e.room : ''), {tag:'exam-2h-' + key, requireInteraction:true});
+    }
+    if(diff === 30 && !fired[key + '-30m']){
+      fired[key + '-30m'] = true;
+      showNotif('🚨 امتحان بعد 30 دقيقة!', e.name + (e.room ? ' — قاعة ' + e.room : '') + ' — بالتوفيق!', {tag:'exam-30m-' + key, requireInteraction:true});
+    }
+  });
+  S.set('notif_fired_exams', fired);
+}, 60000);
 /* ==================== EVENT BINDINGS ==================== */
 function bindAllEvents(){
   document.querySelectorAll('.nav-item').forEach(function(item){
@@ -2900,7 +3165,21 @@ function bindAllEvents(){
   });
   var cdSearch = document.getElementById('cdSearch');
   if(cdSearch) cdSearch.addEventListener('input', renderCourseDescriptions);
-
+  // Notification button
+var nbtn = document.getElementById('notifBtn');
+if(nbtn){
+  nbtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    var perm = getNotifPermission();
+    if(perm === 'granted'){
+      showNotif('✅ الإشعارات مفعّلة', 'رح تستقبل تنبيهات المهام والامتحانات هنا.');
+    } else if(perm === 'denied'){
+      toast('⚠️ الإشعارات محظورة — فعّلها من إعدادات المتصفح', 'warn', 4000);
+    } else {
+      requestNotifPermission();
+    }
+  });
+}
   var fm = document.getElementById('fabMain');
   if(fm) fm.addEventListener('click', toggleFabMenu);
   document.querySelectorAll('.fab-action').forEach(function(b){
@@ -3013,6 +3292,7 @@ async function boot(){
   safeRun('History', initHistoryNavigation);
   safeRun('Bind events', bindAllEvents);
   safeRun('OCR bindings', initOcrBindings);
+  safeRun('Notif button', updateNotifBtn);
 
   safeRun('Plan', renderPlan);
   safeRun('Timetable', renderTimetable);
@@ -3064,8 +3344,18 @@ async function boot(){
 
   setInterval(checkSmartReminders, 30 * 60 * 1000);
 
+  // SW messages (notification click → navigate)
+  if(navigator.serviceWorker){
+    navigator.serviceWorker.addEventListener('message', function(e){
+      if(e.data && e.data.type === 'navigate' && e.data.tab){
+        switchTab(e.data.tab);
+      }
+    });
+  }
+
   console.log('✅ Boot complete');
 }
+
 if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }
 else { boot(); }
 </script>
