@@ -206,11 +206,9 @@
     applyTheme('dark');
     assertEq('العودة للداكن', document.documentElement.getAttribute('data-theme'), 'dark');
     if(original && original !== 'dark') applyTheme(original);
-	assert('THEMES بها كل الثيمات', ['dark','dracula','sakura','nord','ocean','royal','cyberpunk','midnight','aurora'].every(function(id){
+assert('THEMES بها كل الثيمات', ['dark','dracula','sakura','nord','ocean','royal','cyberpunk','midnight','aurora'].every(function(id){
   return THEMES.some(function(t){ return t.id === id; });
-	}));
-      return THEMES.some(function(t){ return t.id === id; });
-    }));
+}));
   }
 
   function testTimer(){
