@@ -360,7 +360,87 @@
     assert('مجموع المواد 40+', totalCourses >= 40, totalCourses + ' مادة');
     assert('مجموع الساعات 120+', totalHours >= 120, totalHours + ' ساعة');
   }
+  /* ==================== NEW MODULE TESTS ==================== */
+  function testPlanSimulator(){
+    console.log('%c🎓 Plan Simulator', 'color:#22d3ee;font-weight:bold');
+    assert('COURSES_DB محمّل', typeof window.COURSES_DB === 'object' && Object.keys(window.COURSES_DB).length > 50);
+    assert('COURSE_TYPES محمّل', typeof window.COURSE_TYPES === 'object');
+    assert('TOTAL_REQUIRED_HOURS محمّل', typeof window.TOTAL_REQUIRED_HOURS === 'object');
+    assert('findCourseByCode دالة', typeof window.findCourseByCode === 'function');
+    assert('searchCourses دالة', typeof window.searchCourses === 'function');
+    assert('suggestNextSemester دالة', typeof window.suggestNextSemester === 'function');
+    assert('analyzeGraduationGap دالة', typeof window.analyzeGraduationGap === 'function');
 
+    // اختبار البحث بالكود
+    var found = window.findCourseByCode('110408220');
+    assert('بحث بالكود يرجع نتيجة', found !== null, 'code=110408220');
+    if(found) assert('نتيجة البحث اسم صحيح', typeof found.name === 'string');
+
+    // اختبار الاقتراحات
+    var sug = window.suggestNextSemester();
+    assert('الاقتراحات كائن', typeof sug === 'object');
+    assert('فيه semester', typeof sug.semester === 'number');
+    assert('فيه suggestions مصفوفة', Array.isArray(sug.suggestions));
+  }
+
+  function testCalendarSync(){
+    console.log('%c📅 Calendar Sync', 'color:#22d3ee;font-weight:bold');
+    assert('buildICS دالة', typeof window.buildICS === 'function');
+    assert('downloadICS دالة', typeof window.downloadICS === 'function');
+    if(typeof window.buildICS === 'function'){
+      var ics = window.buildICS();
+      assert('ICS نص', typeof ics === 'string');
+      assert('ICS يبدأ بـ BEGIN:VCALENDAR', ics.indexOf('BEGIN:VCALENDAR') === 0);
+      assert('ICS ينتهي بـ END:VCALENDAR', ics.indexOf('END:VCALENDAR') > -1);
+    }
+  }
+
+  function testInsights(){
+    console.log('%c📈 Insights', 'color:#22d3ee;font-weight:bold');
+    assert('renderInsights دالة', typeof window.renderInsights === 'function');
+    assert('Heatmap container موجود', document.getElementById('insightsHeatmap') !== null);
+    assert('Trends container موجود', document.getElementById('insightsTrends') !== null);
+    assert('Courses container موجود', document.getElementById('insightsCourses') !== null);
+    assert('GPA container موجود', document.getElementById('insightsGpa') !== null);
+  }
+
+  function testAIPlus(){
+    console.log('%c🤖 AI Plus', 'color:#22d3ee;font-weight:bold');
+    var testQueries = [
+      'شنو أسجل الترم الجاي؟',
+      'تقدمي للتخرج',
+      'ايش مادة 110408220؟',
+      'شنو أدرس الحين؟',
+      'كيف دراستي؟'
+    ];
+    testQueries.forEach(function(q){
+      try{
+        var res = window.aiRespond(q);
+        assert('AI يجاوب: "' + q.substring(0, 25) + '"', typeof res === 'string' && res.length > 10);
+      }catch(e){
+        assert('AI يجاوب: "' + q + '"', false, e.message);
+      }
+    });
+  }
+
+  function testCoursesDataDB(){
+    console.log('%c📚 Courses DB v2', 'color:#22d3ee;font-weight:bold');
+    var DB = window.COURSES_DB || {};
+    var keys = Object.keys(DB);
+    assert('DB فيه 100+ مادة', keys.length >= 100, keys.length + ' مادة');
+
+    var types = { 'uni-c':0, 'uni-e':0, 'faculty':0, 'major-c':0, 'major-e':0 };
+    var totalH = { 'uni-c':0, 'uni-e':0, 'faculty':0, 'major-c':0, 'major-e':0 };
+    keys.forEach(function(k){
+      var info = DB[k];
+      if(types[info.t] !== undefined){
+        types[info.t]++;
+        totalH[info.t] += info.h;
+      }
+    });
+    assert('ساعات كلية >= 30', totalH.faculty >= 30, 'faculty=' + totalH.faculty);
+    assert('ساعات تخصص إجباري >= 80', totalH['major-c'] >= 80, 'major-c=' + totalH['major-c']);
+  }
   /* ==================== RUNNERS ==================== */
   function testQuick(){
     console.clear();
@@ -372,6 +452,8 @@
     testStorage();
     testQuickCaptureParser();
     printSummary();
+	testPlanSimulator();
+    testAIPlus();
   }
 
   function testAll(){
@@ -404,7 +486,11 @@
     testCoursesData();
     testPlanStructure();
     testNavigation();
-
+    testPlanSimulator();
+    testCalendarSync();
+    testInsights();
+    testAIPlus();
+    testCoursesDataDB();
     setTimeout(function(){
       printSummary();
       console.log('%c💡 ملاحظة: اختبارات Navigation قد تتأخر قليلاً', 'color:#8a96b8;font-style:italic');

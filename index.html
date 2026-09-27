@@ -998,10 +998,25 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- مكتبات خارجية -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-client.js"></script>
+
+<!-- قاعدة البيانات (يجب أن تُحمّل أولاً) -->
 <script src="courses-data.js"></script>
+
+<!-- الكود الأساسي -->
+<script src="ai-assistant.js"></script>
+<script src="ai-assistant-plus.js"></script>     <!-- 🆕 يُحمّل بعد الأصلي -->
+<script src="plan-simulator.js"></script>        <!-- 🆕 -->
+<script src="plan-enhance.js"></script>          <!-- 🆕 -->
+<script src="calendar-sync.js"></script>         <!-- 🆕 -->
+<script src="insights.js"></script>              <!-- 🆕 -->
+<script src="courses-files-plus.js"></script>    <!-- 🆕 -->
+<script src="widgets.js"></script>
+<script src="pwa.js"></script>
+<script src="tests.js"></script>
 
 <script>
 /* ==================== GLOBAL STATE ==================== */
@@ -3626,9 +3641,5 @@ async function boot(){
 if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }
 else { boot(); }
 </script>
-<script src="ai-assistant.js"></script>
-<script src="widgets.js"></script>
-<script src="pwa.js"></script>
-<script src="tests.js"></script>
 </body>
 </html>
