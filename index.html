@@ -1300,7 +1300,6 @@ function applyTheme(t){
   var validIds = ['dark','dracula','sakura','nord','ocean','royal','cyberpunk','midnight','aurora'];
   if(validIds.indexOf(t) === -1) t = 'dark';
   if(!THEMES.find(function(x){ return x.id === t; })) t = 'dark';
-  if(!THEMES.find(function(x){ return x.id === t; })) t = 'dark';
   document.documentElement.setAttribute('data-theme', t);
   S.set('theme', t);
   document.querySelectorAll('.theme-swatch').forEach(function(sw){
@@ -3277,7 +3276,283 @@ window.addEventListener('resize', function(){
   if(window.innerWidth > 900 && lastW <= 900) closeSidebar();
   lastW = window.innerWidth;
 });
+/* ==================== QUOTE ==================== */
+function renderDailyQuote(){
+  var d = new Date();
+  var idx = (d.getFullYear()*365 + d.getMonth()*31 + d.getDate()) % DAILY_QUOTES.length;
+  var q = DAILY_QUOTES[idx];
+  var el1 = document.getElementById('dailyQuoteText'); if(el1) el1.textContent = q.t;
+  var el2 = document.getElementById('dailyQuoteAuthor'); if(el2) el2.textContent = '— ' + q.a;
+}
 
+/* ==================== PLAN ==================== */
+function renderPlan(){
+  var c = document.getElementById('semesters'); if(!c) return;
+  var openSems = S.get('openSems', [0]); if(!Array.isArray(openSems)) openSems = [0];
+  c.innerHTML = '';
+  SEMESTERS.forEach(function(s, i){
+    var el = document.createElement('div');
+    el.className = 'card'; el.dataset.year = s.year; el.style.marginBottom = '12px';
+    var total = s.courses.reduce(function(a,x){ return a + x.h; }, 0);
+    var coursesHtml = '';
+    s.courses.forEach(function(x){
+      coursesHtml += '<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);font-size:.86rem">' +
+        '<div>' + esc(x.n) +
+        (x.code && x.code !== '—' ? ' <span style="font-size:.7rem;color:var(--muted2);font-family:monospace">' + esc(x.code) + '</span>' : '') +
+        (x.type === 'lab' ? ' <span style="font-size:.66rem;padding:1px 7px;border-radius:5px;background:rgba(52,211,153,.15);color:var(--green);margin-right:6px">مختبر</span>' : '') +
+        '</div><span style="color:var(--cyan);font-weight:700;font-size:.8rem">' + x.h + ' س</span></div>';
+    });
+    el.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" class="sem-head">' +
+        '<div style="display:flex;align-items:center;gap:12px">' +
+          '<span style="background:var(--grad);color:#0b0f1a;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:800">سنة ' + s.year + '</span>' +
+          '<h3 style="margin:0">' + esc(s.name) + '</h3></div>' +
+        '<div style="display:flex;gap:10px;align-items:center;font-size:.78rem;color:var(--muted)">' +
+          '<span style="background:var(--bg2);padding:3px 10px;border-radius:8px;color:var(--cyan)">' + total + ' ساعة</span>' +
+          '<span class="arrow">▼</span></div></div>' +
+      '<div class="sem-body" style="max-height:0;overflow:hidden;transition:.4s">' + coursesHtml + '</div>';
+    var head = el.querySelector('.sem-head'); var body = el.querySelector('.sem-body'); var arrow = el.querySelector('.arrow');
+    if(openSems.indexOf(i) > -1){ body.style.maxHeight = '2000px'; arrow.style.transform = 'rotate(180deg)'; }
+    head.addEventListener('click', function(){
+      var isOpen = body.style.maxHeight && body.style.maxHeight !== '0px';
+      body.style.maxHeight = isOpen ? '0px' : '2000px';
+      arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+      var arr = S.get('openSems', []); if(!Array.isArray(arr)) arr = [];
+      if(!isOpen){ if(arr.indexOf(i) === -1) arr.push(i); }
+      else{ var p = arr.indexOf(i); if(p > -1) arr.splice(p, 1); }
+      S.set('openSems', arr);
+    });
+    c.appendChild(el);
+  });
+}
+function filterSem(el, year){
+  document.querySelectorAll('.chip[data-filter]').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  document.querySelectorAll('#semesters > .card').forEach(function(s){
+    s.style.display = (year === 'all' || s.dataset.year === year) ? '' : 'none';
+  });
+}
+
+/* ==================== COURSE DESCRIPTIONS ==================== */
+function renderCourseDescriptions(){
+  var list = document.getElementById('cdList'); if(!list) return;
+  var q = '';
+  var sInp = document.getElementById('cdSearch');
+  if(sInp) q = (sInp.value || '').trim().toLowerCase();
+  var year = currentCdYear || 'all';
+  var CD = (typeof window.COURSES_DESC === 'object' && window.COURSES_DESC) ? window.COURSES_DESC : {};
+  var html = ''; var count = 0;
+  SEMESTERS.forEach(function(sem){
+    if(year !== 'all' && String(sem.year) !== String(year)) return;
+    var visible = sem.courses.filter(function(c){
+      if(!q) return true;
+      return c.n.toLowerCase().indexOf(q) > -1 || (c.code && String(c.code).indexOf(q) > -1);
+    });
+    if(!visible.length) return;
+    html += '<div class="cd-semester"><div class="cd-semester-title">📚 سنة ' + sem.year + ' — ' + esc(sem.name) + '</div>';
+    visible.forEach(function(c){
+      count++;
+      var desc = CD[c.n] || (c.code && CD[c.code]) || 'الوصف غير متوفر.';
+      html += '<div class="cd-course"><div class="cd-head"><div class="cd-name">📘 ' + esc(c.n) + '</div><span class="badge">' + c.h + ' ساعات</span></div>' +
+        (c.code && c.code !== '—' ? '<div class="cd-code">كود: ' + esc(c.code) + '</div>' : '') +
+        '<div class="cd-desc">' + esc(desc) + '</div>' +
+        (c.type === 'lab' ? ' <span class="badge" style="background:rgba(52,211,153,.15);color:var(--green)">مختبر</span>' : '') + '</div>';
+    });
+    html += '</div>';
+  });
+  if(!count) list.innerHTML = '<div class="empty"><div class="ic">📕</div><p>لا نتائج</p></div>';
+  else list.innerHTML = '<div style="color:var(--muted);font-size:.82rem;margin-bottom:12px">عدد المواد: ' + count + '</div>' + html;
+}
+
+/* ==================== TIMETABLE ==================== */
+function renderTimetable(){
+  var t = document.getElementById('timetableTable'); if(!t) return;
+  var todayIdx = new Date().getDay();
+  var html = '<thead><tr><th></th>';
+  DAYS_AR.slice(0,5).forEach(function(d, i){
+    var isToday = i === todayIdx;
+    html += '<th style="' + (isToday ? 'background:var(--grad-soft);color:var(--text)' : '') + '">' + d + (isToday ? ' •' : '') + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  TIME_SLOTS.forEach(function(time){
+    html += '<tr><td class="time-col">' + time + '</td>';
+    DAYS_EN.forEach(function(day){
+      var key = day + '-' + time; var cls = space.timetable[key];
+      if(cls){
+        html += '<td><div class="class-block" data-edit="' + key + '"><span class="name">' + esc(cls.name) + '</span>' +
+          (cls.room ? '<span class="room">📍 ' + esc(cls.room) + '</span>' : '') + '</div></td>';
+      } else { html += '<td><div class="cell-empty" data-add="' + key + '">+</div></td>'; }
+    });
+    html += '</tr>';
+  });
+  t.innerHTML = html + '</tbody>';
+  t.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editClassSlot(b.dataset.edit); }); });
+  t.querySelectorAll('[data-add]').forEach(function(b){ b.addEventListener('click', function(){ addClassSlot(b.dataset.add); }); });
+}
+function addClassSlot(key){
+  if(!key){
+    var days = ['Sun','Mon','Tue','Wed','Thu'];
+    outer: for(var i=0;i<days.length;i++){ for(var j=0;j<TIME_SLOTS.length;j++){
+      var k = days[i] + '-' + TIME_SLOTS[j]; if(!space.timetable[k]){ key = k; break outer; }
+    }}
+    if(!key) return toast('الجدول ممتلئ!', 'warn');
+  }
+  var parts = key.split('-'); var day = parts[0]; var time = parts[1];
+  showModal('إضافة محاضرة', [
+    {key:'name', label:'اسم المادة'}, {key:'room', label:'القاعة'}, {key:'instructor', label:'الدكتور'}
+  ], {name:'', room:'', instructor:''}, function(data){
+    if(!data.name) return toast('أدخل اسم المادة', 'warn');
+    space.timetable[key] = {name: data.name, room: data.room, instructor: data.instructor};
+    saveSpace(); renderTimetable(); renderDashboard(); toast('تمت الإضافة', 'success', 1500);
+  });
+}
+function editClassSlot(key){
+  var cls = space.timetable[key]; if(!cls) return;
+  showModal('تعديل محاضرة', [
+    {key:'name', label:'اسم المادة'}, {key:'room', label:'القاعة'}, {key:'instructor', label:'الدكتور'}
+  ], cls, function(data){
+    if(!data.name) delete space.timetable[key];
+    else space.timetable[key] = {name: data.name, room: data.room, instructor: data.instructor};
+    saveSpace(); renderTimetable(); renderDashboard(); toast('تم التحديث', 'success', 1500);
+  }, function(){ delete space.timetable[key]; saveSpace(); renderTimetable(); renderDashboard(); });
+}
+function clearTimetable(){
+  if(!space.timetable || !Object.keys(space.timetable).length){ toast('الجدول فارغ', 'info'); return; }
+  customConfirm('مسح كل الجدول؟', function(){
+    space.timetable = {}; saveSpace(); renderTimetable(); renderDashboard();
+  });
+}
+function autoFillTimetable(){
+  if(!space.courses.length){ toast('أضف مواد أولًا', 'warn'); return; }
+  var days = ['Sun','Mon','Tue','Wed','Thu'];
+  var times = ['08:00','09:00','10:00','11:00','12:00','13:00'];
+  var di=0, ti=0, added=0;
+  space.courses.forEach(function(c){
+    if(!c.name) return;
+    var key = days[di%5] + '-' + times[ti%6];
+    if(!space.timetable[key]){
+      space.timetable[key] = {name: c.name, room: c.room || '', instructor: c.instructor || ''};
+      added++;
+    }
+    di++; ti++;
+  });
+  saveSpace(); renderTimetable(); renderDashboard();
+  if(added > 0) toast('✓ تم توليد ' + added + ' محاضرة', 'success', 2500);
+}
+function loadExampleTimetable(){
+  space.timetable = {
+    'Sun-08:00':{name:'تفاضل وتكامل (1)', room:'ق101', instructor:'د. محمد'},
+    'Sun-10:00':{name:'برمجة الحاسوب', room:'Lab1', instructor:'د. أحمد'},
+    'Mon-09:00':{name:'فيزياء عامة (1)', room:'A', instructor:'د. سارة'},
+    'Tue-08:00':{name:'برمجة الحاسوب', room:'302', instructor:'د. أحمد'},
+    'Wed-10:00':{name:'تفاضل وتكامل (1)', room:'ق101', instructor:'د. محمد'},
+    'Thu-09:00':{name:'مهارات التواصل بالإنجليزية', room:'401', instructor:'Ms. Emma'}
+  };
+  saveSpace(); renderTimetable(); renderDashboard();
+  toast('🎯 تم تحميل المثال', 'success', 3000);
+}
+function printTimetable(){ exportPDF(); }
+
+/* ==================== OCR ==================== */
+function loadTesseract(){
+  if(typeof Tesseract !== 'undefined') return Promise.resolve();
+  if(tesseractLoading) return tesseractLoading;
+  tesseractLoading = new Promise(function(resolve, reject){
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = resolve; s.onerror = function(){ reject(new Error('فشل')); };
+    document.head.appendChild(s);
+  });
+  return tesseractLoading;
+}
+function initOcrBindings(){
+  var uploadZone = document.getElementById('uploadZone'); var ocrFile = document.getElementById('ocrFile');
+  if(uploadZone){
+    uploadZone.addEventListener('click', function(){ if(ocrFile) ocrFile.click(); });
+    uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.classList.add('dragover'); });
+    uploadZone.addEventListener('dragleave', function(){ uploadZone.classList.remove('dragover'); });
+    uploadZone.addEventListener('drop', function(e){
+      e.preventDefault(); uploadZone.classList.remove('dragover');
+      var f = e.dataTransfer.files[0]; if(f) handleOcrFile(f);
+    });
+  }
+  if(ocrFile) ocrFile.addEventListener('change', function(e){ var f = e.target.files[0]; if(f) handleOcrFile(f); });
+}
+async function handleOcrFile(file){
+  if(!file.type.startsWith('image/')){ toast('استخدم صورة', 'warn'); return; }
+  var reader = new FileReader();
+  reader.onload = async function(){
+    ocrImageDataURL = reader.result;
+    var preview = document.getElementById('ocrPreview');
+    if(preview){ preview.style.display = 'block'; preview.innerHTML = '<img src="' + ocrImageDataURL + '">'; }
+    await runOcr(ocrImageDataURL);
+  };
+  reader.readAsDataURL(file);
+}
+async function runOcr(imageDataURL){
+  var progress = document.getElementById('ocrProgress'); var bar = document.getElementById('ocrBar'); var text = document.getElementById('ocrText');
+  if(!progress) return;
+  progress.style.display = 'block'; bar.style.width = '0%'; text.textContent = 'جاري التحميل...';
+  try{
+    await loadTesseract();
+    var result = await Tesseract.recognize(imageDataURL, 'eng+ara', {
+      logger: function(m){ if(m.status === 'recognizing text'){ var pct = Math.round(m.progress * 100); bar.style.width = pct + '%'; text.textContent = 'جاري التحليل... ' + pct + '%'; } }
+    });
+    var extracted = (result.data.text || '').trim();
+    var resultEl = document.getElementById('ocrResult'); var ta = document.getElementById('ocrTextarea');
+    if(resultEl) resultEl.style.display = 'block'; if(ta) ta.value = extracted;
+    bar.style.width = '100%'; text.textContent = '✓ تم الاستخراج';
+    toast('تم الاستخراج ✓', 'success', 2500);
+  }catch(err){ text.textContent = 'حدث خطأ'; toast('فشل', 'warn'); }
+}
+function clearOcr(){
+  ['ocrProgress','ocrPreview','ocrResult'].forEach(function(id){ var el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  var ta = document.getElementById('ocrTextarea'); if(ta) ta.value = '';
+  var bar = document.getElementById('ocrBar'); if(bar) bar.style.width = '0%';
+}
+function pasteOcrExample(){
+  var resultEl = document.getElementById('ocrResult'); var ta = document.getElementById('ocrTextarea');
+  if(resultEl) resultEl.style.display = 'block';
+  if(ta) ta.value = 'Sunday 08:00-09:00 Calculus 1 Room 101\nSunday 10:00-11:00 Programming Room Lab1\nMonday 09:00-10:00 Physics Room A\nTuesday 08:00-09:00 Programming Room 302';
+  toast('تم التحميل', 'info', 2500);
+}
+function parseOcrText(){
+  var ta = document.getElementById('ocrTextarea'); var raw = ta ? ta.value.trim() : '';
+  if(!raw){ toast('لا يوجد نص', 'warn'); return; }
+  var dayMap = {
+    'sunday':'Sun','sun':'Sun','monday':'Mon','mon':'Mon',
+    'tuesday':'Tue','tue':'Tue','wednesday':'Wed','wed':'Wed','thursday':'Thu','thu':'Thu'
+  };
+  var lines = raw.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+  var added = 0;
+  space.timetable = space.timetable || {};
+  lines.forEach(function(line){
+    var day = null;
+    var words = line.split(/[\s,،\-]+/).map(function(w){ return w.toLowerCase(); });
+    for(var i=0;i<words.length;i++){
+      var clean = words[i].replace(/[^a-z]/g, '');
+      if(dayMap[clean]){ day = dayMap[clean]; break; }
+    }
+    if(!day) return;
+    var times = line.match(/\d{1,2}\s*:\s*\d{2}/g);
+    if(!times) return;
+    var start = times[0].replace(/\s/g, '');
+    var hourNum = parseInt(start.split(':')[0], 10);
+    var slot = hourNum.toString().padStart(2,'0') + ':00';
+    if(TIME_SLOTS.indexOf(slot) === -1) return;
+    var working = line;
+    Object.keys(dayMap).forEach(function(k){ working = working.replace(new RegExp(k, 'gi'), ' '); });
+    working = working.replace(/\d{1,2}\s*:\s*\d{2}(\s*-\s*\d{1,2}\s*:\s*\d{2})?/g, ' ').trim();
+    if(working.length < 2) return;
+    var key = day + '-' + slot;
+    if(!space.timetable[key]){ space.timetable[key] = {name: working, room: '', instructor: ''}; added++; }
+  });
+  saveSpace(); renderTimetable(); renderDashboard();
+  if(added > 0) toast('✓ تمت ' + added + ' محاضرة', 'success', 2500);
+  else toast('لم يتم التعرف', 'warn', 3000);
+}
+
+/* ==================== SMOOTH INTERACTIONS ==================== */
 /* ==================== SMOOTH INTERACTIONS ==================== */
 function initSmoothInteractions(){
   document.addEventListener('mousemove', function(e){
