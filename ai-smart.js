@@ -163,7 +163,10 @@
     'thanks': { keywords: ['شكرا','مشكور','thank'] },
     'who_you': { keywords: ['من انت','مين انت','اسمك','who are you'] },
     'how_are_you': { keywords: ['كيف حالك','كيفك','شلونك','اخبارك'] },
-    'help': { keywords: ['ساعدني','مساعده','help','اقدر اسوي'] }
+    'help': { keywords: ['ساعدني','مساعده','help','اقدر اسوي'] },
+
+    // 8. اقتراح الدراسة الذكي
+    'smart_study': { keywords: ['شنو ادرس','ايش ادرس','ادرس ايش','وش ادرس','استعد','اراجع','study now','ماذا ادرس','مراجعة'] }
   };
 
   /* ============ Classifier ============ */
@@ -211,7 +214,6 @@
     };
   }
 
-	
   /* ============ Handlers ============ */
   function handleGreeting(lower){
     var hour = new Date().getHours();
@@ -243,6 +245,7 @@
       '📚 **المعلومات:**\n• "وصف مادة شبكات حاسوب"\n• "متطلبات مشروع تخرج"\n\n' +
       '🧭 **التنقل:**\n• "افتح المهام" / "روح للميزانية"';
   }
+
   function handleSmartStudy(){
     var sp = getSpace();
     var t = today();
@@ -273,6 +276,23 @@
     msg += '\n💡 **نصيحة:** ابدأ بأصعب شي وأنت مرتاح، وجرّب بومودورو 25 دقيقة.';
     return msg;
   }
+
+  function handleTips(lower){
+    var tips = window.STUDY_TIPS || ['💡 ادرس بنفس الوقت يومياً.'];
+    return tips[Math.floor(Math.random() * tips.length)];
+  }
+
+  function handleMotivation(){
+    var quotes = window.DAILY_QUOTES || [{t:'لا تنتظر الفرصة، اصنعها بنفسك.', a:'—'}];
+    var q = quotes[Math.floor(Math.random() * quotes.length)];
+    var msgs = [
+      '💪 **لا تيأس!** كل واحد يمر بأيام صعبة.\n\n✨ "' + q.t + '"\n— ' + q.a,
+      '🌟 **أنت أقوى من كذا!** خذ نفس عميق وكمّل.\n\n✨ "' + q.t + '"',
+      '🔥 **تعبت؟ معناته أنت تحاول!** هذي علامة إنك تشتغل.\n\n✨ "' + q.t + '"'
+    ];
+    return msgs[Math.floor(Math.random() * msgs.length)];
+  }
+
   function handleNavigate(lower){
     var map = INTENTS.navigate.targets;
     var found = null;
@@ -311,7 +331,7 @@
       return d >= 0 && d <= 7;
     });
 
-    if(!tasks.length) return '📝 **ما عندك مهام** حالياً!\n\n➕ تحب تضيف مهمة؟ اضغط زر "+" أو Ctrl+T';
+    if(!tasks.length) return '📝 **ما عندك مهام** حالياً!\n\n➕ تحب تضيف مهمة؟ اضغط زر "+" أو Alt+T';
     if(!pending.length) return '🎉 **مبروك!** خلّصت كل مهامك (' + tasks.length + ' مهمة).\n\n💡 وقت راحة؟';
 
     var msg = '📝 **مهامك** (' + pending.length + ' متبقية من ' + tasks.length + '):\n';
@@ -554,7 +574,7 @@
     return msg;
   }
 
-    function handleCourseInfo(lower){
+  function handleCourseInfo(lower){
     var DB = window.COURSES_DB || {};
     var found = null, bestScore = 0;
 
@@ -670,10 +690,7 @@
     // Classify
     var cls = classify(raw);
     var intent = cls.intent;
-	    // في INTENTS:
-    'smart_study': {
-      keywords: ['شنو ادرس','ايش ادرس','ادرس ايش','وش ادرس','استعد','اراجع','study now','ماذا ادرس','مراجعة']
-    },
+
     // Route
     if(intent === 'navigate' || /افتح|روح|اذهب|انتقل|ودني|show me|open/i.test(lower)){
       var r = handleNavigate(lower);
@@ -706,14 +723,15 @@
     if(intent === 'course_info'){ var ci = handleCourseInfo(lower); if(ci) return {text: ci, intent}; }
     if(intent === 'tips') return {text: handleTips(lower), intent};
     if(intent === 'motivation') return {text: handleMotivation(), intent};
+    if(intent === 'smart_study' || /شنو ادرس|ايش ادرس|ادرس ايش|استعد|اراجع/.test(lower))
+      return {text: handleSmartStudy(), intent: 'smart_study'};
 
     // Fallback: حاول AI الأصلي
     if(typeof window._aiOriginal === 'function'){
       var orig = window._aiOriginal(raw);
       if(orig && orig.indexOf('ما فهمت') === -1) return {text: orig, intent: 'original'};
     }
-	if(intent === 'smart_study' || /شنو ادرس|ايش ادرس|ادرس ايش|استعد|اراجع/.test(lower))
-    return {text: handleSmartStudy(), intent: 'smart_study'};
+
     // Fallback ذكي
     return {text: buildSmartFallback(raw), intent: null};
   }
@@ -766,7 +784,8 @@
       'متى امتحاني القادم؟',
       'ملخص مساحتي',
       'شو موادي؟',
-      'معدلي كام؟'
+      'معدلي كام؟',
+      'شنو أدرس الحين؟'
     ];
     if(Array.isArray(window.SUGG_POOL)){
       SUGG.forEach(function(s){ if(window.SUGG_POOL.indexOf(s) === -1) window.SUGG_POOL.push(s); });
