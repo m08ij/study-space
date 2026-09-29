@@ -1008,7 +1008,7 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 
 <!-- الكود الأساسي -->
 <script src="ai-assistant.js"></script>
-<script src="ai-assistant-plus.js"></script>     <!-- 🆕 يُحمّل بعد الأصلي -->
+<script src="ai-smart.js"></script>   <!-- 🆕 بدل ai-assistant-plus -->   <!-- 🆕 يُحمّل بعد الأصلي -->
 <script src="plan-simulator.js"></script>        <!-- 🆕 -->
 <script src="plan-enhance.js"></script>          <!-- 🆕 -->
 <script src="calendar-sync.js"></script>         <!-- 🆕 -->
@@ -1017,7 +1017,7 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 <script src="widgets.js"></script>
 <script src="pwa.js"></script>
 <script src="tests.js"></script>
-
+<script src="qc-fix.js"></script>   <!-- 🆕 أضف هذا -->
 <script>
 /* ==================== GLOBAL STATE ==================== */
 var space = null;
@@ -1814,16 +1814,16 @@ function parseQuickCapture(text){
 
   if(!result.title) result.title = t;
 
-  if(result.type === 'expense'){
-    if(/أكل|طعام|مطعم|food|قهوة|بن/i.test(t)) result.category = 'food';
-    else if(/مواصلات|باص|تاكسي|بنزين|transport/i.test(t)) result.category = 'transport';
-    else if(/كتاب|قرطاسية|books/i.test(t)) result.category = 'books';
-    else if(/إنترنت|انترنت|شحن|رصيد|internet/i.test(t)) result.category = 'internet';
-    else if(/دواء|صحة|health/i.test(t)) result.category = 'health';
-    else if(/ملابس|clothing/i.test(t)) result.category = 'clothing';
-    else if(/ترفيه|لعبة|سينما|entertainment/i.test(t)) result.category = 'entertainment';
-    else result.category = 'other-expense';
-  }
+if(result.type === 'expense'){
+  if(/مواصلات|باص|تاكسي|بنزين|بترول|transport/i.test(t)) result.category = 'transport';
+  else if(/أكل|طعام|مطعم|food|قهوة|بن(\s|$)/i.test(t)) result.category = 'food';
+  else if(/كتاب|قرطاسية|books/i.test(t)) result.category = 'books';
+  else if(/إنترنت|انترنت|شحن|رصيد|internet/i.test(t)) result.category = 'internet';
+  else if(/دواء|صحة|health/i.test(t)) result.category = 'health';
+  else if(/ملابس|clothing/i.test(t)) result.category = 'clothing';
+  else if(/ترفيه|لعبة|سينما|entertainment/i.test(t)) result.category = 'entertainment';
+  else result.category = 'other-expense';
+}
   if(result.type === 'income'){
     if(/راتب|salary/i.test(t)) result.category = 'salary';
     else if(/منحة|scholarship/i.test(t)) result.category = 'scholarship';

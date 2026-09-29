@@ -7,7 +7,7 @@ var URLS_TO_CACHE = [
   './index.html',
   './courses-data.js',
   './ai-assistant.js',
-  './ai-assistant-plus.js',
+  './ai-smart.js',   // بدل ai-assistant-plus.js
   './plan-simulator.js',
   './plan-enhance.js',
   './calendar-sync.js',
