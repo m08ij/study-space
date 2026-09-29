@@ -187,10 +187,12 @@
       typing.innerHTML = '<span class="ai-dots"><span></span><span></span><span></span></span>';
       c.appendChild(typing); c.scrollTop = c.scrollHeight;
     }
-    setTimeout(function(){
-      if(typing && typing.parentNode) typing.parentNode.removeChild(typing);
-      addAIMessage('bot', aiRespond(q));
-    }, 450);
+	setTimeout(function(){
+	  if(typing && typing.parentNode) typing.parentNode.removeChild(typing);
+	  // ⭐ استخدم النسخة المحدّثة (Smart) إذا موجودة
+	  var responder = (typeof window.aiRespond === 'function') ? window.aiRespond : aiRespond;
+	  addAIMessage('bot', responder(q));
+	}, 450);
   }
 
   function aiRespond(q){

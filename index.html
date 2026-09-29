@@ -109,7 +109,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px;transition:.3s;position:relative;z-index:1}
 @media(max-width:900px){main{margin-right:0;padding:16px 14px 140px}}
-.section{display:none}
+ 
 .section{display:none}
 .section.active{display:block}
 
@@ -1693,7 +1693,7 @@ function switchTab(tab, pushHistory){
   var sec = document.getElementById(tab);
   if(!nav || !sec) return;
   document.querySelectorAll('.nav-item').forEach(function(i){ i.classList.remove('active'); });
-  document.querySelectorAll('.nav-item').forEach(function(i){ i.classList.remove('active'); });
+   
   document.querySelectorAll('.section').forEach(function(s){
     s.classList.remove('active');
     s.classList.remove('tab-play');
@@ -3463,37 +3463,44 @@ function bindAllEvents(){
 document.addEventListener('keydown', function(e){
   var tag = (document.activeElement || {}).tagName || '';
   var isTyping = ['INPUT','TEXTAREA','SELECT'].indexOf(tag) > -1;
+  if(isTyping && e.key !== 'Escape') return;
 
+  // '/' → بحث
   if(e.key === '/' && !isTyping){
     e.preventDefault();
     var si = document.getElementById('searchInput'); if(si) si.focus();
     return;
   }
 
-  if((e.ctrlKey || e.metaKey) && e.key === 't' && !isTyping){
+  // Alt+T → مهمة جديدة
+  if(e.altKey && e.key.toLowerCase() === 't'){
     e.preventDefault();
     switchTab('tasks'); setTimeout(addTask, 200);
     return;
   }
 
-  if((e.ctrlKey || e.metaKey) && e.key === 'n' && !isTyping){
+  // Alt+N → ملاحظة جديدة
+  if(e.altKey && e.key.toLowerCase() === 'n'){
     e.preventDefault();
     switchTab('notes'); setTimeout(addNote, 200);
     return;
   }
 
-  if((e.ctrlKey || e.metaKey) && e.key === 'p'){
+  // Alt+P → البومودورو
+  if(e.altKey && e.key.toLowerCase() === 'p'){
     e.preventDefault();
     switchTab('timer');
     return;
   }
 
-  if((e.ctrlKey || e.metaKey) && e.key === 'q' && !isTyping){
+  // Alt+Q → إضافة سريعة
+  if(e.altKey && e.key.toLowerCase() === 'q'){
     e.preventDefault();
     openQuickCapture();
     return;
   }
 
+  // Escape → إغلاق كل شي
   if(e.key === 'Escape'){
     var sr = document.getElementById('searchResults'); if(sr) sr.classList.remove('show');
     closeSidebar();
@@ -3505,11 +3512,6 @@ document.addEventListener('keydown', function(e){
     var ai2 = document.getElementById('aiFab'); if(ai2) ai2.classList.remove('hidden');
     var tp = document.getElementById('themePanel'); if(tp) tp.classList.remove('show');
   }
-});
-
-window.addEventListener('resize', function(){
-  if(window.innerWidth > 900 && lastW <= 900) closeSidebar();
-  lastW = window.innerWidth;
 });
 
 /* ==================== SMOOTH INTERACTIONS ==================== */

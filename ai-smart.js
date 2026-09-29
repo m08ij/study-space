@@ -167,6 +167,12 @@
   };
 
   /* ============ Classifier ============ */
+  function stem(word){
+    return String(word || '')
+      .replace(/^(ال)/, '')       // ال التعريف
+      .replace(/(ات|ين|ون|ية|ه|ي)$/, '');  // لواحق
+  }
+
   function classify(text){
     var lower = norm(text);
     var toks = tokens(lower);
@@ -177,16 +183,17 @@
       var score = 0;
       def.keywords.forEach(function(kw){
         var kwn = norm(kw);
-        // مطابقة دقيقة
         if(lower.indexOf(kwn) > -1){ score += 10; return; }
-        // مطابقة جزئية
+        // مطابقة بالجذر + Levenshtein
         toks.forEach(function(t){
+          var tStem = stem(t);
+          var kStem = stem(kwn);
+          if(tStem === kStem){ score += 8; return; }
           var sim = similar(t, kwn);
-          if(sim > 0.78){ score += 7 * sim; }
-          else if(sim > 0.6 && kwn.length > 3){ score += 3 * sim; }
+          if(sim > 0.72){ score += 6 * sim; }
+          else if(sim > 0.55 && kwn.length > 3){ score += 3 * sim; }
         });
       });
-      // targets bonus (للـ navigate و count)
       if(def.targets){
         def.targets.forEach(function(t){
           var tn = norm(t);
@@ -200,12 +207,11 @@
     return {
       intent: sorted[0] || null,
       score: sorted.length ? scores[sorted[0]] : 0,
-      all: scores,
-      tokens: toks,
-      lower: lower
+      all: scores, tokens: toks, lower: lower
     };
   }
 
+	
   /* ============ Handlers ============ */
   function handleGreeting(lower){
     var hour = new Date().getHours();
@@ -237,7 +243,36 @@
       '📚 **المعلومات:**\n• "وصف مادة شبكات حاسوب"\n• "متطلبات مشروع تخرج"\n\n' +
       '🧭 **التنقل:**\n• "افتح المهام" / "روح للميزانية"';
   }
+  function handleSmartStudy(){
+    var sp = getSpace();
+    var t = today();
+    var soonExams = (sp.exams || [])
+      .filter(function(e){ return e.date >= t; })
+      .sort(function(a,b){ return a.date.localeCompare(b.date); })
+      .slice(0, 1);
+    var soonTasks = (sp.tasks || [])
+      .filter(function(x){ return !x.done && x.due && x.due >= t; })
+      .sort(function(a,b){ return a.due.localeCompare(b.due); })
+      .slice(0, 3);
 
+    if(!soonExams.length && !soonTasks.length){
+      return '🌟 **ما عندك شي قريب!**\n\n💡 اقتراح: راجع مادة قديمة أو اشتغل على مشروع التخرج.';
+    }
+    var msg = '🧠 **اقتراحي للدراسة الآن:**\n\n';
+    if(soonExams.length){
+      var e = soonExams[0];
+      msg += '📝 **أولوية قصوى:**\n**' + e.name + '** (بعد ' + daysFromNow(e.date) + ' يوم)\n\n';
+    }
+    if(soonTasks.length){
+      msg += '📌 **مهام قريبة:**\n';
+      soonTasks.forEach(function(x){
+        var d = daysFromNow(x.due);
+        msg += '• ' + x.title + ' (' + (d === 0 ? 'اليوم' : d === 1 ? 'بكرة' : 'بعد ' + d + ' أيام') + ')\n';
+      });
+    }
+    msg += '\n💡 **نصيحة:** ابدأ بأصعب شي وأنت مرتاح، وجرّب بومودورو 25 دقيقة.';
+    return msg;
+  }
   function handleNavigate(lower){
     var map = INTENTS.navigate.targets;
     var found = null;
@@ -519,25 +554,43 @@
     return msg;
   }
 
-  function handleCourseInfo(lower){
+    function handleCourseInfo(lower){
     var DB = window.COURSES_DB || {};
     var found = null, bestScore = 0;
-    Object.keys(DB).forEach(function(name){
-      var nameNorm = norm(name);
-      // ابحث عن تطابق ضمن lower
-      if(lower.indexOf(nameNorm) > -1){ found = name; bestScore = 100; return; }
-      // جزئي
-      var toks = tokens(nameNorm);
-      var matches = toks.filter(function(t){ return t.length > 2 && lower.indexOf(t) > -1; }).length;
-      if(matches && matches/toks.length >= 0.6 && matches > bestScore){
-        found = name; bestScore = matches;
-      }
-    });
-    // بحث بالكود
-    var codeMatch = lower.match(/\b(\d{6,10})\b/);
-    if(!found && codeMatch){
-      Object.keys(DB).forEach(function(k){ if(DB[k].code === codeMatch[1]) found = k; });
+
+    // 1) بحث بالكود أولاً (أعلى أولوية)
+    var codeMatch = lower.match(/(\d{6,10})/);
+    if(codeMatch){
+      Object.keys(DB).forEach(function(k){
+        if(!found && DB[k].code === codeMatch[1]){ found = k; bestScore = 1000; }
+      });
     }
+
+    // 2) بحث بالاسم الكامل
+    if(!found){
+      Object.keys(DB).forEach(function(name){
+        var nameNorm = norm(name);
+        if(lower.indexOf(nameNorm) > -1){ found = name; bestScore = 100; }
+      });
+    }
+
+    // 3) بحث جزئي ذكي (أي كلمة مهمة توجد)
+    if(!found){
+      Object.keys(DB).forEach(function(name){
+        var nameNorm = norm(name);
+        var toks = tokens(nameNorm).filter(function(t){ return t.length > 2; });
+        if(!toks.length) return;
+        var matched = toks.filter(function(t){ return lower.indexOf(t) > -1; }).length;
+        // نقبل لو 50%+ من الكلمات المهمة موجودة، أو كلمة واحدة طويلة (>5 حروف)
+        var longHit = toks.some(function(t){ return t.length > 5 && lower.indexOf(t) > -1; });
+        var ratio = matched / toks.length;
+        var score = matched * 10 + (longHit ? 5 : 0);
+        if((ratio >= 0.5 || longHit) && score > bestScore){
+          found = name; bestScore = score;
+        }
+      });
+    }
+
     if(!found) return null;
     var info = DB[found];
     var t = (window.COURSE_TYPES && window.COURSE_TYPES[info.t]) || {label:'مادة', icon:'📘'};
@@ -550,23 +603,6 @@
     if(info.d) msg += '\n📖 ' + info.d.slice(0, 300);
     setCtxTopic('course', {name: found});
     return msg;
-  }
-
-  function handleTips(lower){
-    var tips = window.STUDY_TIPS || ['💡 ادرس بنفس الوقت يومياً.'];
-    var q = tips[Math.floor(Math.random() * tips.length)];
-    return q + '\n\n💡 تحب نصائح أكثر؟ اسأل: "كيف أنظم وقتي؟"';
-  }
-
-  function handleMotivation(){
-    var quotes = window.DAILY_QUOTES || [{t:'لا تنتظر الفرصة، اصنعها بنفسك.', a:'—'}];
-    var q = quotes[Math.floor(Math.random() * quotes.length)];
-    var msgs = [
-      '💪 **لا تيأس!** كل واحد يمر بأيام صعبة.\n\n✨ "' + q.t + '"\n— ' + q.a,
-      '🌟 **أنت أقوى من كذا!** خذ نفس عميق وكمّل.\n\n✨ "' + q.t + '"',
-      '🔥 **تعبت؟ معناته أنت تحاول!** هذي علامة إنك تشتغل.\n\n✨ "' + q.t + '"'
-    ];
-    return msgs[Math.floor(Math.random() * msgs.length)];
   }
 
   /* ============ Context Follow-ups ============ */
@@ -589,14 +625,10 @@
 
   /* ============ Multi-intent Splitter ============ */
   function splitMultiIntent(text){
-    // نقسم على "و" أو "ثم" أو "," فقط لو في فعلين
-    var parts = norm(text).split(/\s+(?:و|ثم)\s+/);
+    // نفصل على " و" أو " ثم" — الفراغ بعد "و" اختياري
+    var parts = String(text).split(/\s+(?:و|ثم)\s*/);
     if(parts.length < 2) return [text];
-    // نتحقق: هل كل جزء فيه فعل أمر أو استفهام؟
-    var valid = parts.every(function(p){
-      var t = tokens(p);
-      return t.length >= 2;
-    });
+    var valid = parts.every(function(p){ return tokens(p).length >= 2; });
     return valid ? parts : [text];
   }
 
@@ -638,7 +670,10 @@
     // Classify
     var cls = classify(raw);
     var intent = cls.intent;
-
+	    // في INTENTS:
+    'smart_study': {
+      keywords: ['شنو ادرس','ايش ادرس','ادرس ايش','وش ادرس','استعد','اراجع','study now','ماذا ادرس','مراجعة']
+    },
     // Route
     if(intent === 'navigate' || /افتح|روح|اذهب|انتقل|ودني|show me|open/i.test(lower)){
       var r = handleNavigate(lower);
@@ -677,7 +712,8 @@
       var orig = window._aiOriginal(raw);
       if(orig && orig.indexOf('ما فهمت') === -1) return {text: orig, intent: 'original'};
     }
-
+	if(intent === 'smart_study' || /شنو ادرس|ايش ادرس|ادرس ايش|استعد|اراجع/.test(lower))
+    return {text: handleSmartStudy(), intent: 'smart_study'};
     // Fallback ذكي
     return {text: buildSmartFallback(raw), intent: null};
   }
