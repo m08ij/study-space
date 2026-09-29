@@ -1,19 +1,25 @@
 /* ============================================================
    ⚙️ sw.js — Service Worker v18
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v20';   // ← غيّره من v19
+var CACHE_NAME = 'ss-cache-v22';   // غيّر الرقم
 var URLS_TO_CACHE = [
   './',
   './index.html',
   './courses-data.js',
   './ai-assistant.js',
-  './ai-smart.js',   // بدل ai-assistant-plus.js
+  './ai-smart.js',
   './plan-simulator.js',
   './plan-enhance.js',
   './calendar-sync.js',
   './insights.js',
   './courses-files-plus.js',
-  './qc-fix.js',                    // 🆕
+  './qc-fix.js',
+  './bottom-nav.js',           // 🆕
+  './lecture-reminder.js',     // 🆕
+  './calendar-view.js',        // 🆕
+  './custom-dashboard.js',     // 🆕
+  './mindmap.js',              // 🆕
+  './ocr-plus.js',             // 🆕
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
