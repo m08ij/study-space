@@ -1,7 +1,7 @@
 /* ============================================================
    ⚙️ sw.js — Service Worker v23
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v28';
+var CACHE_NAME = 'ss-cache-v30';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -20,7 +20,7 @@ var URLS_TO_CACHE = [
   './custom-dashboard.js',
   './mindmap.js',
   './timetable-importer.js',
-  './ocr-advanced.js',       // ← أضف هذا
+  './ocr-advanced.js',    
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',

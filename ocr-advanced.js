@@ -1,8 +1,8 @@
 /* ============================================================
-   📸 ocr-advanced.js — OCR متقدم للجداول العربية
-   ✅ client-side-ocr + RapidOCR (PP-OCRv4) — دقة عالية
-   ✅ تحميل ديناميكي آمن مع بدائل احتياطية
+   📸 ocr-advanced.js — OCR متقدم للجداول العربية (محلي)
+   ✅ @paddleocr/paddleocr-js — دقة عالية (PP-OCRv5)
    ✅ لا يحتاج مفاتيح API، لا سيرفر، لا تسجيل
+   ✅ يفهم بنية الجداول ويرجع النص منظمًا
    ============================================================ */
 (function() {
     'use strict';
@@ -12,49 +12,18 @@
     let ocrEngine = null;
     let isInitializing = false;
 
-    // ========== تحميل ONNX Runtime ==========
-    async function loadOnnxRuntime() {
-        if (window.ort) return;
-        await new Promise((resolve, reject) => {
-            const s = document.createElement('script');
-            s.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js';
-            s.onload = resolve;
-            s.onerror = () => reject(new Error('فشل تحميل ONNX Runtime'));
-            document.head.appendChild(s);
-        });
-        window.ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
-        console.log('✅ ONNX Runtime loaded');
-    }
-
-    // ========== تحميل مكتبة client-side-ocr (مع بدائل) ==========
-    async function loadOcrLibrary() {
-        if (window.__clientSideOcrModule) return window.__clientSideOcrModule;
+    // ========== تحميل مكتبة PaddleOCR عبر CDN ==========
+    async function loadPaddleOCR() {
+        if (window.PaddleOCR) return window.PaddleOCR;
         
-        await loadOnnxRuntime();
-
-        // قائمة روابط CDN للاحتياط
-        const urls = [
-            'https://unpkg.com/client-side-ocr@latest/dist/index.mjs',
-            'https://cdn.jsdelivr.net/npm/client-side-ocr@latest/dist/index.mjs',
-            'https://esm.sh/client-side-ocr@latest'
-        ];
-
-        let lastError = null;
-        for (const url of urls) {
-            try {
-                console.log('⏳ Trying to load OCR from:', url);
-                const module = await import(/* @vite-ignore */ url);
-                if (module && (module.createRapidOCREngine || module.createOCREngine)) {
-                    console.log('✅ OCR library loaded from:', url);
-                    window.__clientSideOcrModule = module;
-                    return module;
-                }
-            } catch (e) {
-                console.warn('❌ Failed with:', url, e.message);
-                lastError = e;
-            }
-        }
-        throw new Error('فشل تحميل مكتبة OCR من جميع المصادر: ' + (lastError?.message || ''));
+        console.log('⏳ جاري تحميل مكتبة PaddleOCR...');
+        
+        // استخدام رابط ESM الذي يعمل مباشرة من jsDelivr
+        const module = await import('https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js/+esm');
+        
+        window.PaddleOCR = module.PaddleOCR;
+        console.log('✅ PaddleOCR library loaded');
+        return window.PaddleOCR;
     }
 
     // ========== تهيئة محرك OCR ==========
@@ -67,25 +36,22 @@
 
         isInitializing = true;
         try {
-            const lib = await loadOcrLibrary();
-            const createEngine = lib.createRapidOCREngine || lib.createOCREngine;
-            if (!createEngine) throw new Error('لم يتم العثور على دالة إنشاء المحرك');
-
+            const PaddleOCR = await loadPaddleOCR();
+            
             toast('⏳ جاري تهيئة محرك OCR للعربية (قد يستغرق دقيقة في المرة الأولى)...', 'info', 5000);
             
-            ocrEngine = createEngine({
-                language: 'ar',           // ✅ العربية
-                modelVersion: 'PP-OCRv4', // ✅ نموذج دقيق
-                modelType: 'mobile',      // أسرع، مناسب للمتصفح
-                cacheModels: true          // تخزين في IndexedDB
+            // ✅ تهيئة المحرك مع اللغة العربية
+            ocrEngine = await PaddleOCR.create({
+                lang: 'ar',                 // ✅ اللغة العربية
+                ocrVersion: 'PP-OCRv5',     // ✅ أحدث وأدق نموذج
+                ortOptions: {
+                    backend: 'wasm',        // WebAssembly (يعمل في كل المتصفحات)
+                    wasmPaths: 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/',
+                    numThreads: 2
+                }
             });
 
-            if (typeof ocrEngine.initialize !== 'function') {
-                throw new Error('المحرك لا يدعم التهيئة');
-            }
-
-            await ocrEngine.initialize();
-            console.log('✅ OCR Engine initialized (Arabic)');
+            console.log('✅ OCR Engine initialized (Arabic - PP-OCRv5)');
             toast('✅ محرك OCR جاهز!', 'success', 2000);
             
         } catch (e) {
@@ -105,12 +71,14 @@
             return;
         }
 
+        // عرض الصورة للمستخدم
         const preview = document.getElementById('ocrPreview');
         if (preview) {
             preview.style.display = 'block';
             preview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:100%;border-radius:12px;max-height:300px">`;
         }
 
+        // شريط التقدم
         const progress = document.getElementById('ocrProgress');
         const bar = document.getElementById('ocrBar');
         const progressText = document.getElementById('ocrText');
@@ -120,30 +88,42 @@
 
         try {
             const engine = await initOCR();
-            if (bar) bar.style.width = '30%';
+            if (bar) bar.style.width = '40%';
             if (progressText) progressText.textContent = '⏳ جاري قراءة الجدول...';
 
-            const result = await engine.processImage(file, {
-                enableTextClassification: true,
-                enableWordSegmentation: true,
-                returnConfidence: true,
-                preprocessConfig: { maxSideLen: 1280, detectImageMode: 'scale' },
-                postprocessConfig: { unclipRatio: 2.0, boxThresh: 0.7, minBoxSize: 10 }
-            });
+            // ✅ تنفيذ OCR
+            const results = await engine.predict(file);
+            const result = results[0] || {};
 
             if (bar) bar.style.width = '100%';
-            if (progressText) progressText.textContent = `✅ تم التحليل (دقة ${Math.round((result.confidence || 0) * 100)}%)`;
+            if (progressText) progressText.textContent = '✅ تم التحليل';
+
+            // استخراج النص
+            let extractedText = '';
+            if (result.items && Array.isArray(result.items)) {
+                extractedText = result.items
+                    .map(item => item.text || '')
+                    .filter(t => t.length > 0)
+                    .join('\n');
+            } else if (result.text) {
+                extractedText = result.text;
+            }
 
             const ta = document.getElementById('ocrTextarea');
-            if (ta) ta.value = result.text || '';
+            if (ta) ta.value = extractedText;
+
             const resultEl = document.getElementById('ocrResult');
             if (resultEl) resultEl.style.display = 'block';
 
-            toast(`✅ تم استخراج ${(result.text || '').split('\n').length} سطر`, 'success', 3000);
+            toast(`✅ تم استخراج ${extractedText.split('\n').length} سطر`, 'success', 3000);
 
+            // ✅ فتح المستورد تلقائيًا
             if (window.TimetableImporter && window.TimetableImporter.open) {
-                setTimeout(() => window.TimetableImporter.open(result.text || ''), 600);
+                setTimeout(() => {
+                    window.TimetableImporter.open(extractedText);
+                }, 600);
             }
+
         } catch (error) {
             console.error('OCR Error:', error);
             if (progressText) progressText.textContent = '❌ فشل التحليل';
@@ -154,7 +134,6 @@
 
     // ========== ربط زر رفع الصورة ==========
     function install() {
-        // ✅ الحل الجذري لمشكلة "الزر لا يعمل": استخدام مستمع واحد على العنصر الأصلي
         const uploadZone = document.getElementById('uploadZone');
         const ocrFile = document.getElementById('ocrFile');
         
@@ -166,18 +145,18 @@
         if (uploadZone._advancedBound) return;
         uploadZone._advancedBound = true;
 
-        // جعل النقر على المنطقة يفتح مدخل الملفات
+        // فتح مدخل الملفات عند النقر
         uploadZone.addEventListener('click', function(e) {
             if (e.target.tagName !== 'INPUT') {
                 ocrFile.click();
             }
         });
 
-        // ربط التغيير بالتحليل
+        // ربط تغيير الملف بالتحليل
         ocrFile.addEventListener('change', function(e) {
             const f = e.target.files[0];
             if (f) analyzeImage(f);
-            ocrFile.value = ''; // السماح بإعادة رفع نفس الصورة
+            ocrFile.value = '';
         });
 
         // السحب والإفلات
@@ -217,5 +196,5 @@
         setTimeout(install, 1000);
     }
 
-    console.log('📸 Advanced OCR loaded — Client-Side PaddleOCR (Arabic)');
+    console.log('📸 Advanced OCR loaded — PaddleOCR.js (Arabic)');
 })();
