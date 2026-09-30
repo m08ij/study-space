@@ -1,7 +1,7 @@
 /* ============================================================
    ⚙️ sw.js — Service Worker v23
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v30';
+var CACHE_NAME = 'ss-cache-v32';
 var URLS_TO_CACHE = [
   './',
   './index.html',

@@ -1,8 +1,8 @@
 /* ============================================================
-   📸 ocr-advanced.js — OCR متقدم للجداول العربية (محلي)
-   ✅ @paddleocr/paddleocr-js — دقة عالية (PP-OCRv5)
-   ✅ لا يحتاج مفاتيح API، لا سيرفر، لا تسجيل
-   ✅ يفهم بنية الجداول ويرجع النص منظمًا
+   📸 ocr-advanced.js — OCR متقدم للجداول العربية
+   ✅ @paddleocr/paddleocr-js مع تركيبات متعددة
+   ✅ Fallback تلقائي: يجرب lang='arabic' + PP-OCRv3 أولاً
+   ✅ يعمل بالكامل في المتصفح — بلا سيرفر
    ============================================================ */
 (function() {
     'use strict';
@@ -11,49 +11,70 @@
 
     let ocrEngine = null;
     let isInitializing = false;
+    let engineConfig = null;
 
-    // ========== تحميل مكتبة PaddleOCR عبر CDN ==========
+    /* ============ تحميل مكتبة PaddleOCR ============ */
     async function loadPaddleOCR() {
         if (window.PaddleOCR) return window.PaddleOCR;
-        
-        console.log('⏳ جاري تحميل مكتبة PaddleOCR...');
-        
-        // استخدام رابط ESM الذي يعمل مباشرة من jsDelivr
-        const module = await import('https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js/+esm');
-        
+        console.log('⏳ تحميل مكتبة PaddleOCR...');
+        var module = await import('https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js/+esm');
         window.PaddleOCR = module.PaddleOCR;
-        console.log('✅ PaddleOCR library loaded');
+        console.log('✅ PaddleOCR loaded');
         return window.PaddleOCR;
     }
 
-    // ========== تهيئة محرك OCR ==========
+    /* ============ تهيئة المحرك — تركيبات متعددة ============ */
     async function initOCR() {
         if (ocrEngine) return ocrEngine;
         if (isInitializing) {
-            while (isInitializing) { await new Promise(r => setTimeout(r, 100)); }
+            while (isInitializing) { await new Promise(function(r){ setTimeout(r, 100); }); }
             return ocrEngine;
         }
 
         isInitializing = true;
         try {
-            const PaddleOCR = await loadPaddleOCR();
-            
-            toast('⏳ جاري تهيئة محرك OCR للعربية (قد يستغرق دقيقة في المرة الأولى)...', 'info', 5000);
-            
-            // ✅ تهيئة المحرك مع اللغة العربية
-            ocrEngine = await PaddleOCR.create({
-                lang: 'ar',                 // ✅ اللغة العربية
-                ocrVersion: 'PP-OCRv5',     // ✅ أحدث وأدق نموذج
-                ortOptions: {
-                    backend: 'wasm',        // WebAssembly (يعمل في كل المتصفحات)
-                    wasmPaths: 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/',
-                    numThreads: 2
-                }
-            });
+            var PaddleOCR = await loadPaddleOCR();
 
-            console.log('✅ OCR Engine initialized (Arabic - PP-OCRv5)');
-            toast('✅ محرك OCR جاهز!', 'success', 2000);
-            
+            toast('⏳ تهيئة محرك OCR للعربية (قد يستغرق دقيقة)...', 'info', 5000);
+
+            // ✅ جرّب عدة تركيبات — الأول اللي ينجح يفوز
+            var configs = [
+                { lang: 'arabic', ocrVersion: 'PP-OCRv3' },
+                { lang: 'arabic', ocrVersion: 'PP-OCRv4' },
+                { lang: 'ar',     ocrVersion: 'PP-OCRv3' },
+                { lang: 'ar',     ocrVersion: 'PP-OCRv4' },
+                { lang: 'en',     ocrVersion: 'PP-OCRv4' }  // fallback أخير
+            ];
+
+            var lastError = null;
+            for (var i = 0; i < configs.length; i++) {
+                try {
+                    console.log('🔄 Trying:', configs[i].lang, configs[i].ocrVersion);
+                    ocrEngine = await PaddleOCR.create({
+                        lang: configs[i].lang,
+                        ocrVersion: configs[i].ocrVersion,
+                        ortOptions: {
+                            backend: 'wasm',
+                            wasmPaths: 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/',
+                            numThreads: 2
+                        }
+                    });
+                    engineConfig = configs[i];
+                    console.log('✅ نجح مع:', configs[i]);
+                    break;
+                } catch (e) {
+                    console.warn('❌ فشل:', configs[i], e.message);
+                    lastError = e;
+                    ocrEngine = null;
+                }
+            }
+
+            if (!ocrEngine) {
+                throw lastError || new Error('كل التركيبات فشلت');
+            }
+
+            toast('✅ محرك OCR جاهز!', 'success', 2500);
+
         } catch (e) {
             console.error('OCR init failed:', e);
             toast('❌ فشل تهيئة OCR: ' + (e.message || e), 'warn', 5000);
@@ -64,62 +85,62 @@
         return ocrEngine;
     }
 
-    // ========== تحليل الصورة ==========
+    /* ============ تحليل الصورة ============ */
     async function analyzeImage(file) {
         if (!file || !file.type.startsWith('image/')) {
             toast('⚠️ الرجاء اختيار صورة صالحة.', 'warn');
             return;
         }
 
-        // عرض الصورة للمستخدم
-        const preview = document.getElementById('ocrPreview');
+        // معاينة الصورة
+        var preview = document.getElementById('ocrPreview');
         if (preview) {
             preview.style.display = 'block';
-            preview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:100%;border-radius:12px;max-height:300px">`;
+            preview.innerHTML = '<img src="' + URL.createObjectURL(file) + '" style="max-width:100%;border-radius:12px;max-height:300px">';
         }
 
         // شريط التقدم
-        const progress = document.getElementById('ocrProgress');
-        const bar = document.getElementById('ocrBar');
-        const progressText = document.getElementById('ocrText');
+        var progress = document.getElementById('ocrProgress');
+        var bar = document.getElementById('ocrBar');
+        var progressText = document.getElementById('ocrText');
         if (progress) progress.style.display = 'block';
         if (bar) bar.style.width = '5%';
-        if (progressText) progressText.textContent = '⏳ جاري تهيئة المحرك...';
+        if (progressText) progressText.textContent = '⏳ تهيئة المحرك...';
 
         try {
-            const engine = await initOCR();
+            var engine = await initOCR();
             if (bar) bar.style.width = '40%';
-            if (progressText) progressText.textContent = '⏳ جاري قراءة الجدول...';
+            if (progressText) progressText.textContent = '⏳ قراءة الجدول...';
 
-            // ✅ تنفيذ OCR
-            const results = await engine.predict(file);
-            const result = results[0] || {};
+            // تنفيذ OCR
+            var results = await engine.predict(file);
+            var result = results[0] || {};
 
             if (bar) bar.style.width = '100%';
             if (progressText) progressText.textContent = '✅ تم التحليل';
 
             // استخراج النص
-            let extractedText = '';
+            var extractedText = '';
             if (result.items && Array.isArray(result.items)) {
                 extractedText = result.items
-                    .map(item => item.text || '')
-                    .filter(t => t.length > 0)
+                    .map(function(item){ return item.text || ''; })
+                    .filter(function(t){ return t.length > 0; })
                     .join('\n');
             } else if (result.text) {
                 extractedText = result.text;
             }
 
-            const ta = document.getElementById('ocrTextarea');
+            var ta = document.getElementById('ocrTextarea');
             if (ta) ta.value = extractedText;
 
-            const resultEl = document.getElementById('ocrResult');
+            var resultEl = document.getElementById('ocrResult');
             if (resultEl) resultEl.style.display = 'block';
 
-            toast(`✅ تم استخراج ${extractedText.split('\n').length} سطر`, 'success', 3000);
+            toast('✅ استُخرج ' + extractedText.split('\n').length + ' سطر', 'success', 3000);
 
-            // ✅ فتح المستورد تلقائيًا
+            // فتح المستورد تلقائياً
             if (window.TimetableImporter && window.TimetableImporter.open) {
-                setTimeout(() => {
+                setTimeout(function(){
                     window.TimetableImporter.open(extractedText);
                 }, 600);
             }
@@ -132,13 +153,13 @@
         }
     }
 
-    // ========== ربط زر رفع الصورة ==========
+    /* ============ ربط زر رفع الصورة ============ */
     function install() {
-        const uploadZone = document.getElementById('uploadZone');
-        const ocrFile = document.getElementById('ocrFile');
-        
+        var uploadZone = document.getElementById('uploadZone');
+        var ocrFile = document.getElementById('ocrFile');
+
         if (!uploadZone || !ocrFile) {
-            console.warn('⚠️ لم يتم العثور على عناصر رفع الصورة');
+            console.warn('⚠️ عناصر رفع الصورة غير موجودة');
             return;
         }
 
@@ -146,41 +167,41 @@
         uploadZone._advancedBound = true;
 
         // فتح مدخل الملفات عند النقر
-        uploadZone.addEventListener('click', function(e) {
+        uploadZone.addEventListener('click', function(e){
             if (e.target.tagName !== 'INPUT') {
                 ocrFile.click();
             }
         });
 
         // ربط تغيير الملف بالتحليل
-        ocrFile.addEventListener('change', function(e) {
-            const f = e.target.files[0];
+        ocrFile.addEventListener('change', function(e){
+            var f = e.target.files[0];
             if (f) analyzeImage(f);
             ocrFile.value = '';
         });
 
         // السحب والإفلات
-        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
-        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
-        uploadZone.addEventListener('drop', (e) => {
+        uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', function(){ uploadZone.classList.remove('dragover'); });
+        uploadZone.addEventListener('drop', function(e){
             e.preventDefault();
             uploadZone.classList.remove('dragover');
-            const f = e.dataTransfer.files[0];
+            var f = e.dataTransfer.files[0];
             if (f) analyzeImage(f);
         });
 
         console.log('📸 Advanced OCR: bound to input');
     }
 
-    // ========== واجهة برمجية عامة ==========
+    /* ============ واجهة عامة ============ */
     window.ocrAdvanced = {
         analyze: analyzeImage,
         init: initOCR,
-        test: async () => {
+        test: async function(){
             console.log('🔍 اختبار OCR...');
             try {
                 await initOCR();
-                console.log('✅ المحرك جاهز');
+                console.log('✅ المحرك جاهز (تركيبة: ' + JSON.stringify(engineConfig) + ')');
                 return 'ready';
             } catch (e) {
                 console.error('❌ فشل:', e);
@@ -189,9 +210,9 @@
         }
     };
 
-    // ========== التشغيل ==========
+    /* ============ التشغيل ============ */
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => setTimeout(install, 1000));
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 1000); });
     } else {
         setTimeout(install, 1000);
     }
