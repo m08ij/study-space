@@ -20,6 +20,7 @@ var URLS_TO_CACHE = [
   './custom-dashboard.js',
   './mindmap.js',
   './timetable-importer.js',
+  './ocr-preprocess.js',           // ← أضف هذا
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
