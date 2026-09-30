@@ -2291,28 +2291,12 @@ function loadTesseract(){
   return tesseractLoading;
 }
 function initOcrBindings(){
-  var uploadZone = document.getElementById('uploadZone'); var ocrFile = document.getElementById('ocrFile');
-  if(uploadZone){
-    uploadZone.addEventListener('click', function(){ if(ocrFile) ocrFile.click(); });
-    uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.classList.add('dragover'); });
-    uploadZone.addEventListener('dragleave', function(){ uploadZone.classList.remove('dragover'); });
-    uploadZone.addEventListener('drop', function(e){
-      e.preventDefault(); uploadZone.classList.remove('dragover');
-      var f = e.dataTransfer.files[0]; if(f) handleOcrFile(f);
-    });
-  }
-  if(ocrFile) ocrFile.addEventListener('change', function(e){ var f = e.target.files[0]; if(f) handleOcrFile(f); });
+  // ⚠️ معطّلة — ocr-puter.js يتولى الأمر
+  console.log('ℹ️ Tesseract bindings disabled — Puter handles OCR');
 }
 async function handleOcrFile(file){
-  if(!file.type.startsWith('image/')){ toast('استخدم صورة', 'warn'); return; }
-  var reader = new FileReader();
-  reader.onload = async function(){
-    ocrImageDataURL = reader.result;
-    var preview = document.getElementById('ocrPreview');
-    if(preview){ preview.style.display = 'block'; preview.innerHTML = '<img src="' + ocrImageDataURL + '">'; }
-    await runOcr(ocrImageDataURL);
-  };
-  reader.readAsDataURL(file);
+  // ⚠️ معطّلة — ocr-puter.js يتولى
+  console.log('ℹ️ Tesseract handleOcrFile disabled');
 }
 async function runOcr(imageDataURL){
   var progress = document.getElementById('ocrProgress'); var bar = document.getElementById('ocrBar'); var text = document.getElementById('ocrText');
