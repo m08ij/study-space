@@ -1027,6 +1027,46 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 <script src="ocr-table-parser.js"></script>   <!-- 🆕 أضف هذا -->
 <script src="ocr-advanced.js"></script>
 <script>
+/* 🔧 OCR Failsafe — لو ocr-advanced.js فشل */
+(function(){
+  function bind(){
+    var z = document.getElementById('uploadZone');
+    var f = document.getElementById('ocrFile');
+    if(!z || !f){ return setTimeout(bind, 300); }
+    if(z._v7Bound || z._safeBound) return;
+    z._safeBound = true;
+    console.log('🔧 OCR Failsafe binding');
+    z.addEventListener('click', function(e){
+      if(e.target === f) return;
+      e.preventDefault();
+      f.click();
+    });
+    f.addEventListener('change', function(e){
+      var file = e.target.files && e.target.files[0];
+      if(!file) return;
+      if(window.ocrAdvanced && window.ocrAdvanced.analyze){
+        window.ocrAdvanced.analyze(file);
+      } else {
+        console.error('❌ ocrAdvanced غير محمّل');
+        if(typeof window.toast === 'function') window.toast('⚠️ خدمة OCR غير جاهزة', 'warn', 3000);
+      }
+      f.value = '';
+    });
+    z.addEventListener('dragover', function(e){ e.preventDefault(); z.classList.add('dragover'); });
+    z.addEventListener('dragleave', function(){ z.classList.remove('dragover'); });
+    z.addEventListener('drop', function(e){
+      e.preventDefault(); z.classList.remove('dragover');
+      var file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if(file && window.ocrAdvanced && window.ocrAdvanced.analyze){
+        window.ocrAdvanced.analyze(file);
+      }
+    });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+</script>
+<script>
 /* ==================== GLOBAL STATE ==================== */
 var space = null;
 var notes = [];
@@ -2292,8 +2332,21 @@ function loadTesseract(){
   return tesseractLoading;
 }
 function initOcrBindings(){
-  // ⚠️ معطّلة — ocr-puter.js يتولى الأمر
-  console.log('ℹ️ Tesseract bindings disabled — Puter handles OCR');
+  // ✅ ربط احتياطي — يشتغل لو ocr-advanced.js ما اتربط
+  var zone = document.getElementById('uploadZone');
+  var inp = document.getElementById('ocrFile');
+  if(!zone || !inp) return;
+  if(zone._v6Bound) return; // ocr-advanced تكفّل
+  zone._v6Bound = true;
+  console.log('🔧 OCR: manual binding (fallback)');
+  zone.addEventListener('click', function(e){
+    if(e.target.tagName !== 'INPUT') inp.click();
+  });
+  inp.addEventListener('change', function(e){
+    var f = e.target.files[0];
+    if(f && window.ocrAdvanced && window.ocrAdvanced.analyze) window.ocrAdvanced.analyze(f);
+    inp.value = '';
+  });
 }
 async function handleOcrFile(file){
   // ⚠️ معطّلة — ocr-puter.js يتولى

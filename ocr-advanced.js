@@ -1,8 +1,7 @@
 /* ============================================================
-   📸 ocr-advanced.js v6 — Row-based OCR + Table Parser + Fallback
-   ✅ يحاول OCRTableParser أولاً (بنية الجدول)
-   ✅ لو فشل → line-based + fuzzy matching
-   ✅ يربط uploadZone + drag & drop
+   📸 ocr-advanced.js v7 — FINAL
+   ✅ Table Parser أولاً + fallback line-based
+   ✅ ربط محصّن لزر الرفع + retry
    ============================================================ */
 (function(){
   'use strict';
@@ -137,7 +136,7 @@
     return row.map(function(w){ return w.text; }).join(' ');
   }
 
-  /* ============ 7) تحميل الصورة لمعرفة أبعادها ============ */
+  /* ============ 7) تحميل الصورة ============ */
   function loadImage(file){
     return new Promise(function(resolve, reject){
       var img = new Image();
@@ -170,7 +169,6 @@
     if(progressText) progressText.textContent = '⏳ تحميل Tesseract...';
 
     try{
-      // 1) أبعاد الصورة
       var img = await loadImage(file);
       var W = img.naturalWidth, H = img.naturalHeight;
       console.log('🖼️ أبعاد الصورة:', W, '×', H);
@@ -179,7 +177,6 @@
       if(bar) bar.style.width = '40%';
       if(progressText) progressText.textContent = '⏳ قراءة الجدول...';
 
-      // 2) شغّل Tesseract مع bbox
       var result = await Tesseract.recognize(file, 'ara', {
         tessedit_pageseg_mode: '6',
         preserve_interword_spaces: '1',
@@ -196,7 +193,6 @@
       if(bar) bar.style.width = '80%';
       if(progressText) progressText.textContent = '🏛️ تحليل الجدول...';
 
-      // 3) جرّب Table Parser أولاً
       var parsed = { records: [], ok: false };
       if(window.OCRTableParser){
         try{
@@ -208,7 +204,6 @@
       var outputText = '';
 
       if(parsed.ok && parsed.records.length > 0){
-        // ✅ نجح — حوّل السجلات لنص HU
         outputText = parsed.records.map(function(r){
           var daysAr = r.days.map(function(d){
             for(var k in DAY_LETTER){ if(DAY_LETTER[k] === d) return k; }
@@ -220,7 +215,6 @@
         }).join('\n');
         if(progressText) progressText.textContent = '✅ جدول — ' + parsed.records.length + ' مادة';
       } else {
-        // ❌ فشل — fallback (line-based)
         console.log('🔄 fallback (line-based)...');
         var lines = [];
         if(result.data.words && result.data.words.length){
@@ -267,7 +261,6 @@
 
       toast('✅ تم — ' + (parsed.ok ? parsed.records.length + ' مادة' : 'fallback'), 'success', 3500);
 
-      // افتح المستورد
       if(window.TimetableImporter && window.TimetableImporter.open){
         setTimeout(function(){ window.TimetableImporter.open(outputText); }, 500);
       }
@@ -281,36 +274,47 @@
   }
 
   /* ============================================================
-     9) التركيب — ربط الزر
+     9) التركيب — ربط محصّن
      ============================================================ */
   function install(){
     var uploadZone = document.getElementById('uploadZone');
     var ocrFile = document.getElementById('ocrFile');
+
     if(!uploadZone || !ocrFile){
-      console.warn('⚠️ uploadZone أو ocrFile غير موجود');
+      install._tries = (install._tries || 0) + 1;
+      if(install._tries < 30) return setTimeout(install, 200);
+      console.warn('⚠️ OCR: uploadZone/ocrFile مش موجودين');
       return;
     }
-    if(uploadZone._v6Bound) return;
-    uploadZone._v6Bound = true;
 
-    console.log('✅ OCR v6: bound to uploadZone');
+    if(uploadZone._v7Bound) return;
+    uploadZone._v7Bound = true;
+
+    console.log('✅ OCR v7: bound to uploadZone');
 
     uploadZone.addEventListener('click', function(e){
-      if(e.target.tagName !== 'INPUT') ocrFile.click();
+      if(e.target === ocrFile) return;
+      e.preventDefault();
+      ocrFile.click();
     });
 
     ocrFile.addEventListener('change', function(e){
-      var f = e.target.files[0];
+      var f = e.target.files && e.target.files[0];
       if(f) analyzeImage(f);
       ocrFile.value = '';
     });
 
-    uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.classList.add('dragover'); });
-    uploadZone.addEventListener('dragleave', function(){ uploadZone.classList.remove('dragover'); });
+    uploadZone.addEventListener('dragover', function(e){
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+    uploadZone.addEventListener('dragleave', function(){
+      uploadZone.classList.remove('dragover');
+    });
     uploadZone.addEventListener('drop', function(e){
       e.preventDefault();
       uploadZone.classList.remove('dragover');
-      var f = e.dataTransfer.files[0];
+      var f = e.dataTransfer.files && e.dataTransfer.files[0];
       if(f) analyzeImage(f);
     });
   }
@@ -324,7 +328,7 @@
     findCourseInText: findCourseInText
   };
 
-  window.ocrV6Test = function(text){
+  window.ocrV7Test = function(text){
     var lines = String(text || '').split('\n');
     console.log('📝 اختبار:', lines.length, 'سطر');
     lines.forEach(function(l){
@@ -333,12 +337,15 @@
     });
   };
 
-  // تشغيل
+  /* تشغيل بمحاولات متعددة */
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 800); });
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 200); });
   } else {
-    setTimeout(install, 800);
+    setTimeout(install, 200);
   }
+  setTimeout(install, 800);
+  setTimeout(install, 1500);
+  setTimeout(install, 2500);
 
-  console.log('📸 OCR v6 — Table Parser + fallback + install() ready');
+  console.log('📸 OCR v7 FINAL — ready');
 })();
