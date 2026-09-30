@@ -1,15 +1,14 @@
 /* ============================================================
-   📸 ocr-advanced.js — OCR نظيف، بلا وسيط
-   ✅ Tesseract.js فقط — يشتغل بالمتصفح
-   ✅ Multi-pass (3 أوضاع preprocessing)
-   ✅ يختار أفضل نتيجة تلقائياً
-   ✅ يفتح المستورد مباشرة
+   📸 ocr-advanced.js v3 — Row-based OCR
+   ✅ يقرأ الكلمات مع مواقعها من Tesseract
+   ✅ يجمع الكلمات في صفوف حسب الإحداثي y
+   ✅ يربط كل صف بمادة من COURSES_DB (fuzzy)
+   ✅ يخرج نص نظيف بصف لكل مادة
    ============================================================ */
 (function(){
   'use strict';
 
   function toast(m, t, d){ if(typeof window.toast === 'function') window.toast(m, t || 'info', d || 2500); }
-  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   /* ============ تحميل Tesseract ============ */
   function loadTesseract(){
@@ -18,247 +17,119 @@
     window._tessLoading = new Promise(function(resolve, reject){
       var s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-      s.onload = function(){ resolve(); };
+      s.onload = resolve;
       s.onerror = function(){ reject(new Error('فشل تحميل Tesseract')); };
       document.head.appendChild(s);
     });
     return window._tessLoading;
   }
 
-  /* ============ تحميل صورة ============ */
-  function loadImage(src){
-    return new Promise(function(resolve, reject){
-      var img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = function(){ resolve(img); };
-      img.onerror = function(){ reject(new Error('فشل تحميل الصورة')); };
-      img.src = src;
-    });
+  /* ============ تطبيع عربي ============ */
+  function normAr(s){
+    return String(s||'')
+      .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
+      .replace(/[أإآٱ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/[ىئي]/g, 'ي')
+      .replace(/ؤ/g, 'و')
+      .replace(/[()\[\]{}،,؛;:.]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   }
 
-  /* ============ تكبير الصورة إن كانت صغيرة ============ */
-  function upscaleIfNeeded(img, targetW){
-    targetW = targetW || 2000;
-    if(img.width >= targetW) return null;
-    var scale = targetW / img.width;
-    var c = document.createElement('canvas');
-    c.width = targetW;
-    c.height = Math.round(img.height * scale);
-    var ctx = c.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, c.width, c.height);
-    return c;
-  }
-
-  /* ============ Grayscale + Histogram Stretch ============ */
-  function grayStretch(imageData){
-    var d = imageData.data;
-    var min = 255, max = 0;
-    for(var i = 0; i < d.length; i += 4){
-      var g = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) | 0;
-      d[i] = d[i+1] = d[i+2] = g;
-      if(g < min) min = g;
-      if(g > max) max = g;
-    }
-    if(max - min > 20){
-      var range = max - min;
-      for(var j = 0; j < d.length; j += 4){
-        var v = ((d[j] - min) * 255 / range) | 0;
-        d[j] = d[j+1] = d[j+2] = v < 0 ? 0 : (v > 255 ? 255 : v);
+  function levenshtein(a, b){
+    if(!a.length) return b.length;
+    if(!b.length) return a.length;
+    var m = [];
+    for(var i = 0; i <= b.length; i++) m[i] = [i];
+    for(var j = 0; j <= a.length; j++) m[0][j] = j;
+    for(i = 1; i <= b.length; i++){
+      for(j = 1; j <= a.length; j++){
+        m[i][j] = b.charAt(i-1) === a.charAt(j-1)
+          ? m[i-1][j-1]
+          : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
       }
     }
-    return imageData;
+    return m[b.length][a.length];
+  }
+  function sim(a, b){
+    if(a === b) return 1;
+    var L = Math.max(a.length, b.length);
+    if(L < 3) return 0;
+    return 1 - (levenshtein(a, b) / L);
   }
 
-  /* ============ Adaptive Threshold (Bradley) ============ */
-  function adaptiveThreshold(imageData, w, h, sens, winSize){
-    sens = sens || 15;
-    winSize = winSize || Math.max(15, (w / 30) | 0);
-    var d = imageData.data;
-    var gray = new Uint8Array(w * h);
-    for(var i = 0; i < d.length; i += 4) gray[i/4] = d[i];
+  /* ============ إيجاد المادة من نص ============ */
+  function findCourseInText(text){
+    var DB = window.COURSES_DB || {};
+    var line = normAr(text);
+    var lineTokens = line.split(/\s+/).filter(function(t){ return t.length > 2; });
+    var best = null, bestScore = 0;
 
-    // Integral image
-    var integral = new Int32Array((w + 1) * (h + 1));
-    for(var y = 0; y < h; y++){
-      var sum = 0;
-      for(var x = 0; x < w; x++){
-        sum += gray[y * w + x];
-        integral[(y+1)*(w+1) + (x+1)] = integral[y*(w+1) + (x+1)] + sum;
+    Object.keys(DB).forEach(function(key){
+      var nKey = normAr(key);
+      // احذف الأرقام بين قوسين
+      var cleanKey = nKey.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+      if(cleanKey.length < 6) return;
+
+      // 1) تطابق مباشر
+      if(line.indexOf(cleanKey) > -1){
+        best = key; bestScore = 100;
+        return;
       }
-    }
 
-    var half = winSize >> 1;
-    for(var y2 = 0; y2 < h; y2++){
-      var y1 = Math.max(0, y2 - half);
-      var y2b = Math.min(h - 1, y2 + half);
-      for(var x2 = 0; x2 < w; x2++){
-        var x1 = Math.max(0, x2 - half);
-        var x2b = Math.min(w - 1, x2 + half);
-        var count = (x2b - x1 + 1) * (y2b - y1 + 1);
-        var s = integral[(y2b+1)*(w+1) + (x2b+1)]
-              - integral[y1*(w+1) + (x2b+1)]
-              - integral[(y2b+1)*(w+1) + x1]
-              + integral[y1*(w+1) + x1];
-        var avg = s / count;
-        var val = gray[y2 * w + x2];
-        var th = avg * (1 - sens / 100);
-        var result = val > th ? 255 : 0;
-        var idx = (y2 * w + x2) * 4;
-        d[idx] = d[idx+1] = d[idx+2] = result;
-      }
-    }
-    return imageData;
-  }
+      // 2) تطابق كلمة بكلمة (fuzzy)
+      var keyTokens = cleanKey.split(/\s+/).filter(function(t){ return t.length > 2; });
+      if(keyTokens.length < 1) return;
 
-  /* ============ Median Denoise 3x3 ============ */
-  function medianDenoise(imageData, w, h){
-    var d = imageData.data;
-    var copy = new Uint8ClampedArray(d);
-    for(var y = 1; y < h - 1; y++){
-      for(var x = 1; x < w - 1; x++){
-        var idx = (y * w + x) * 4;
-        var vals = [];
-        for(var dy = -1; dy <= 1; dy++){
-          for(var dx = -1; dx <= 1; dx++){
-            vals.push(copy[((y+dy) * w + (x+dx)) * 4]);
-          }
-        }
-        vals.sort(function(a,b){ return a-b; });
-        d[idx] = d[idx+1] = d[idx+2] = vals[4];
-      }
-    }
-    return imageData;
-  }
-
-  /* ============ إزالة خطوط الجدول ============ */
-  function removeTableLines(imageData, w, h){
-    var d = imageData.data;
-    var copy = new Uint8ClampedArray(d);
-    var minRun = Math.max(40, (w / 15) | 0);
-
-    // خطوط أفقية
-    for(var y = 0; y < h; y++){
-      var run = 0;
-      for(var x = 0; x < w; x++){
-        var v = copy[(y * w + x) * 4];
-        if(v < 100){ run++; }
-        else {
-          if(run >= minRun){
-            for(var k = x - run; k < x; k++){
-              var i1 = (y * w + k) * 4;
-              d[i1] = d[i1+1] = d[i1+2] = 255;
-            }
-          }
-          run = 0;
-        }
-      }
-    }
-
-    // خطوط عمودية
-    for(var x2 = 0; x2 < w; x2++){
-      var run2 = 0;
-      for(var y2 = 0; y2 < h; y2++){
-        var v2 = copy[(y2 * w + x2) * 4];
-        if(v2 < 100){ run2++; }
-        else {
-          if(run2 >= minRun){
-            for(var k2 = y2 - run2; k2 < y2; k2++){
-              var i2 = (k2 * w + x2) * 4;
-              d[i2] = d[i2+1] = d[i2+2] = 255;
-            }
-          }
-          run2 = 0;
-        }
-      }
-    }
-    return imageData;
-  }
-
-  /* ============ Pipeline preprocessing ============ */
-  async function preprocess(src, mode){
-    mode = mode || 'balanced';
-    var img = await loadImage(src);
-    var up = upscaleIfNeeded(img, 2000);
-    var canvas = up || document.createElement('canvas');
-    if(!up){
-      canvas.width = img.width;
-      canvas.height = img.height;
-      canvas.getContext('2d').drawImage(img, 0, 0);
-    }
-    var ctx = canvas.getContext('2d');
-    var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    grayStretch(imageData);
-
-    var cfg = {
-      'light':      { s: 10, w: 20 },
-      'balanced':   { s: 15, w: 25 },
-      'aggressive': { s: 20, w: 30 }
-    }[mode] || { s: 15, w: 25 };
-
-    adaptiveThreshold(imageData, canvas.width, canvas.height, cfg.s, cfg.w);
-    medianDenoise(imageData, canvas.width, canvas.height);
-    if(mode !== 'light') removeTableLines(imageData, canvas.width, canvas.height);
-
-    ctx.putImageData(imageData, 0, 0);
-    return canvas.toDataURL('image/png');
-  }
-
-  /* ============ تشغيل Tesseract ============ */
-  async function runTesseract(processedUrl, onProgress){
-    await loadTesseract();
-    var result = await Tesseract.recognize(processedUrl, 'ara', {
-      tessedit_pageseg_mode: '6',        // Single uniform block — للجداول
-      preserve_interword_spaces: '1',
-      user_defined_dpi: '300',
-      tessedit_do_invert: '0',
-      logger: function(m){
-        if(m.status === 'recognizing text' && onProgress){
-          onProgress(Math.round(m.progress * 100));
-        }
+      var matched = 0;
+      keyTokens.forEach(function(kt){
+        if(lineTokens.some(function(lt){ return lt === kt || sim(lt, kt) >= 0.75; })) matched++;
+      });
+      var ratio = matched / keyTokens.length;
+      if(ratio >= 0.7 && ratio > bestScore){
+        bestScore = ratio;
+        best = key;
       }
     });
-    return result.data.text || '';
+
+    return best;
   }
 
-  /* ============ تقييم جودة النص ============ */
-  function scoreText(text){
-    if(!text) return 0;
-    var lines = text.split('\n').filter(function(l){ return l.trim().length > 4; });
-    var codes = (text.match(/\b\d{6,11}\b/g) || []).length;
-    var digits = (text.match(/\d/g) || []).length;
-    var arabic = (text.match(/[\u0600-\u06FF]/g) || []).length;
-    var badChars = (text.match(/[^\u0600-\u06FFa-zA-Z0-9\s:.\-\/,()]/g) || []).length;
-    return codes * 1000 + lines.length * 10 + digits + arabic - badChars * 5;
-  }
+  /* ============ تجميع الكلمات في صفوف ============ */
+  function groupIntoRows(words, tolerance){
+    if(!words || !words.length) return [];
+    // رتّب حسب y
+    words.sort(function(a, b){ return a.bbox.y0 - b.bbox.y0; });
 
-  /* ============ Multi-pass ============ */
-  async function multiPassOCR(imageSrc, onProgress){
-    var modes = ['light', 'balanced', 'aggressive'];
-    var results = [];
+    var rows = [];
+    var currentRow = [];
+    var currentY = null;
 
-    for(var i = 0; i < modes.length; i++){
-      var mode = modes[i];
-      if(onProgress) onProgress('نسخة ' + (i+1) + '/' + modes.length + ' (' + mode + ')...', i * 30);
-      try{
-        var processed = await preprocess(imageSrc, mode);
-        var text = await runTesseract(processed, function(pct){
-          if(onProgress) onProgress('تحليل ' + (i+1) + '/' + modes.length + ' — ' + pct + '%', (i * 30) + (pct * 0.3));
-        });
-        var score = scoreText(text);
-        results.push({ mode: mode, text: text, score: score });
-      }catch(e){
-        console.warn('Pass failed:', mode, e);
+    words.forEach(function(w){
+      var y = (w.bbox.y0 + w.bbox.y1) / 2;
+      if(currentY === null || Math.abs(y - currentY) <= tolerance){
+        currentRow.push(w);
+        currentY = currentY === null ? y : (currentY * currentRow.length + y) / (currentRow.length + 1);
+      } else {
+        rows.push(currentRow);
+        currentRow = [w];
+        currentY = y;
       }
-    }
-
-    results.sort(function(a, b){ return b.score - a.score; });
-    return results;
+    });
+    if(currentRow.length) rows.push(currentRow);
+    return rows;
   }
 
-  /* ============ التحليل الرئيسي ============ */
+  /* ============ ترتيب كلمات السطر وتجميعها ============ */
+  function rowToText(row){
+    // في العربي: رتّب تنازلي بـ x (من اليمين)
+    row.sort(function(a, b){ return b.bbox.x0 - a.bbox.x0; });
+    return row.map(function(w){ return w.text; }).join(' ');
+  }
+
+  /* ============ المعالجة الرئيسية ============ */
   async function analyzeImage(file){
     if(!file || !file.type.startsWith('image/')){
       toast('⚠️ اختر صورة صالحة', 'warn');
@@ -275,65 +146,114 @@
     var bar = document.getElementById('ocrBar');
     var progressText = document.getElementById('ocrText');
     if(progress) progress.style.display = 'block';
-    if(bar) bar.style.width = '0%';
+    if(bar) bar.style.width = '10%';
+    if(progressText) progressText.textContent = '⏳ تحميل Tesseract...';
 
-    toast('🎨 يعالج 3 نسخ من الصورة...', 'info', 3000);
+    try{
+      await loadTesseract();
+      if(bar) bar.style.width = '40%';
+      if(progressText) progressText.textContent = '⏳ قراءة الجدول...';
 
-    var reader = new FileReader();
-    reader.onload = async function(){
-      var imageSrc = reader.result;
+      // ✅ استخدم "blocks" للحصول على words مع bbox
+      var result = await Tesseract.recognize(file, 'ara', {
+        tessedit_pageseg_mode: '6',
+        preserve_interword_spaces: '1',
+        user_defined_dpi: '300',
+        logger: function(m){
+          if(m.status === 'recognizing text' && progressText){
+            var pct = Math.round(m.progress * 100);
+            progressText.textContent = '⏳ تحليل ' + pct + '%';
+            if(bar) bar.style.width = (40 + pct * 0.4) + '%';
+          }
+        }
+      });
 
-      var results;
-      try{
-        results = await multiPassOCR(imageSrc, function(msg, pct){
-          if(bar) bar.style.width = Math.min(100, pct) + '%';
-          if(progressText) progressText.textContent = msg;
-        });
-      }catch(e){
-        console.error(e);
-        if(progressText) progressText.textContent = '❌ فشل';
-        toast('فشل: ' + (e.message || e), 'warn', 4000);
-        return;
+      var data = result.data || {};
+      var words = data.words || [];
+      console.log('📊 عدد الكلمات:', words.length);
+
+      var lines = [];
+
+      if(words.length){
+        // ✅ الطريقة الجديدة: تجميع حسب y
+        var rowTol = 15;
+        if(data.lines && data.lines.length){
+          // استخدم السطور من Tesseract
+          data.lines.forEach(function(ln){
+            if(ln.text && ln.text.trim()) lines.push(ln.text.trim());
+          });
+        } else {
+          var rows = groupIntoRows(words, rowTol);
+          rows.forEach(function(row){
+            var t = rowToText(row);
+            if(t.trim()) lines.push(t.trim());
+          });
+        }
+      } else if(data.text){
+        lines = data.text.split(/\n+/).filter(function(l){ return l.trim(); });
       }
 
-      if(!results || !results.length){
-        if(progressText) progressText.textContent = '❌ فشل التحليل';
-        toast('فشل — جرّب صورة أوضح', 'warn', 4000);
-        return;
+      if(bar) bar.style.width = '85%';
+      if(progressText) progressText.textContent = '🔄 ترتيب المواد...';
+
+      // ✅ لتحسين النتيجة: جرب البحث عن المواد في كل السطور
+      var finalLines = [];
+      var seenCourses = {};
+
+      lines.forEach(function(line){
+        var course = findCourseInText(line);
+        if(course && !seenCourses[course]){
+          seenCourses[course] = true;
+          // ضع الكود في بداية السطر
+          var DB = window.COURSES_DB || {};
+          var code = (DB[course] || {}).code || '';
+          finalLines.push(code + ' ' + line);
+        } else if(!course){
+          // لو ما لقينا مادة، احتفظ بالسطر كما هو (v6 يحاول لاحقاً)
+          finalLines.push(line);
+        }
+      });
+
+      // لو ما لقينا ولا مادة، استخدم السطور الأصلية
+      if(!Object.keys(seenCourses).length){
+        finalLines = lines;
       }
 
-      var best = results[0];
+      var outputText = finalLines.join('\n');
 
       if(bar) bar.style.width = '100%';
-      if(progressText) progressText.textContent = '✅ الأفضل: ' + best.mode + ' (جودة ' + best.score + ')';
+      if(progressText) progressText.textContent = '✅ تم — ' + Object.keys(seenCourses).length + ' مادة';
 
       var ta = document.getElementById('ocrTextarea');
-      if(ta) ta.value = best.text;
+      if(ta) ta.value = outputText;
 
       var resultEl = document.getElementById('ocrResult');
       if(resultEl) resultEl.style.display = 'block';
 
-      toast('✅ ' + best.text.split('\n').length + ' سطر — الوضع: ' + best.mode, 'success', 3500);
+      toast('✅ ' + Object.keys(seenCourses).length + ' مادة من ' + lines.length + ' سطر', 'success', 3500);
 
-      if(best.text.trim() && window.TimetableImporter && window.TimetableImporter.open){
+      // فتح المستورد
+      if(window.TimetableImporter && window.TimetableImporter.open){
         setTimeout(function(){
-          window.TimetableImporter.open(best.text);
-        }, 600);
+          window.TimetableImporter.open(outputText);
+        }, 500);
       }
-    };
-    reader.readAsDataURL(file);
+
+    }catch(e){
+      console.error('OCR error:', e);
+      if(progressText) progressText.textContent = '❌ فشل: ' + e.message;
+      if(bar) bar.style.width = '0%';
+      toast('فشل: ' + (e.message || e), 'warn', 4000);
+    }
   }
 
   /* ============ ربط الزر ============ */
   function install(){
     var uploadZone = document.getElementById('uploadZone');
     var ocrFile = document.getElementById('ocrFile');
-    if(!uploadZone || !ocrFile){
-      console.warn('⚠️ عناصر رفع الصورة غير موجودة');
-      return;
-    }
-    if(uploadZone._cleanBound) return;
-    uploadZone._cleanBound = true;
+    if(!uploadZone || !ocrFile) return;
+    if(uploadZone._v3Bound) return;
+    uploadZone._v3Bound = true;
 
     uploadZone.addEventListener('click', function(e){
       if(e.target.tagName !== 'INPUT') ocrFile.click();
@@ -354,29 +274,20 @@
       if(f) analyzeImage(f);
     });
 
-    console.log('📸 OCR نظيف: bound');
+    console.log('📸 OCR v3 (row-based): bound');
   }
 
   window.ocrAdvanced = {
     analyze: analyzeImage,
-    handle: analyzeImage,
     test: function(){
-      console.log('🔍 اختبار Tesseract...');
-      return loadTesseract().then(function(){
-        console.log('✅ Tesseract جاهز');
-        return 'ready';
-      }).catch(function(e){
-        console.error('❌ فشل:', e);
-        return 'failed';
-      });
+      console.log('📸 OCR v3 — row-based approach');
+      return 'ready';
     }
   };
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 1000); });
-  } else {
-    setTimeout(install, 1000);
-  }
+  } else { setTimeout(install, 1000); }
 
-  console.log('📸 OCR نظيف — Tesseract.js فقط');
+  console.log('📸 OCR v3 — Row-based + fuzzy course detection');
 })();
