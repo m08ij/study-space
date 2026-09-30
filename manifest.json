@@ -12,16 +12,79 @@
   "dir": "rtl",
   "categories": ["education", "productivity"],
   "icons": [
-    { "src": "favicon-16x16.png",         "sizes": "16x16",   "type": "image/png" },
-    { "src": "favicon-32x32.png",         "sizes": "32x32",   "type": "image/png" },
-    { "src": "android-chrome-192x192.png","sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "android-chrome-512x512.png","sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230b0f1a'/%3E%3Ctext x='96' y='135' text-anchor='middle' font-size='110'%3E%F0%9F%93%9A%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230b0f1a'/%3E%3Ctext x='256' y='360' text-anchor='middle' font-size='300'%3E%F0%9F%93%9A%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
   ],
   "shortcuts": [
-    { "name": "إضافة مهمة",  "short_name": "مهمة",     "url": "./index.html#tasks",     "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
-    { "name": "البومودورو",  "short_name": "بومودورو", "url": "./index.html#timer",     "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
-    { "name": "الامتحانات",  "short_name": "امتحانات", "url": "./index.html#exams",     "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
-    { "name": "الجدول",      "short_name": "جدول",     "url": "./index.html#timetable", "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] },
-    { "name": "الميزانية",   "short_name": "ميزانية",  "url": "./index.html#budget",    "icons": [{ "src": "android-chrome-192x192.png", "sizes": "192x192" }] }
+    {
+      "name": "إضافة مهمة",
+      "short_name": "مهمة",
+      "url": "./index.html#tasks",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230b0f1a'/%3E%3Ctext x='96' y='135' text-anchor='middle' font-size='110'%3E%F0%9F%93%9A%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "البومودورو",
+      "short_name": "بومودورو",
+      "url": "./index.html#timer",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230b0f1a'/%3E%3Ctext x='96' y='135' text-anchor='middle' font-size='110'%3E%E2%8F%B1%EF%B8%8F%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "الامتحانات",
+      "short_name": "امتحانات",
+      "url": "./index.html#exams",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230b0f1a'/%3E%3Ctext x='96' y='135' text-anchor='middle' font-size='110'%3E%E2%8F%B3%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "الجدول",
+      "short_name": "جدول",
+      "url": "./index.html#timetable",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230b0f1a'/%3E%3Ctext x='96' y='135' text-anchor='middle' font-size='110'%3E%F0%9F%93%85%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "الميزانية",
+      "short_name": "ميزانية",
+      "url": "./index.html#budget",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%230b0f1a'/%3E%3Ctext x='96' y='135' text-anchor='middle' font-size='110'%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
   ]
 }

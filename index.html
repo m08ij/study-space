@@ -999,6 +999,7 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- مكتبات خارجية -->
+<script src="core-utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-client.js"></script>
@@ -1170,19 +1171,6 @@ function applyServerData(data){
 }
 
 /* ==================== HELPERS ==================== */
-function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
-function esc(s){
-  if(s === null || s === undefined) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-function toast(msg, type, dur){
-  type = type || 'info'; dur = dur || 2600;
-  var c = document.getElementById('toastContainer'); if(!c) return;
-  var t = document.createElement('div');
-  t.className = 'toast ' + type; t.textContent = msg;
-  c.appendChild(t);
-  setTimeout(function(){ t.classList.add('out'); setTimeout(function(){ t.remove(); }, 300); }, dur);
-}
 function customConfirm(message, onConfirm){
   document.querySelectorAll('.modal-backdrop').forEach(function(m){ m.remove(); });
   var bd = document.createElement('div');
@@ -1230,7 +1218,6 @@ function showModal(title, fields, values, onSubmit, onDelete){
       '<button class="btn btn-sm" id="mSave">حفظ</button>' +
     '</div></div>';
   document.body.appendChild(bd);
-  var close = function(){ bd.remove(); };
   bd.querySelector('#mCancel').onclick = close;
   bd.onclick = function(e){ if(e.target === bd) close(); };
   bd.querySelector('#mSave').onclick = function(){
@@ -1342,45 +1329,85 @@ function checkSmartReminders(){
 }
 
 /* ==================== DATA ==================== */
+/* ========== SEMESTERS — متوافقة 100% مع COURSES_DB ========== */
 var SEMESTERS = [
   {year:1, name:"الفصل الأول", courses:[
-    {n:"تفاضل وتكامل (1)", h:3, code:"110101108"},{n:"فيزياء عامة (1)", h:3, code:"110101103"},
-    {n:"برمجة الحاسوب", h:3, code:"110101000"},{n:"رسم هندسي يدوي", h:2, code:"110101001"},
-    {n:"مشاغل هندسية", h:1, code:"110101009"},{n:"مهارات التواصل بالعربية", h:3, code:"211601101"},
-    {n:"مهارات التواصل بالإنجليزية", h:3, code:"211602101"}]},
+    {n:"تفاضل وتكامل (1)",                   h:3, code:"110108101"},
+    {n:"فيزياء عامة (1)",                     h:3, code:"110102101"},
+    {n:"مهارات التواصل باللغة العربية",        h:3, code:"2116011101"},
+    {n:"اساسيات الكيمياء العامة",             h:3, code:"110103107"},
+    {n:"رسم هندسي يدوي",                     h:2, code:"110400201"},
+    {n:"مهارات التواصل باللغة الانجليزية",     h:3, code:"2116021101"}
+  ]},
   {year:1, name:"الفصل الثاني", courses:[
-    {n:"تفاضل وتكامل (2)", h:3, code:"110101102"},{n:"فيزياء عامة (2)", h:3, code:"110101104"},
-    {n:"فيزياء عامة عملية (1)", h:1, code:"110101105", type:"lab"},{n:"اساسيات الكيمياء العامة", h:3, code:"110101106"},
-    {n:"اساسيات الكيمياء العامة العملية", h:1, code:"110101107", type:"lab"},{n:"رسم هندسي بالحاسوب", h:1, code:"110101002", type:"lab"},
-    {n:"اخلاقيات و مهارات اتصال", h:3, code:"110101003"}]},
+    {n:"تفاضل وتكامل (2)",                   h:3, code:"110101102"},
+    {n:"فيزياء عامة (2)",                     h:3, code:"110102102"},
+    {n:"برمجة الحاسوب",                      h:3, code:"110400102"},
+    {n:"اساسيات الكيمياء العامة العملية",     h:1, code:"110103108", type:"lab"},
+    {n:"فيزياء عامة عملية (1)",               h:1, code:"110102103", type:"lab"},
+    {n:"مشاغل هندسية",                       h:1, code:"110400101"},
+    {n:"علوم عسكرية",                         h:3, code:"2214041117"}
+  ]},
   {year:2, name:"الفصل الثالث", courses:[
-    {n:"تفاضل وتكامل (3)", h:3, code:"110101110"},{n:"معادلات تفاضلية عادية (1)", h:3, code:"110101102"},
-    {n:"رياضيات متقطعة", h:3, code:"110111520"},{n:"منطق رقمي", h:3, code:"110408220"},
-    {n:"مختبر منطق رقمي", h:1, code:"110408221", type:"lab"},{n:"ريادة والابتكار", h:2, code:"211404123", type:"elective"}]},
+    {n:"رياضيات متقطعة",                      h:3, code:"110101152"},
+    {n:"معادلات تفاضلية عادية (1)",           h:3, code:"110101203"},
+    {n:"تربية وطنية",                         h:3, code:"1714041118"},
+    {n:"اساسيات الدوائر الكهربائية",          h:3, code:"110406229"},
+    {n:"منطق رقمي",                           h:3, code:"110408220"},
+    {n:"رسم هندسي بالحاسوب",                  h:1, code:"110400202", type:"lab"}
+  ]},
   {year:2, name:"الفصل الرابع", courses:[
-    {n:"اساسيات الدوائر الكهربائية", h:3, code:"110406229"},{n:"مختبر أساسيات الدوائر الكهربائية", h:1, code:"110409260", type:"lab"},
-    {n:"الإلكترونيات الرقمية والدارات المتكاملة", h:3, code:"110408220"},{n:"هيكلية البيانات", h:3, code:"110408213"},
-    {n:"تحليل عددي", h:3, code:"1704001303"},{n:"القيادة والمسؤولية المجتمعية", h:2, code:"211404123"}]},
+    {n:"تفاضل وتكامل (3)",                   h:3, code:"110101201"},
+    {n:"الاحصاء والاحتمالات",                 h:3, code:"110403242"},
+    {n:"هيكلية البيانات",                     h:3, code:"110408213"},
+    {n:"الكترونيات (1)",                      h:3, code:"110409240"},
+    {n:"مختبر أساسيات الدوائر الكهربائية",     h:1, code:"110409260", type:"lab"},
+    {n:"مختبر منطق رقمي",                     h:1, code:"110408221", type:"lab"},
+    {n:"تحليل عددي",                          h:3, code:"1704001303"}
+  ]},
   {year:3, name:"الفصل الخامس", courses:[
-    {n:"البرمجة الكينونية", h:3, code:"2104081311"},{n:"خوارزميات", h:3, code:"110408300"},
-    {n:"إشارات وأنظمة", h:3, code:"2104091322"},{n:"الاحصاء والاحتمالات", h:3, code:"110403242"},
-    {n:"مختبر تطبيقات الحاسوب", h:1, code:"2104081314", type:"lab"},{n:"مادة اختيارية جامعة", h:3, code:"—", type:"elective"}]},
+    {n:"تحكم آلي",                            h:3, code:"110405331"},
+    {n:"إشارات وأنظمة",                       h:3, code:"2104091322"},
+    {n:"البرمجة الكينونية",                   h:3, code:"2104081311"},
+    {n:"اقتصاد هندسي",                        h:2, code:"2104031302"},
+    {n:"الالكترونيات الرقمية والدارات المتكاملة", h:3, code:"110408327"},
+    {n:"مختبر تطبيقات الحاسوب",               h:1, code:"2104081314", type:"lab"}
+  ]},
   {year:3, name:"الفصل السادس", courses:[
-    {n:"تنظيم حاسوب", h:3, code:"2304081330"},{n:"انظمة التشغيل", h:3, code:"110408445"},
-    {n:"اساسيات الاتصالات", h:3, code:"110408303"},{n:"إلكترونيات (1)", h:3, code:"110409240"},
-    {n:"مختبر الدوائر الإلكترونية", h:1, code:"2104091352", type:"lab"},{n:"اقتصاد هندسي", h:2, code:"2104031302"}]},
+    {n:"اساسيات الاتصالات",                   h:3, code:"110408303"},
+    {n:"انظمة مضمنة",                         h:3, code:"2304081362"},
+    {n:"مختبر الأنظمة المضمنة",               h:1, code:"2304081326", type:"lab"},
+    {n:"مختبر معالجات دقيقة",                 h:1, code:"2304081333", type:"lab"},
+    {n:"تنظيم حاسوب",                         h:3, code:"2304081330"},
+    {n:"مختبر الدوائر الالكترونية",           h:1, code:"2104091352", type:"lab"},
+    {n:"هندسة البرمجيات",                     h:3, code:"2304081415"}
+  ]},
   {year:4, name:"الفصل السابع", courses:[
-    {n:"شبكات حاسوب", h:3, code:"110408450"},{n:"معمارية حواسيب", h:3, code:"2304081443"},
-    {n:"هندسة البرمجيات", h:3, code:"2304081415"},{n:"مقدمة في نظم قواعد البيانات", h:3, code:"210408245"},
-    {n:"مختبر شبكات الحاسوب", h:1, code:"110408452", type:"lab"},{n:"مختبر صيانة وتشغيل الحاسوب", h:1, code:"110408450", type:"lab"}]},
+    {n:"شبكات حاسوب",                         h:3, code:"110408450"},
+    {n:"خوارزميات",                           h:3, code:"110408300"},
+    {n:"مقدمة في نظم قواعد البيانات",          h:3, code:"111002240"},
+    {n:"مختبر صيانة وتشغيل الحاسوب",           h:1, code:"110408442", type:"lab"},
+    {n:"معمارية حواسيب",                      h:3, code:"2304081443"},
+    {n:"انظمة تشغيل",                         h:3, code:"110408455"},
+    {n:"القيادة والمسؤولية المجتمعية",         h:2, code:"2114041123"}
+  ]},
   {year:4, name:"الفصل الثامن", courses:[
-    {n:"أمن الحاسوب", h:3, code:"110408456"},{n:"الشبكات اللاسلكية", h:3, code:"110408457"},
-    {n:"انظمة مضمنة", h:3, code:"2304081336"},{n:"الذكاء الاصطناعي وتعلم الآلة", h:3, code:"2104081374"},
-    {n:"مختبر الأنظمة المضمنة", h:1, code:"2304081326", type:"lab"},{n:"مختبر معالجات دقيقة", h:1, code:"2304081333", type:"lab"}]},
+    {n:"الشبكات اللاسلكية",                   h:3, code:"110408457"},
+    {n:"مختبر شبكات الحاسوب",                 h:1, code:"110408454", type:"lab"},
+    {n:"امن الحاسوب",                         h:3, code:"110408456"},
+    {n:"الذكاء الاصطناعي و تعلم الآلة",        h:3, code:"2104081374"},
+    {n:"علم الانظمة و البيانات",              h:3, code:"2104081410"},
+    {n:"أخلاقيات و مهارات اتصال",              h:3, code:"110400203"},
+    {n:"المهارات الحياتية",                   h:2, code:"2114041125"}
+  ]},
   {year:5, name:"الفصل التاسع", courses:[
-    {n:"تحكم آلي", h:3, code:"110405331"},{n:"علم الأنظمة والبيانات", h:3, code:"2104081410"},
-    {n:"مواد تخصص اختيارية", h:15, code:"—", type:"elective"},{n:"مشروع تخرج (1)", h:1, code:"110408591"},
-    {n:"مشروع تخرج (2)", h:2, code:"110408592"},{n:"التدريب العملي", h:3, code:"2004081480"}]}
+    {n:"مشروع تخرج (1)",                      h:1, code:"110408591"}
+  ]},
+  {year:5, name:"الفصل العاشر", courses:[
+    {n:"مشروع تخرج (2)",                      h:2, code:"110408592"},
+    {n:"التدريب العملي",                      h:3, code:"2004081480"},
+    {n:"الريادة والابتكار",                    h:2, code:"2114041124"}
+  ]}
 ];
 
 var GRADES = {
@@ -1389,10 +1416,13 @@ var GRADES = {
   "D+ (50-54)":1.5,"D (45-49)":1.0,"F (0-44)":0.0
 };
 
-var DAYS_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-var DAYS_EN = ['Sun','Mon','Tue','Wed','Thu'];
-var TIME_SLOTS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00'];
 
+/* ✅ أوقات كل 30 دقيقة من 07:30 إلى 18:00 */
+var TIME_SLOTS = [
+  '07:30','08:00','08:30','09:00','09:30','10:00','10:30',
+  '11:00','11:30','12:00','12:30','13:00','13:30','14:00',
+  '14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00'
+];
 var BUDGET_CATS = [
   {v:'tuition', l:'رسوم جامعية', i:'🎓'},{v:'housing', l:'سكن', i:'🏠'},
   {v:'food', l:'طعام', i:'🍔'},{v:'transport', l:'مواصلات', i:'🚌'},
@@ -1673,6 +1703,13 @@ function switchSubTab(sectionId, subKey){
     if(sectionId === 'gradecalc') s.classList.toggle('active', s.dataset.gcSub === subKey);
     else if(sectionId === 'plan') s.classList.toggle('active', s.dataset.planSub === subKey);
   });
+  // ✅ إعادة رندر بعد التبديل
+  if(sectionId === 'plan' && subKey === 'desc' && typeof renderCourseDescriptions === 'function'){
+    renderCourseDescriptions();
+  }
+  if(sectionId === 'plan' && subKey === 'simulator' && typeof window.renderPlanSimulator === 'function'){
+    window.renderPlanSimulator();
+  }
 }
 
 function initHistoryNavigation(){
@@ -2028,53 +2065,180 @@ function renderCourseDescriptions(){
 function renderTimetable(){
   var t = document.getElementById('timetableTable'); if(!t) return;
   var todayIdx = new Date().getDay();
+  var weekAr = window.WEEK_DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'];
+  var weekEn = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
+
+  /* ✅ اجمع الأوقات الثابتة + أي وقت مخصص أضافه المستخدم */
+  var allTimes = TIME_SLOTS.slice();
+  Object.keys(space.timetable || {}).forEach(function(k){
+    var parts = k.split('-');
+    var time = parts[1];
+    if(time && allTimes.indexOf(time) === -1) allTimes.push(time);
+  });
+  allTimes.sort();
+
+  /* ✅ اختر الأوقات اللي فيها محاضرات فعلية + عرض الأوقات الثابتة القريبة */
+  var timesToShow = allTimes.filter(function(time, idx){
+    // اعرض الوقت لو:
+    // 1) فيه محاضرة فيه اليوم
+    // 2) أو ضمن نطاق المحاضرات الفعلية (أول وآخر محاضرة)
+    var hasAny = weekEn.some(function(day){
+      return !!space.timetable[day + '-' + time];
+    });
+    return hasAny;
+  });
+
+  /* لو ما في محاضرات، اعرض الأوقات الثابتة القياسية */
+  if(!timesToShow.length){
+    timesToShow = TIME_SLOTS.slice(0, 11); // 08:00 → 13:00
+  }
+
+  /* ✅ أضف أوقات حشو (padding) قبل وبعد لأجل قابلية الإضافة */
+  var firstIdx = allTimes.indexOf(timesToShow[0]);
+  var lastIdx = allTimes.indexOf(timesToShow[timesToShow.length - 1]);
+  var paddedTimes = allTimes.slice(Math.max(0, firstIdx - 1), Math.min(allTimes.length, lastIdx + 2));
+
   var html = '<thead><tr><th></th>';
-  DAYS_AR.slice(0,5).forEach(function(d, i){
+  weekAr.forEach(function(d, i){
     var isToday = i === todayIdx;
     html += '<th style="' + (isToday ? 'background:var(--grad-soft);color:var(--text)' : '') + '">' + d + (isToday ? ' •' : '') + '</th>';
   });
   html += '</tr></thead><tbody>';
-  TIME_SLOTS.forEach(function(time){
+
+  paddedTimes.forEach(function(time){
     html += '<tr><td class="time-col">' + time + '</td>';
-    DAYS_EN.forEach(function(day){
+    weekEn.forEach(function(day){
       var key = day + '-' + time; var cls = space.timetable[key];
       if(cls){
         html += '<td><div class="class-block" data-edit="' + key + '"><span class="name">' + esc(cls.name) + '</span>' +
           (cls.room ? '<span class="room">📍 ' + esc(cls.room) + '</span>' : '') + '</div></td>';
-      } else { html += '<td><div class="cell-empty" data-add="' + key + '">+</div></td>'; }
+      } else {
+        html += '<td><div class="cell-empty" data-add="' + key + '">+</div></td>';
+      }
     });
     html += '</tr>';
   });
+
+  /* ✅ صف "إضافة وقت مخصص" */
+  html += '<tr><td class="time-col" style="cursor:pointer;color:var(--cyan);font-weight:800" id="addCustomSlot" title="إضافة وقت مخصص">+ وقت</td>';
+  weekEn.forEach(function(day){
+    html += '<td style="background:transparent"></td>';
+  });
+  html += '</tr>';
+
   t.innerHTML = html + '</tbody>';
-  t.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editClassSlot(b.dataset.edit); }); });
-  t.querySelectorAll('[data-add]').forEach(function(b){ b.addEventListener('click', function(){ addClassSlot(b.dataset.add); }); });
+
+  t.querySelectorAll('[data-edit]').forEach(function(b){
+    b.addEventListener('click', function(){ editClassSlot(b.dataset.edit); });
+  });
+  t.querySelectorAll('[data-add]').forEach(function(b){
+    b.addEventListener('click', function(){ addClassSlot(b.dataset.add); });
+  });
+
+  var addCustom = document.getElementById('addCustomSlot');
+  if(addCustom){
+    addCustom.addEventListener('click', function(){ addClassSlot(); });
+  }
 }
 function addClassSlot(key){
-  if(!key){
-    var days = ['Sun','Mon','Tue','Wed','Thu'];
-    outer: for(var i=0;i<days.length;i++){ for(var j=0;j<TIME_SLOTS.length;j++){
-      var k = days[i] + '-' + TIME_SLOTS[j]; if(!space.timetable[k]){ key = k; break outer; }
-    }}
-    if(!key) return toast('الجدول ممتلئ!', 'warn');
+  var presetDay = '';
+  var presetTime = '';
+  if(key){
+    var parts = key.split('-');
+    presetDay = parts[0];
+    presetTime = parts[1];
   }
-  var parts = key.split('-'); var day = parts[0]; var time = parts[1];
+
+  var weekEn = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
+  var weekAr = window.WEEK_DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'];
+  var dayOpts = weekEn.map(function(d, i){
+    return {v: d, l: weekAr[i]};
+  });
+
+  /* ✅ نولّد قائمة الأوقات المتاحة */
+  var timeOpts = TIME_SLOTS.map(function(t){ return {v: t, l: t}; });
+  var currentTime = presetTime || TIME_SLOTS[2] || '09:00';
+  if(timeOpts.map(function(o){ return o.v; }).indexOf(currentTime) === -1){
+    timeOpts.unshift({v: currentTime, l: currentTime});
+  }
+
   showModal('إضافة محاضرة', [
-    {key:'name', label:'اسم المادة'}, {key:'room', label:'القاعة'}, {key:'instructor', label:'الدكتور'}
-  ], {name:'', room:'', instructor:''}, function(data){
+    {key:'name', label:'اسم المادة'},
+    {key:'day', label:'اليوم', type:'select', options: dayOpts},
+    {key:'time', label:'الوقت', type:'select', options: timeOpts},
+    {key:'customTime', label:'أو أدخل وقتاً مخصصاً (مثل 09:15)', type:'time'},
+    {key:'room', label:'القاعة'},
+    {key:'instructor', label:'الدكتور'}
+  ], {name:'', day: presetDay || 'Sun', time: currentTime, customTime: '', room:'', instructor:''}, function(data){
     if(!data.name) return toast('أدخل اسم المادة', 'warn');
-    space.timetable[key] = {name: data.name, room: data.room, instructor: data.instructor};
-    saveSpace(); renderTimetable(); renderDashboard(); toast('تمت الإضافة', 'success', 1500);
+    var finalTime = data.customTime || data.time;
+    if(!finalTime) return toast('أدخل الوقت', 'warn');
+    var newKey = data.day + '-' + finalTime;
+
+    if(key && key !== newKey) delete space.timetable[key];
+
+    if(space.timetable[newKey] && key !== newKey){
+      if(!confirm('يوجد محاضرة بنفس الوقت. استبدالها؟')) return;
+    }
+
+    space.timetable[newKey] = {
+      name: data.name,
+      room: data.room || '',
+      instructor: data.instructor || ''
+    };
+    saveSpace(); renderTimetable(); renderDashboard();
+    toast('✅ تمت الإضافة', 'success', 1500);
   });
 }
 function editClassSlot(key){
   var cls = space.timetable[key]; if(!cls) return;
+  var parts = key.split('-');
+  var presetDay = parts[0];
+  var presetTime = parts[1];
+
+  var weekEn = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
+  var weekAr = window.WEEK_DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'];
+  var dayOpts = weekEn.map(function(d, i){
+    return {v: d, l: weekAr[i]};
+  });
+
+  var timeOpts = TIME_SLOTS.map(function(t){ return {v: t, l: t}; });
+  if(timeOpts.map(function(o){ return o.v; }).indexOf(presetTime) === -1){
+    timeOpts.unshift({v: presetTime, l: presetTime});
+  }
+
   showModal('تعديل محاضرة', [
-    {key:'name', label:'اسم المادة'}, {key:'room', label:'القاعة'}, {key:'instructor', label:'الدكتور'}
-  ], cls, function(data){
-    if(!data.name) delete space.timetable[key];
-    else space.timetable[key] = {name: data.name, room: data.room, instructor: data.instructor};
-    saveSpace(); renderTimetable(); renderDashboard(); toast('تم التحديث', 'success', 1500);
-  }, function(){ delete space.timetable[key]; saveSpace(); renderTimetable(); renderDashboard(); });
+    {key:'name', label:'اسم المادة'},
+    {key:'day', label:'اليوم', type:'select', options: dayOpts},
+    {key:'time', label:'الوقت', type:'select', options: timeOpts},
+    {key:'customTime', label:'أو وقت مخصص', type:'time'},
+    {key:'room', label:'القاعة'},
+    {key:'instructor', label:'الدكتور'}
+  ], {
+    name: cls.name,
+    day: presetDay,
+    time: presetTime,
+    customTime: '',
+    room: cls.room || '',
+    instructor: cls.instructor || ''
+  }, function(data){
+    if(!data.name){ delete space.timetable[key]; saveSpace(); renderTimetable(); renderDashboard(); return; }
+    var finalTime = data.customTime || data.time;
+    if(!finalTime) finalTime = presetTime;
+    var newKey = data.day + '-' + finalTime;
+
+    if(newKey !== key) delete space.timetable[key];
+    space.timetable[newKey] = {
+      name: data.name,
+      room: data.room || '',
+      instructor: data.instructor || ''
+    };
+    saveSpace(); renderTimetable(); renderDashboard();
+    toast('✅ تم التحديث', 'success', 1500);
+  }, function(){
+    delete space.timetable[key];
+    saveSpace(); renderTimetable(); renderDashboard();
+  });
 }
 function clearTimetable(){
   if(!space.timetable || !Object.keys(space.timetable).length){ toast('الجدول فارغ', 'info'); return; }
@@ -2084,7 +2248,7 @@ function clearTimetable(){
 }
 function autoFillTimetable(){
   if(!space.courses.length){ toast('أضف مواد أولًا', 'warn'); return; }
-  var days = ['Sun','Mon','Tue','Wed','Thu'];
+  var days = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
   var times = ['08:00','09:00','10:00','11:00','12:00','13:00'];
   var di=0, ti=0, added=0;
   space.courses.forEach(function(c){
@@ -2198,8 +2362,9 @@ function parseOcrText(){
     if(!times) return;
     var start = times[0].replace(/\s/g, '');
     var hourNum = parseInt(start.split(':')[0], 10);
-    var slot = hourNum.toString().padStart(2,'0') + ':00';
-    if(TIME_SLOTS.indexOf(slot) === -1) return;
+	var minute = parseInt(start.split(':')[1] || '0', 10);
+	var slot = hourNum.toString().padStart(2,'0') + ':' + minute.toString().padStart(2,'0');
+	/* ✅ نقبل أي وقت، ما لازم يكون من TIME_SLOTS */
     var working = line;
     Object.keys(dayMap).forEach(function(k){ working = working.replace(new RegExp(k, 'gi'), ' '); });
     working = working.replace(/\d{1,2}\s*:\s*\d{2}(\s*-\s*\d{1,2}\s*:\s*\d{2})?/g, ' ').trim();

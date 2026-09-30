@@ -1,24 +1,25 @@
 /* ============================================================
-   ⚙️ sw.js — Service Worker v18
+   ⚙️ sw.js — Service Worker v23
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v22';   // غيّر الرقم
+var CACHE_NAME = 'ss-cache-v23';
 var URLS_TO_CACHE = [
   './',
   './index.html',
+  './core-utils.js',
   './courses-data.js',
-  './ai-v3.js',           // ← بدل ai-assistant.js و ai-smart.js
+  './ai-v3.js',
   './plan-simulator.js',
   './plan-enhance.js',
   './calendar-sync.js',
   './insights.js',
   './courses-files-plus.js',
   './qc-fix.js',
-  './bottom-nav.js',           // 🆕
-  './lecture-reminder.js',     // 🆕
-  './calendar-view.js',        // 🆕
-  './custom-dashboard.js',     // 🆕
-  './mindmap.js',              // 🆕
-  './ocr-smart.js',    // بدل ocr-plus.js             // 🆕
+  './bottom-nav.js',
+  './lecture-reminder.js',
+  './calendar-view.js',
+  './custom-dashboard.js',
+  './mindmap.js',
+  './ocr-smart.js',
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
@@ -39,7 +40,9 @@ self.addEventListener('install', function(e){
 self.addEventListener('activate', function(e){
   e.waitUntil(
     caches.keys().then(function(keys){
-      return Promise.all(keys.map(function(k){ if(k !== CACHE_NAME) return caches.delete(k); }));
+      return Promise.all(keys.map(function(k){
+        if(k !== CACHE_NAME) return caches.delete(k);
+      }));
     }).then(function(){ return self.clients.claim(); })
   );
 });
@@ -59,7 +62,9 @@ self.addEventListener('fetch', function(e){
       var fetchPromise = fetch(e.request).then(function(response){
         if(response && response.status === 200){
           var clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, clone).catch(function(){}); });
+          caches.open(CACHE_NAME).then(function(cache){
+            cache.put(e.request, clone).catch(function(){});
+          });
         }
         return response;
       }).catch(function(){ return cached; });

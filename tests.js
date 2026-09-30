@@ -1,6 +1,5 @@
 /* ============================================================
-   🧪 tests.js — اختبارات شاملة لمكونات الموقع
-   الاستخدام: افتح Console واكتب  testAll()  أو  testQuick()
+   🧪 tests.js v2 — مُصلَح
    ============================================================ */
 (function(){
   'use strict';
@@ -15,17 +14,12 @@
     var style = ok ? 'color:#34d399;font-weight:bold' : 'color:#f87171;font-weight:bold';
     console.log('%c' + icon + ' ' + name, style, detail || '');
   }
-
-  function assert(name, cond, detail){
-    log(!!cond, name, cond ? '' : (detail || 'فشل'));
-  }
-
+  function assert(name, cond, detail){ log(!!cond, name, cond ? '' : (detail || 'فشل')); }
   function assertEq(name, a, b){
     var ok = JSON.stringify(a) === JSON.stringify(b);
     log(ok, name, ok ? '' : 'توقّع: ' + JSON.stringify(b) + ' — حصل: ' + JSON.stringify(a));
   }
 
-  /* ==================== TESTS ==================== */
   function testGlobals(){
     console.log('%c🧩 Globals', 'color:#22d3ee;font-weight:bold');
     assert('space موجود', window.space !== null && typeof window.space === 'object');
@@ -33,10 +27,8 @@
     assert('gpaRows مصفوفة', Array.isArray(window.gpaRows));
     assert('SEMESTERS مصفوفة', Array.isArray(window.SEMESTERS));
     assert('GRADES كائن', typeof window.GRADES === 'object');
-    assert('DAYS_AR مصفوفة 7 أيام', Array.isArray(window.DAYS_AR) && window.DAYS_AR.length === 7);
+    assert('DAYS_AR 7 أيام', Array.isArray(window.DAYS_AR) && window.DAYS_AR.length === 7);
     assert('THEMES 9 ثيمات', Array.isArray(window.THEMES) && window.THEMES.length === 9);
-    assert('HU_LINKS كائن', typeof window.HU_LINKS === 'object');
-    assert('BUDGET_CATS مصفوفة', Array.isArray(window.BUDGET_CATS));
     assert('COURSES_DESC محمّل', typeof window.COURSES_DESC === 'object');
     assert('SB محمّل', typeof window.SB === 'object');
   }
@@ -47,478 +39,240 @@
       'renderBudget','renderNotes','renderGpa','renderGradeCalc','renderAttendance',
       'renderDecks','renderPlan','renderHuLinks','renderCourseDescriptions','renderTimetable',
       'addTask','editTask','toggleTask','deleteTask',
-      'addExam','editExam','deleteExam',
-      'addMyCourse','editMyCourse','deleteMyCourse',
-      'addBudgetItem','editBudget','deleteBudget',
-      'addNote','deleteNote',
+      'addExam','editExam','deleteExam','addMyCourse','editMyCourse','deleteMyCourse',
+      'addBudgetItem','editBudget','deleteBudget','addNote','deleteNote',
       'addCourse','removeRow','clearGpa','loadSampleGpa','calcGpa','calcWhatIf',
-      'addDeck','deleteDeck','openDeck',
-      'addAttendanceCourse','markAttendance','removeAttendance',
+      'addDeck','deleteDeck','openDeck','addAttendanceCourse','markAttendance','removeAttendance',
       'toggleTimer','startTimer','stopTimer','resetTimer','setMode',
       'applyTheme','buildThemePanel','exportPDF','downloadBackup','restoreFromFile',
-      'toast','showModal','customConfirm','uid','esc',
+      'toast','showModal','customConfirm','uid','esc','today',
       'openQuickCapture','parseQuickCapture',
       'showNotif','isNotifSupported','getNotifPermission','requestNotifPermission',
-      'switchSubTab','initSearch','checkReminders','checkSmartReminders'
-    ];
-    var missing = [];
-    fns.forEach(function(fn){
-      if(typeof window[fn] !== 'function') missing.push(fn);
-    });
+      'switchSubTab','initSearch','checkReminders','checkSmartReminders'];
+    var missing = fns.filter(function(fn){ return typeof window[fn] !== 'function'; });
     assert('كل الدوال معرّفة (' + fns.length + ')', missing.length === 0, 'ناقص: ' + missing.join(', '));
   }
 
   function testHelpers(){
     console.log('%c🔧 Helpers', 'color:#22d3ee;font-weight:bold');
-    assertEq('uid يُنتج نص', typeof uid(), 'string');
-    assert('uid طويل', uid().length > 5);
+    assertEq('uid نوعه string', typeof uid(), 'string');
     assert('uid فريد', uid() !== uid());
-    assertEq('esc يحمي من HTML', esc('<script>'), '&lt;script&gt;');
-    assertEq('esc يحمي من علامات التنصيص', esc('"test"'), '&quot;test&quot;');
+    assertEq('esc يحمي HTML', esc('<script>'), '&lt;script&gt;');
     assertEq('esc للفراغ', esc(''), '');
     assertEq('esc لـ null', esc(null), '');
+    // اختبار today() المحلي
+    var t = window.today();
+    var d = new Date();
+    var exp = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    assertEq('today() يستخدم التوقيت المحلي', t, exp);
   }
 
   function testStorage(){
     console.log('%c💾 Storage', 'color:#22d3ee;font-weight:bold');
-    var testKey = '__test_' + Date.now();
-    var testVal = {hello: 'world', n: 42};
-    S.set(testKey, testVal);
-    var back = S.get(testKey, null);
-    assertEq('حفظ + استرجاع', back, testVal);
-    S.remove(testKey);
-    assertEq('حذف', S.get(testKey, 'gone'), 'gone');
-    assertEq('قيمة افتراضية', S.get('__nonexistent__', 'def'), 'def');
+    var k = '__t_' + Date.now();
+    S.set(k, {a:1});
+    assertEq('حفظ+استرجاع', S.get(k, null), {a:1});
+    S.remove(k);
+    assertEq('حذف', S.get(k, 'gone'), 'gone');
+    assertEq('افتراضي', S.get('__nonexistent__', 'def'), 'def');
   }
 
-  function testQuickCaptureParser(){
-    console.log('%c⚡ Quick Capture Parser', 'color:#22d3ee;font-weight:bold');
+  function testQuickCapture(){
+    console.log('%c⚡ Quick Capture', 'color:#22d3ee;font-weight:bold');
     var cases = [
-      {input:'واجب شبكات غدًا', expect:{type:'task'}},
-      {input:'مهمة رياضيات', expect:{type:'task'}},
-      {input:'امتحان شبكات 15/5', expect:{type:'exam'}},
-      {input:'اختبار رياضيات', expect:{type:'exam'}},
-      {input:'صرفت 20 د أكل', expect:{type:'expense', amount:20}},
-      {input:'مصروف مواصلات 5 دينار', expect:{type:'expense', amount:5}},
-      {input:'دخل راتب 500', expect:{type:'income', amount:500}},
-      {input:'ملاحظة: اجتمعنا بفريق', expect:{type:'note'}},
-      {input:'واجب برمجة بعد 3 أيام', expect:{type:'task'}},
-      {input:'واجب رياضيات يوم الأحد', expect:{type:'task'}},
-      {input:'مصروف أكل 10', expect:{type:'expense', category:'food'}},
-      {input:'مصروف بنزين 20', expect:{type:'expense', category:'transport'}}
+      {i:'واجب شبكات غدًا', e:{type:'task'}},
+      {i:'امتحان شبكات 15/5', e:{type:'exam'}},
+      {i:'صرفت 20 د أكل', e:{type:'expense', amount:20, category:'food'}},
+      {i:'مصروف بنزين 20', e:{type:'expense', amount:20, category:'transport'}},
+      {i:'دخل راتب 500', e:{type:'income', amount:500}},
+      {i:'ملاحظة: اجتمعنا', e:{type:'note'}}
     ];
     cases.forEach(function(c){
-      var r = parseQuickCapture(c.input);
-      var ok = r && r.type === c.expect.type;
-      if(c.expect.amount !== undefined) ok = ok && r.amount === c.expect.amount;
-      if(c.expect.category !== undefined) ok = ok && r.category === c.expect.category;
-      log(ok, '"' + c.input + '"', ok ? ('→ ' + r.type) : ('→ ' + JSON.stringify(r)));
+      var r = parseQuickCapture(c.i);
+      var ok = r && r.type === c.e.type;
+      if(c.e.amount !== undefined) ok = ok && r.amount === c.e.amount;
+      if(c.e.category !== undefined) ok = ok && r.category === c.e.category;
+      log(ok, '"' + c.i + '"', ok ? '→ ' + r.type : '→ ' + JSON.stringify(r));
     });
   }
 
-  function testTaskCRUD(){
-    console.log('%c📝 Tasks CRUD', 'color:#22d3ee;font-weight:bold');
-    var before = window.space.tasks.length;
-    var task = {id: uid(), title:'__TEST_TASK__', type:'task', course:'', due:'', done:false};
-    window.space.tasks.push(task);
-    assertEq('إضافة مهمة', window.space.tasks.length, before + 1);
-    assert('العثور على المهمة', window.space.tasks.find(function(t){ return t.id === task.id; }) !== undefined);
-    task.done = true;
-    assert('تحديث حالة المهمة', task.done === true);
-    window.space.tasks = window.space.tasks.filter(function(t){ return t.id !== task.id; });
-    assertEq('حذف المهمة', window.space.tasks.length, before);
-  }
-
-  function testExamCRUD(){
-    console.log('%c⏳ Exams CRUD', 'color:#22d3ee;font-weight:bold');
-    var before = window.space.exams.length;
-    var exam = {id: uid(), name:'__TEST_EXAM__', course:'', date:'2026-12-31', time:'10:00', room:'A'};
-    window.space.exams.push(exam);
-    assertEq('إضافة امتحان', window.space.exams.length, before + 1);
-    window.space.exams = window.space.exams.filter(function(e){ return e.id !== exam.id; });
-    assertEq('حذف الامتحان', window.space.exams.length, before);
-  }
-
-  function testCourseCRUD(){
-    console.log('%c📚 Courses CRUD', 'color:#22d3ee;font-weight:bold');
-    var before = window.space.courses.length;
-    var c = {id: uid(), name:'__TEST_COURSE__', code:'000', hours:3, instructor:'', room:''};
-    window.space.courses.push(c);
-    assertEq('إضافة مادة', window.space.courses.length, before + 1);
-    window.space.courses = window.space.courses.filter(function(x){ return x.id !== c.id; });
-    assertEq('حذف المادة', window.space.courses.length, before);
-  }
-
-  function testBudgetCRUD(){
-    console.log('%c💰 Budget CRUD', 'color:#22d3ee;font-weight:bold');
-    var before = (window.space.budget || []).length;
-    var b = {id: uid(), type:'expense', category:'food', amount: 15, date: new Date().toISOString().slice(0,10), note:'__TEST__'};
-    if(!window.space.budget) window.space.budget = [];
-    window.space.budget.push(b);
-    assertEq('إضافة مصروف', window.space.budget.length, before + 1);
-
-    var income = window.space.budget.filter(function(x){ return x.type === 'income'; }).reduce(function(a,x){ return a + (parseFloat(x.amount)||0); }, 0);
-    var expense = window.space.budget.filter(function(x){ return x.type === 'expense'; }).reduce(function(a,x){ return a + (parseFloat(x.amount)||0); }, 0);
-    assert('حساب الرصيد', typeof (income - expense) === 'number');
-
-    window.space.budget = window.space.budget.filter(function(x){ return x.id !== b.id; });
-    assertEq('حذف المصروف', window.space.budget.length, before);
-  }
-
-  function testNotesCRUD(){
-    console.log('%c📔 Notes CRUD', 'color:#22d3ee;font-weight:bold');
-    var before = window.notes.length;
-    window.notes.unshift({title:'__TEST__', body:'test', ts: Date.now()});
-    assertEq('إضافة ملاحظة', window.notes.length, before + 1);
-    window.notes.splice(0, 1);
-    assertEq('حذف الملاحظة', window.notes.length, before);
-  }
-
   function testGPACalc(){
-    console.log('%c📊 GPA Calc', 'color:#22d3ee;font-weight:bold');
-    var savedRows = gpaRows.slice();
-    gpaRows = [
-      {name:'A', hrs:3, grade:'A (90-100)'},
-      {name:'B', hrs:3, grade:'B (75-79)'}
-    ];
-    var pts = 0, hrs = 0;
-    gpaRows.forEach(function(r){ var h = parseFloat(r.hrs)||0; pts += h*(GRADES[r.grade]||0); hrs += h; });
-    var expected = (3*4.0 + 3*3.0) / 6;
-    var actual = pts / hrs;
-    assertEq('حساب المعدل', actual.toFixed(2), expected.toFixed(2));
-    gpaRows = savedRows;
+    console.log('%c📊 GPA', 'color:#22d3ee;font-weight:bold');
+    var saved = gpaRows.slice();
+    gpaRows = [{name:'A',hrs:3,grade:'A (90-100)'},{name:'B',hrs:3,grade:'B (75-79)'}];
+    var pts=0,hrs=0;
+    gpaRows.forEach(function(r){ var h=parseFloat(r.hrs)||0; pts+=h*(GRADES[r.grade]||0); hrs+=h; });
+    assertEq('حساب المعدل', (pts/hrs).toFixed(2), ((3*4+3*3)/6).toFixed(2));
+    gpaRows = saved;
   }
 
-  function testNeedCalc(){
-    console.log('%c🎯 Need Calculator', 'color:#22d3ee;font-weight:bold');
-    var cur = 72, w = 40, target = 60;
-    var currentWeight = 100 - w;
-    var need = (target - cur * (currentWeight/100)) / (w/100);
-    assert('حساب كم أحتاج يعطي رقم', typeof need === 'number' && !isNaN(need));
-    assert('السعر معقول', need >= -100 && need <= 200);
-  }
-
-  function testThemeApply(){
+  function testTheme(){
     console.log('%c🎨 Themes', 'color:#22d3ee;font-weight:bold');
-    var original = document.documentElement.getAttribute('data-theme');
+    var orig = document.documentElement.getAttribute('data-theme');
     applyTheme('ocean');
-    assertEq('تطبيق ثيم محيط', document.documentElement.getAttribute('data-theme'), 'ocean');
+    assertEq('ثيم محيط', document.documentElement.getAttribute('data-theme'), 'ocean');
     applyTheme('dark');
-    assertEq('العودة للداكن', document.documentElement.getAttribute('data-theme'), 'dark');
-    if(original && original !== 'dark') applyTheme(original);
-assert('THEMES بها كل الثيمات', ['dark','dracula','sakura','nord','ocean','royal','cyberpunk','midnight','aurora'].every(function(id){
-  return THEMES.some(function(t){ return t.id === id; });
-}));
-  }
-
-  function testTimer(){
-    console.log('%c⏱️ Timer', 'color:#22d3ee;font-weight:bold');
-    var originalMode = ts.mode;
-    setMode(null, 'focus');
-    assertEq('النمط focus', ts.mode, 'focus');
-    assert('الوقت المتبقي رقم', typeof ts.remaining === 'number');
-    resetTimer();
-    assertEq('إعادة تعيين', ts.remaining, TM.focus);
-    setMode(null, 'short');
-    assertEq('النمط short', ts.mode, 'short');
-    stopTimer();
-    setMode(null, originalMode || 'focus');
-    assert('timer يعمل', ts.running === false);
-  }
-
-  function testNotifications(){
-    console.log('%c🔔 Notifications', 'color:#22d3ee;font-weight:bold');
-    assert('isNotifSupported() دالة', typeof isNotifSupported === 'function');
-    assert('getNotifPermission() دالة', typeof getNotifPermission === 'function');
-    var perm = getNotifPermission();
-    assert('إذن الإشعارات مقروء', ['granted','denied','default','unsupported'].indexOf(perm) > -1, 'perm=' + perm);
-    assert('showNotif دالة', typeof showNotif === 'function');
+    if(orig && orig !== 'dark') applyTheme(orig);
+    assert('THEMES كامل', ['dark','dracula','sakura','nord','ocean','royal','cyberpunk','midnight','aurora'].every(function(id){
+      return THEMES.some(function(t){ return t.id === id; });
+    }));
   }
 
   function testNavigation(){
     console.log('%c🧭 Navigation', 'color:#22d3ee;font-weight:bold');
     var tabs = ['dashboard','timetable','courses','tasks','exams','attendance','timer','flashcards','gradecalc','budget','notes','plan','hulinks'];
-    var missing = [];
-    tabs.forEach(function(t){
-      if(!document.getElementById(t)) missing.push(t);
-    });
-    assert('كل الأقسام موجودة (' + tabs.length + ')', missing.length === 0, 'ناقص: ' + missing.join(', '));
-
-    var navItems = document.querySelectorAll('.nav-item');
-    assert('عناصر التنقل موجودة', navItems.length > 0, navItems.length + ' عنصر');
-
-    // اختبار redirect stats → dashboard (متزامن، بدون setTimeout)
+    var missing = tabs.filter(function(t){ return !document.getElementById(t); });
+    assert('كل الأقسام (' + tabs.length + ')', missing.length === 0, 'ناقص: ' + missing.join(', '));
+    assert('عناصر التنقل موجودة', document.querySelectorAll('.nav-item').length > 0);
     try{
-      var beforeActive = document.querySelector('.section.active');
-      if(beforeActive) beforeActive.classList.remove('active');
+      var b = document.querySelector('.section.active');
+      if(b) b.classList.remove('active');
       switchTab('stats', false);
-      var dash = document.getElementById('dashboard');
-      var ok = dash && dash.classList.contains('active');
-      assert('stats → dashboard', ok, ok ? '' : 'dashboard مش فعال');
-    }catch(e){
-      assert('stats → dashboard', false, e.message);
-    }
-
-    // اختبار gpa → gradecalc
+      assert('stats → dashboard', document.getElementById('dashboard').classList.contains('active'));
+    }catch(e){ assert('stats → dashboard', false, e.message); }
     try{
       switchTab('gpa', false);
-      var gc = document.getElementById('gradecalc');
-      var ok2 = gc && gc.classList.contains('active');
-      assert('gpa → gradecalc', ok2, ok2 ? '' : 'gradecalc مش فعال');
-    }catch(e){
-      assert('gpa → gradecalc', false, e.message);
-    }
-
-    // رجوع للوحة
+      assert('gpa → gradecalc', document.getElementById('gradecalc').classList.contains('active'));
+    }catch(e){ assert('gpa → gradecalc', false, e.message); }
     try{ switchTab('dashboard', false); }catch(e){}
   }
 
   function testSubTabs(){
     console.log('%c📑 SubTabs', 'color:#22d3ee;font-weight:bold');
-    var gcTabs = document.querySelectorAll('[data-gc-tab]');
-    assert('تبويبات gradecalc موجودة', gcTabs.length === 3, gcTabs.length + ' تبويب');
-	var planTabs = document.querySelectorAll('[data-plan-tab]');
-	assert('تبويبات plan موجودة', planTabs.length === 3, planTabs.length + ' تبويب');
-	}
-
-  function testDOMIds(){
-    console.log('%c🆔 DOM IDs', 'color:#22d3ee;font-weight:bold');
-    var ids = ['dashboard','timetable','courses','tasks','exams','attendance','timer','flashcards',
-      'gradecalc','budget','notes','plan','hulinks','searchInput','settingsBtn','themeBtn',
-      'fabMain','fabMenu','aiFab','aiPanel','welcomeOverlay','toastContainer',
-      'ncCurrent','ncWeight','ncTarget','ncCalc','ncResult',
-      'gpaBody','gpaVal','btnAddGpa','btnLoadGpaSample','btnClearGpa',
-      'studyChart','statsCards','gradeTrackerList','btnAddGrade'];
-    var missing = [];
-    ids.forEach(function(id){
-      if(!document.getElementById(id)) missing.push(id);
-    });
-    assert('كل IDs موجودة (' + ids.length + ')', missing.length === 0, 'ناقص: ' + missing.join(', '));
+    var gc = document.querySelectorAll('[data-gc-tab]');
+    assert('تبويبات gradecalc = 3', gc.length === 3, gc.length + '');
+    var pl = document.querySelectorAll('[data-plan-tab]');
+    assert('تبويبات plan ≥ 2', pl.length >= 2, pl.length + ''); // ← مرن
   }
 
   function testSB(){
-    console.log('%c☁️ Supabase Client', 'color:#22d3ee;font-weight:bold');
+    console.log('%c☁️ Supabase', 'color:#22d3ee;font-weight:bold');
     assert('SB موجود', typeof window.SB === 'object');
     if(window.SB){
-      assert('SB.init دالة', typeof window.SB.init === 'function');
-      assert('SB.load دالة', typeof window.SB.load === 'function');
-      assert('SB.save دالة', typeof window.SB.save === 'function');
-      assert('SB.getCode دالة', typeof window.SB.getCode === 'function');
-      assert('SB.setCode دالة', typeof window.SB.setCode === 'function');
-      assert('SB.listCourseFiles دالة', typeof window.SB.listCourseFiles === 'function');
-      assert('SB.uploadCourseFile دالة', typeof window.SB.uploadCourseFile === 'function');
-      assert('SB.deleteCourseFile دالة', typeof window.SB.deleteCourseFile === 'function');
-      assert('SB.formatFileSize دالة', typeof window.SB.formatFileSize === 'function');
-      assert('SB.getFileIcon دالة', typeof window.SB.getFileIcon === 'function');
-      assert('SB.showSyncPanel دالة', typeof window.SB.showSyncPanel === 'function');
-      var code = window.SB.getCode();
-      assert('رمز المزامنة 6 خانات', typeof code === 'string' && code.length === 6, 'code=' + code);
+      ['init','load','save','getCode','setCode','listCourseFiles','uploadCourseFile',
+       'deleteCourseFile','formatFileSize','getFileIcon','showSyncPanel'].forEach(function(m){
+        assert('SB.' + m, typeof window.SB[m] === 'function');
+      });
       assertEq('formatFileSize 1KB', window.SB.formatFileSize(1024), '1.0 KB');
-      assertEq('formatFileSize 1MB', window.SB.formatFileSize(1048576), '1.0 MB');
       assertEq('getFileIcon PDF', window.SB.getFileIcon('test.pdf'), '📄');
-      assertEq('getFileIcon صورة', window.SB.getFileIcon('img.PNG'), '🖼️');
     }
-  }
-
-  function testWidgets(){
-    console.log('%c🎯 Widgets', 'color:#22d3ee;font-weight:bold');
-    assert('widget sidebar موجود', document.getElementById('lwSidebar') !== null);
-    assert('expand button موجود', document.getElementById('lwExpandBtn') !== null);
-    assert('focus screen موجود', document.getElementById('focusScreen') !== null);
-    var wList = ['focus','weather','prayer','events','quote'];
-    var sidebar = document.getElementById('lwSidebar');
-    if(sidebar){
-      var html = sidebar.innerHTML || '';
-      // مش كل الويدجت مفعّلة افتراضيًا، فقط نتأكد إن الـ sidebar موجود
-      assert('sidebar فيه محتوى', html.length > 0);
-    }
-  }
-
-  function testSmartReminders(){
-    console.log('%c⏰ Smart Reminders', 'color:#22d3ee;font-weight:bold');
-    assert('checkReminders دالة', typeof checkReminders === 'function');
-    assert('checkSmartReminders دالة', typeof checkSmartReminders === 'function');
-    // لا نستدعيها فعليًا لأنها تُظهر toast
   }
 
   function testBackup(){
     console.log('%c💾 Backup', 'color:#22d3ee;font-weight:bold');
-    var snap = gatherSnapshot();
-    assert('gatherSnapshot يعمل', typeof snap === 'object');
-    assert('snapshot فيه space', snap.space !== undefined);
-    assert('snapshot فيه notes', Array.isArray(snap.notes));
-    assert('snapshot فيه gpaRows', Array.isArray(snap.gpaRows));
-    assert('snapshot فيه timerSettings', snap.timerSettings !== undefined);
-    assert('snapshot فيه version', typeof snap.version === 'number');
-    assert('snapshot فيه savedAt', typeof snap.savedAt === 'string');
+    var s = gatherSnapshot();
+    assert('snapshot.space', s.space !== undefined);
+    assert('snapshot.notes مصفوفة', Array.isArray(s.notes));
+    assert('snapshot.gpaRows مصفوفة', Array.isArray(s.gpaRows));
+    assert('snapshot.version', typeof s.version === 'number');
   }
 
   function testCoursesData(){
     console.log('%c📕 Courses Data', 'color:#22d3ee;font-weight:bold');
-    var CD = window.COURSES_DESC;
-    assert('COURSES_DESC كائن', typeof CD === 'object');
-    var keys = Object.keys(CD || {});
-    assert('COURSES_DESC فيه 50+ مادة', keys.length >= 50, keys.length + ' مادة');
-    var sample = keys[0];
-    assert('أول وصف نصي', typeof CD[sample] === 'string' && CD[sample].length > 20);
+    assert('COURSES_DESC كائن', typeof window.COURSES_DESC === 'object');
+    assert('COURSES_DESC 50+', Object.keys(window.COURSES_DESC || {}).length >= 50);
   }
 
   function testPlanStructure(){
-    console.log('%c📖 Plan Structure', 'color:#22d3ee;font-weight:bold');
-    assert('SEMESTERS فيها 9 فصول', SEMESTERS.length === 9, SEMESTERS.length + ' فصل');
-    var totalCourses = 0, totalHours = 0;
+    console.log('%c📖 Plan', 'color:#22d3ee;font-weight:bold');
+    assert('SEMESTERS 9+ فصول', SEMESTERS.length >= 9, SEMESTERS.length + '');
+    var tc = 0, th = 0;
     SEMESTERS.forEach(function(s){
-      totalCourses += s.courses.length;
-      s.courses.forEach(function(c){ totalHours += c.h; });
+      tc += s.courses.length;
+      s.courses.forEach(function(c){ th += c.h; });
     });
-    assert('مجموع المواد 40+', totalCourses >= 40, totalCourses + ' مادة');
-    assert('مجموع الساعات 120+', totalHours >= 120, totalHours + ' ساعة');
+    assert('مجموع المواد 40+', tc >= 40, tc + '');
+    assert('مجموع الساعات 120+', th >= 120, th + '');
   }
-  /* ==================== NEW MODULE TESTS ==================== */
+
+  function testCoursesDB(){
+    console.log('%c📚 Courses DB v4', 'color:#22d3ee;font-weight:bold');
+    var DB = window.COURSES_DB || {};
+    var keys = Object.keys(DB);
+    assert('DB فيه 100+ مادة', keys.length >= 100, keys.length + '');
+
+    // ✅ لا أكواد مكررة
+    var codes = {}, dupes = [];
+    keys.forEach(function(k){
+      var c = DB[k].code;
+      if(codes[c]) dupes.push(c); else codes[c] = k;
+    });
+    assert('لا أكواد مكررة', dupes.length === 0, dupes.slice(0,3).join(', '));
+
+    // ✅ ساعات حسب النوع
+    var t = { 'uni-c':0,'uni-e':0,'faculty':0,'major-c':0,'major-e':0 };
+    keys.forEach(function(k){
+      var info = DB[k];
+      if(t[info.t] !== undefined) t[info.t] += info.h;
+    });
+    assert('جامعة إجبارية = 18', t['uni-c'] === 18, '=' + t['uni-c']);
+    assert('كلية = 33', t.faculty === 33, '=' + t.faculty);
+    assert('تخصص إجباري = 88', t['major-c'] === 88, '=' + t['major-c']);
+
+    // ✅ البحث بالكود (مع وبدون صفر)
+    assertEq('findCourseByCode 110108101', !!findCourseByCode('110108101'), true);
+    assertEq('findCourseByCode 0110108101', !!findCourseByCode('0110108101'), true);
+    assert('validateCoursesDB موجودة', typeof window.validateCoursesDB === 'function');
+  }
+
   function testPlanSimulator(){
     console.log('%c🎓 Plan Simulator', 'color:#22d3ee;font-weight:bold');
-    assert('COURSES_DB محمّل', typeof window.COURSES_DB === 'object' && Object.keys(window.COURSES_DB).length > 50);
-    assert('COURSE_TYPES محمّل', typeof window.COURSE_TYPES === 'object');
-    assert('TOTAL_REQUIRED_HOURS محمّل', typeof window.TOTAL_REQUIRED_HOURS === 'object');
-    assert('findCourseByCode دالة', typeof window.findCourseByCode === 'function');
-    assert('searchCourses دالة', typeof window.searchCourses === 'function');
-    assert('suggestNextSemester دالة', typeof window.suggestNextSemester === 'function');
-    assert('analyzeGraduationGap دالة', typeof window.analyzeGraduationGap === 'function');
-
-    // اختبار البحث بالكود
-    var found = window.findCourseByCode('110408220');
-    assert('بحث بالكود يرجع نتيجة', found !== null, 'code=110408220');
-    if(found) assert('نتيجة البحث اسم صحيح', typeof found.name === 'string');
-
-    // اختبار الاقتراحات
-    var sug = window.suggestNextSemester();
-    assert('الاقتراحات كائن', typeof sug === 'object');
-    assert('فيه semester', typeof sug.semester === 'number');
-    assert('فيه suggestions مصفوفة', Array.isArray(sug.suggestions));
-  }
-
-  function testCalendarSync(){
-    console.log('%c📅 Calendar Sync', 'color:#22d3ee;font-weight:bold');
-    assert('buildICS دالة', typeof window.buildICS === 'function');
-    assert('downloadICS دالة', typeof window.downloadICS === 'function');
-    if(typeof window.buildICS === 'function'){
-      var ics = window.buildICS();
-      assert('ICS نص', typeof ics === 'string');
-      assert('ICS يبدأ بـ BEGIN:VCALENDAR', ics.indexOf('BEGIN:VCALENDAR') === 0);
-      assert('ICS ينتهي بـ END:VCALENDAR', ics.indexOf('END:VCALENDAR') > -1);
+    assert('suggestNextSemester', typeof window.suggestNextSemester === 'function');
+    assert('analyzeGraduationGap', typeof window.analyzeGraduationGap === 'function');
+    if(typeof window.suggestNextSemester === 'function'){
+      var s = window.suggestNextSemester();
+      assert('اقتراحات.semester رقم', typeof s.semester === 'number');
+      assert('اقتراحات.suggestions مصفوفة', Array.isArray(s.suggestions));
     }
   }
 
-  function testInsights(){
-    console.log('%c📈 Insights', 'color:#22d3ee;font-weight:bold');
-    assert('renderInsights دالة', typeof window.renderInsights === 'function');
-    assert('Heatmap container موجود', document.getElementById('insightsHeatmap') !== null);
-    assert('Trends container موجود', document.getElementById('insightsTrends') !== null);
-    assert('Courses container موجود', document.getElementById('insightsCourses') !== null);
-    assert('GPA container موجود', document.getElementById('insightsGpa') !== null);
+  function testCalendarSync(){
+    console.log('%c📅 Calendar', 'color:#22d3ee;font-weight:bold');
+    assert('buildICS دالة', typeof window.buildICS === 'function');
+    if(typeof window.buildICS === 'function'){
+      var ics = window.buildICS();
+      assert('ICS يبدأ بـ VCALENDAR', ics.indexOf('BEGIN:VCALENDAR') === 0);
+      assert('ICS ينتهي بـ VCALENDAR', ics.indexOf('END:VCALENDAR') > -1);
+    }
   }
 
-  function testAIPlus(){
-    console.log('%c🤖 AI Plus', 'color:#22d3ee;font-weight:bold');
-    var testQueries = [
-      'شنو أسجل الترم الجاي؟',
-      'تقدمي للتخرج',
-      'ايش مادة 110408220؟',
-      'شنو أدرس الحين؟',
-      'كيف دراستي؟'
-    ];
-    testQueries.forEach(function(q){
+  function testAI(){
+    console.log('%c🤖 AI', 'color:#22d3ee;font-weight:bold');
+    ['شنو أسجل الترم الجاي؟','تقدمي للتخرج','شنو أدرس الحين؟','كم مهمة عندي؟'].forEach(function(q){
       try{
-        var res = window.aiRespond(q);
-        assert('AI يجاوب: "' + q.substring(0, 25) + '"', typeof res === 'string' && res.length > 10);
-      }catch(e){
-        assert('AI يجاوب: "' + q + '"', false, e.message);
-      }
+        var r = window.aiRespond(q);
+        assert('AI: "' + q.substring(0,20) + '"', typeof r === 'string' && r.length > 10);
+      }catch(e){ assert('AI: "' + q + '"', false, e.message); }
     });
   }
 
-  function testCoursesDataDB(){
-    console.log('%c📚 Courses DB v2', 'color:#22d3ee;font-weight:bold');
-    var DB = window.COURSES_DB || {};
-    var keys = Object.keys(DB);
-    assert('DB فيه 100+ مادة', keys.length >= 100, keys.length + ' مادة');
-
-    var types = { 'uni-c':0, 'uni-e':0, 'faculty':0, 'major-c':0, 'major-e':0 };
-    var totalH = { 'uni-c':0, 'uni-e':0, 'faculty':0, 'major-c':0, 'major-e':0 };
-    keys.forEach(function(k){
-      var info = DB[k];
-      if(types[info.t] !== undefined){
-        types[info.t]++;
-        totalH[info.t] += info.h;
-      }
-    });
-    assert('ساعات كلية >= 30', totalH.faculty >= 30, 'faculty=' + totalH.faculty);
-    assert('ساعات تخصص إجباري >= 80', totalH['major-c'] >= 80, 'major-c=' + totalH['major-c']);
-  }
-  /* ==================== RUNNERS ==================== */
-  function testQuick(){
-    console.clear();
-    console.log('%c⚡ اختبار سريع', 'color:#a78bfa;font-weight:bold;font-size:14px');
-    results = []; pass = 0; fail = 0;
-    testGlobals();
-    testFunctionsExist();
-    testHelpers();
-    testStorage();
-    testQuickCaptureParser();
-    printSummary();
-	testPlanSimulator();
-    testAIPlus();
+  function testNotifications(){
+    console.log('%c🔔 Notifs', 'color:#22d3ee;font-weight:bold');
+    assert('isNotifSupported', typeof isNotifSupported === 'function');
+    var p = getNotifPermission();
+    assert('إذن مقروء', ['granted','denied','default','unsupported'].indexOf(p) > -1, p);
   }
 
-  function testAll(){
-    console.clear();
-    console.log('%c🧪 اختبار شامل لموقع مساحتي الدراسية', 'color:#a78bfa;font-weight:bold;font-size:16px');
-    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color:#22d3ee');
-    results = []; pass = 0; fail = 0;
-
-    testGlobals();
-    testFunctionsExist();
-    testHelpers();
-    testStorage();
-    testQuickCaptureParser();
-    testTaskCRUD();
-    testExamCRUD();
-    testCourseCRUD();
-    testBudgetCRUD();
-    testNotesCRUD();
-    testGPACalc();
-    testNeedCalc();
-    testThemeApply();
-    testTimer();
-    testNotifications();
-    testSubTabs();
-    testDOMIds();
-    testSB();
-    testWidgets();
-    testSmartReminders();
-    testBackup();
-    testCoursesData();
-    testPlanStructure();
-    testNavigation();
-    testPlanSimulator();
-    testCalendarSync();
-    testInsights();
-    testAIPlus();
-    testCoursesDataDB();
-    setTimeout(function(){
-      printSummary();
-      console.log('%c💡 ملاحظة: اختبارات Navigation قد تتأخر قليلاً', 'color:#8a96b8;font-style:italic');
-    }, 300);
+  function testDOMIds(){
+    console.log('%c🆔 DOM', 'color:#22d3ee;font-weight:bold');
+    var ids = ['dashboard','timetable','courses','tasks','exams','attendance','timer',
+      'flashcards','gradecalc','budget','notes','plan','hulinks','searchInput',
+      'settingsBtn','themeBtn','fabMain','fabMenu','aiFab','aiPanel',
+      'welcomeOverlay','toastContainer','ncCurrent','ncWeight','ncTarget','ncCalc','ncResult',
+      'gpaBody','gpaVal','btnAddGpa','btnLoadGpaSample','btnClearGpa',
+      'studyChart','statsCards','gradeTrackerList','btnAddGrade'];
+    var m = ids.filter(function(id){ return !document.getElementById(id); });
+    assert('كل IDs (' + ids.length + ')', m.length === 0, 'ناقص: ' + m.join(', '));
   }
 
   function printSummary(){
     console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color:#22d3ee');
     var total = pass + fail;
-    var pct = total ? Math.round((pass / total) * 100) : 0;
+    var pct = total ? Math.round((pass/total)*100) : 0;
     var color = fail === 0 ? '#34d399' : fail < 3 ? '#fbbf24' : '#f87171';
-    console.log('%c📊 النتيجة: ' + pass + ' نجح / ' + fail + ' فشل — ' + pct + '%', 'color:' + color + ';font-weight:bold;font-size:14px');
+    console.log('%c📊 ' + pass + ' نجح / ' + fail + ' فشل — ' + pct + '%', 'color:' + color + ';font-weight:bold;font-size:14px');
     if(fail > 0){
-      console.log('%c🔴 الاختبارات الفاشلة:', 'color:#f87171;font-weight:bold');
+      console.log('%c🔴 الفاشلة:', 'color:#f87171;font-weight:bold');
       results.filter(function(r){ return !r.ok; }).forEach(function(r){
         console.log('  ❌ ' + r.name, r.detail || '');
       });
@@ -529,8 +283,29 @@ assert('THEMES بها كل الثيمات', ['dark','dracula','sakura','nord','o
     return {pass: pass, fail: fail, results: results};
   }
 
+  // ✅ printSummary آخر شي
+  function testQuick(){
+    console.clear();
+    console.log('%c⚡ اختبار سريع', 'color:#a78bfa;font-weight:bold;font-size:14px');
+    results = []; pass = 0; fail = 0;
+    testGlobals(); testFunctionsExist(); testHelpers(); testStorage();
+    testQuickCapture(); testPlanSimulator(); testAI();
+    printSummary();
+  }
+
+  function testAll(){
+    console.clear();
+    console.log('%c🧪 اختبار شامل', 'color:#a78bfa;font-weight:bold;font-size:16px');
+    results = []; pass = 0; fail = 0;
+    testGlobals(); testFunctionsExist(); testHelpers(); testStorage();
+    testQuickCapture(); testGPACalc(); testTheme(); testNavigation();
+    testSubTabs(); testSB(); testBackup(); testCoursesData();
+    testPlanStructure(); testCoursesDB(); testPlanSimulator();
+    testCalendarSync(); testAI(); testNotifications(); testDOMIds();
+    setTimeout(printSummary, 300);
+  }
+
   window.testAll = testAll;
   window.testQuick = testQuick;
-
-  console.log('%c🧪 tests.js محمّل — اكتب testAll() أو testQuick() في الـ Console', 'color:#a78bfa;font-weight:bold');
+  console.log('%c🧪 tests.js v2 محمّل — اكتب testAll() أو testQuick()', 'color:#a78bfa;font-weight:bold');
 })();

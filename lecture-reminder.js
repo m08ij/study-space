@@ -1,28 +1,28 @@
 /* ============================================================
-   ⏰ lecture-reminder.js — تذكير قبل المحاضرة بـ 15 دقيقة
+   ⏰ lecture-reminder.js v2 — تذكير قبل المحاضرة بنطاقات آمنة
    - يفحص كل دقيقة
    - إشعار + صوت + toast
-   - يفتكر أي محاضرة انتبه لها اليوم
+   - يستخدم نطاقات بدل تطابق تام (يتفادى تفويت الدقيقة)
    ============================================================ */
 (function(){
   'use strict';
 
   var FIRED_KEY = 'ss_fired_lecture_reminders';
-  var CHECK_INTERVAL = 60 * 1000;    // كل دقيقة
-  var REMIND_BEFORE = 15;            // 15 دقيقة
-  var SECOND_REMIND = 5;             // + تذكير ثاني قبل 5 دقائق
+  var CHECK_INTERVAL = 60 * 1000;
 
   function getSpace(){ return window.space || {timetable:{}}; }
   function toast(m, t, d){ if(typeof window.toast === 'function') window.toast(m, t || 'info', d || 3000); }
-  function getS(){ return window.S || {get:function(k,d){return d;}, set:function(){}}; }
 
   function todayDate(){
     var d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return d.getFullYear() + '-' +
+      String(d.getMonth()+1).padStart(2,'0') + '-' +
+      String(d.getDate()).padStart(2,'0');
   }
 
   function loadFired(){
-    try{ return JSON.parse(localStorage.getItem(FIRED_KEY) || '{}') || {}; }catch(e){ return {}; }
+    try{ return JSON.parse(localStorage.getItem(FIRED_KEY) || '{}') || {}; }
+    catch(e){ return {}; }
   }
   function saveFired(o){
     try{ localStorage.setItem(FIRED_KEY, JSON.stringify(o)); }catch(e){}
@@ -33,8 +33,7 @@
       var Ctx = window.AudioContext || window.webkitAudioContext;
       if(!Ctx) return;
       var ctx = new Ctx();
-      // نغمة ثلاثية
-      var notes = [523.25, 659.25, 783.99];  // C5, E5, G5
+      var notes = [523.25, 659.25, 783.99];
       notes.forEach(function(freq, i){
         var o = ctx.createOscillator();
         var g = ctx.createGain();
@@ -53,7 +52,7 @@
   function checkLectures(){
     var sp = getSpace();
     var tt = sp.timetable || {};
-    var DAYS_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var DAYS_EN = window.DAYS_EN || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     var DAYS_AR = window.DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 
     var now = new Date();
@@ -67,7 +66,7 @@
     Object.keys(tt).forEach(function(key){
       var parts = key.split('-');
       if(parts[0] !== todayKey) return;
-      var time = parts[1]; // "08:00"
+      var time = parts[1];
       var tp = time.split(':');
       var hh = parseInt(tp[0], 10);
       var mm = parseInt(tp[1], 10) || 0;
@@ -81,27 +80,24 @@
       var diffMs = lecDate.getTime() - nowMs;
       var diffMin = Math.round(diffMs / 60000);
 
-      // fire15
+      // ✅ نطاقات (10-15) بدل === 15
       var key15 = todayStr + '_' + key + '_15';
-      if(diffMin === REMIND_BEFORE && !fired[key15]){
-        fired[key15] = true;
-        saveFired(fired);
+      if(diffMin <= 15 && diffMin > 10 && !fired[key15]){
+        fired[key15] = true; saveFired(fired);
         showLectureReminder(lecture, diffMin, DAYS_AR[now.getDay()]);
       }
 
-      // fire5
+      // ✅ نطاق (2-5) بدل === 5
       var key5 = todayStr + '_' + key + '_5';
-      if(diffMin === SECOND_REMIND && !fired[key5]){
-        fired[key5] = true;
-        saveFired(fired);
+      if(diffMin <= 5 && diffMin > 1 && !fired[key5]){
+        fired[key5] = true; saveFired(fired);
         showLectureReminder(lecture, diffMin, DAYS_AR[now.getDay()]);
       }
 
-      // fire عند البدء (0)
+      // ✅ نطاق (-1 إلى 0) لبدء المحاضرة
       var key0 = todayStr + '_' + key + '_0';
-      if(diffMin === 0 && !fired[key0]){
-        fired[key0] = true;
-        saveFired(fired);
+      if(diffMin <= 0 && diffMin > -2 && !fired[key0]){
+        fired[key0] = true; saveFired(fired);
         showLectureReminder(lecture, 0, DAYS_AR[now.getDay()]);
       }
     });
@@ -109,10 +105,10 @@
 
   function showLectureReminder(lecture, minutes, dayName){
     var msg;
-    if(minutes === 0){
+    if(minutes <= 0){
       msg = '🎓 **بدأت محاضرتك الآن!**';
-    } else if(minutes === 5){
-      msg = '🚨 **باقي 5 دقائق!**';
+    } else if(minutes <= 5){
+      msg = '🚨 **باقي ' + minutes + ' دقائق!**';
     } else {
       msg = '⏰ **باقي ' + minutes + ' دقيقة على محاضرتك**';
     }
@@ -121,31 +117,24 @@
     if(lecture.room) body += ' — 📍 ' + lecture.room;
     if(lecture.instructor) body += ' — ' + lecture.instructor;
 
-    // Toast
     toast(msg.replace(/\*\*/g,'') + ' ' + body, minutes <= 5 ? 'warn' : 'info', 8000);
-
-    // صوت
     playChime();
 
-    // إشعار المتصفح
     if(typeof window.showNotif === 'function'){
       window.showNotif(msg.replace(/\*\*/g,''), body, {
         tag: 'lecture-' + Date.now(),
-        requireInteraction: minutes === 0,
+        requireInteraction: minutes <= 0,
         data: { tab: 'timetable' }
       });
     }
   }
 
   function install(){
-    // أول فحص بعد 10 ثواني من التحميل
     setTimeout(checkLectures, 10000);
-    // ثم كل دقيقة
     setInterval(checkLectures, CHECK_INTERVAL);
-    console.log('⏰ Lecture Reminders active (15 + 5 + 0 min before)');
+    console.log('⏰ Lecture Reminders active (ranges: 15/5/0)');
   }
 
-  // زر اختبار
   window.testLectureReminder = function(){
     var sp = getSpace();
     var first = null;

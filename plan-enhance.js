@@ -1,20 +1,13 @@
 /* ============================================================
-   📖 plan-enhance.js — تطوير عرض الخطة والمواد
-   - عرض الكود + المتطلب السابق لكل مادة
-   - عرض النوع (إجباري/اختياري)
-   - زر "أضف إلى موادي"
-   - تحسين عرض وصف المواد
+   📖 plan-enhance.js v2 — مطابقة بالكود أولاً (دقة عالية)
    ============================================================ */
 (function(){
   'use strict';
 
   function getDB(){ return window.COURSES_DB || {}; }
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-  function getCompleted(){
-    return window.getCompletedCourses ? window.getCompletedCourses() : {};
-  }
+  function getCompleted(){ return window.getCompletedCourses ? window.getCompletedCourses() : {}; }
 
-  /* ============ Hook على renderPlan ============ */
   function install(){
     if(typeof window.renderPlan !== 'function'){ setTimeout(install, 500); return; }
     if(window._planEnhInstalled) return;
@@ -23,11 +16,10 @@
     var origRenderPlan = window.renderPlan;
     window.renderPlan = function(){
       var r = origRenderPlan.apply(this, arguments);
-      try{ enhancePlanRows(); }catch(e){ console.warn('plan enhance error:', e); }
+      try{ enhancePlanRows(); }catch(e){ console.warn('plan enhance:', e); }
       return r;
     };
 
-    // Hook على renderCourseDescriptions
     if(typeof window.renderCourseDescriptions === 'function'){
       var origDesc = window.renderCourseDescriptions;
       window.renderCourseDescriptions = function(){
@@ -37,8 +29,36 @@
       };
     }
 
-    // نفّذ الآن + كل ما يفتح تبويب الخطة
     setTimeout(enhancePlanRows, 1000);
+  }
+
+  /* ============ المطابقة الأساسية: كود أولاً ============ */
+  function matchCourse(rowText, DB){
+    // 1) مطابقة بالكود (دقة 100%)
+    var codeMatch = rowText.match(/\b(0?\d{6,10})\b/);
+    if(codeMatch){
+      var code = codeMatch[1].replace(/^0+/, '');
+      var keys = Object.keys(DB);
+      for(var i = 0; i < keys.length; i++){
+        if(DB[keys[i]].code.replace(/^0+/, '') === code) return keys[i];
+      }
+    }
+    // 2) مطابقة بالاسم الكامل
+    var keys2 = Object.keys(DB);
+    for(var j = 0; j < keys2.length; j++){
+      if(rowText.indexOf(keys2[j]) > -1) return keys2[j];
+    }
+    // 3) مطابقة جزئية (أطول مطابقة)
+    var best = null, bestLen = 0;
+    var keys3 = Object.keys(DB);
+    for(var k = 0; k < keys3.length; k++){
+      var key = keys3[k];
+      var probe = key.slice(0, Math.max(10, key.length - 3));
+      if(probe.length >= 10 && rowText.indexOf(probe) > -1 && key.length > bestLen){
+        best = key; bestLen = key.length;
+      }
+    }
+    return best;
   }
 
   function enhancePlanRows(){
@@ -53,15 +73,10 @@
       row.dataset.planEnhanced = '1';
 
       var text = (row.textContent || '').trim();
-      // ابحث عن اسم المادة في الـ DB
-      var foundName = null;
-      Object.keys(DB).forEach(function(k){
-        if(!foundName && text.indexOf(k) > -1) foundName = k;
-      });
+      var foundName = matchCourse(text, DB);
       if(!foundName) return;
       var info = DB[foundName];
 
-      // نص إضافي: المتطلب + النوع
       var nameDiv = row.children[0];
       if(!nameDiv) return;
 
@@ -69,10 +84,8 @@
       extraDiv.style.cssText = 'font-size:.68rem;color:var(--muted);margin-top:4px;line-height:1.5';
 
       var parts = [];
-      // النوع
       var t = (window.COURSE_TYPES && window.COURSE_TYPES[info.t]);
       if(t) parts.push('<span style="color:' + t.color + ';font-weight:700">' + t.icon + ' ' + t.label + '</span>');
-      // المتطلب السابق
       if(info.pre && info.pre.length){
         var preStrs = info.pre.map(function(p){
           var done = completed[p];
@@ -124,14 +137,13 @@
 
       metaDiv.innerHTML = parts.join('<br>');
 
-      // أضفه بعد cd-code أو cd-name
       var codeEl = card.querySelector('.cd-code');
       if(codeEl) codeEl.parentNode.insertBefore(metaDiv, codeEl.nextSibling);
       else nameEl.parentNode.insertBefore(metaDiv, nameEl.nextSibling);
     });
   }
 
-  /* ============ إضافة زر "أضف لقائمتي" في وصف المواد ============ */
+  /* زر "أضف لقائمتي" */
   function injectAddButton(){
     var list = document.getElementById('cdList');
     if(!list) return;
@@ -140,8 +152,7 @@
       var nameEl = card.querySelector('.cd-name');
       if(!nameEl) return;
       var name = (nameEl.textContent || '').replace('📘', '').trim();
-      var DB = getDB();
-      var info = DB[name];
+      var info = getDB()[name];
       if(!info) return;
 
       var sp = window.space || {};
@@ -175,7 +186,6 @@
     });
   }
 
-  // استدعِ injectAddButton مع كل رندر
   if(typeof window.renderCourseDescriptions === 'function'){
     var orig = window.renderCourseDescriptions;
     window.renderCourseDescriptions = function(){
@@ -187,5 +197,5 @@
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
-  console.log('📖 Plan Enhance loaded');
+  console.log('📖 Plan Enhance v2 loaded');
 })();

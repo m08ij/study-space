@@ -1,16 +1,9 @@
 /* ============================================================
-   🧠 ai-v3.js — مساعد ذكي مبني من الصفر
-   - Stemming عربي خفيف (مهمة = مهمات = مهام)
-   - 3 طبقات مطابقة: تراكيب دقيقة → كلمات → fuzzy
-   - 25+ intent مع أولويات
-   - متعدد النوايا ("افتح المهام وكم عندي")
-   - سياق محادثة
-   - Small talk محسّن
+   🧠 ai-v3.js — مساعد ذكي (v3.1 مع إصلاح findCourseByCode)
    ============================================================ */
 (function(){
   'use strict';
 
-  /* ============ 1. Normalization ============ */
   function norm(s){
     if(s == null) return '';
     return String(s)
@@ -26,22 +19,17 @@
   }
   function tokens(s){ return norm(s).split(' ').filter(Boolean); }
 
-  /* ============ 2. Arabic Light Stemmer ============ */
   function stem(w){
     if(!w || w.length < 3) return w;
     var o = w;
-    // prefix: وال/بال/كال/فال/ال
     w = w.replace(/^(وال|بال|كال|فال|ال)/, '');
     if(w.length >= 3 && w !== o) return w;
-    // single letter prefix: و/ف/ب/ل
     w = w.replace(/^(و|ف|ب|ل)/, '');
     if(w.length >= 3 && w !== o) return w;
-    // suffix
     w = w.replace(/(ها|هم|هن|كم|كن|نا|ات|ون|ين|يه|ته|ني|تي)$/, '');
     return w.length >= 3 ? w : o;
   }
 
-  /* ============ 3. Levenshtein ============ */
   function lev(a, b){
     if(!a.length) return b.length;
     if(!b.length) return a.length;
@@ -64,14 +52,12 @@
     return 1 - (lev(a, b) / L);
   }
 
-  /* ============ 4. Data Accessors ============ */
   function S(){ return window.S || {get:function(k,d){return d;}}; }
   function space(){ return window.space || {}; }
-  function today(){ return new Date().toISOString().slice(0,10); }
+  function today(){ return window.today ? window.today() : new Date().toISOString().slice(0,10); }
   function dFromNow(d){ return Math.ceil((new Date(d) - new Date(today())) / 86400000); }
   function pick(a){ return a[Math.floor(Math.random() * a.length)]; }
 
-  /* ============ 5. Context Memory ============ */
   var CTX = 'ai_v3_ctx';
   function ctxLoad(){ try{ return JSON.parse(sessionStorage.getItem(CTX)||'{}'); }catch(e){ return {}; } }
   function ctxSave(c){ try{ sessionStorage.setItem(CTX, JSON.stringify(c)); }catch(e){} }
@@ -82,7 +68,6 @@
     return c;
   }
 
-  /* ============ 6. Handlers ============ */
   function hGreet(lower){
     var name = (space().profile && space().profile.name || '').split(' ')[0];
     if(/السلام عليكم|سلام عليكم/.test(lower)) return '👋 وعليكم السلام' + (name ? ' يا ' + name : '') + '!';
@@ -92,32 +77,15 @@
     var greet = h < 12 ? 'صباح الخير' : h < 18 ? 'مساء الخير' : 'مساء النور';
     return '👋 ' + greet + (name ? ' يا ' + name : '') + '! كيف أقدر أساعدك؟';
   }
-  function hHowAreYou(){
-    return pick(['😊 بخير الحمدلله! جاهز أساعدك.', '😄 تمام! وأنت؟', '👌 كله تمام! شو بدك؟']);
-  }
-  function hWho(){
-    return '🤖 **أنا مساعدك الذكي**\n\n✨ أعرف كل شي عن مساحتك:\n• بياناتك وموادك\n• خطتك الدراسية\n• روابط جامعتك\n\n💡 جرّب تسألني أي شي!';
-  }
-  function hThanks(){
-    return pick(['🙏 على الرحب والسعة!', '💙 أهلاً بيك!', '🌟 بالخدمة!', '😊 ولا يهمك!']);
-  }
+  function hHowAreYou(){ return pick(['😊 بخير الحمدلله! جاهز أساعدك.', '😄 تمام! وأنت؟', '👌 كله تمام! شو بدك؟']); }
+  function hWho(){ return '🤖 **أنا مساعدك الذكي**\n\n✨ أعرف كل شي عن مساحتك:\n• بياناتك وموادك\n• خطتك الدراسية\n• روابط جامعتك\n\n💡 جرّب تسألني أي شي!'; }
+  function hThanks(){ return pick(['🙏 على الرحب والسعة!', '💙 أهلاً بيك!', '🌟 بالخدمة!', '😊 ولا يهمك!']); }
   function hHelp(){
     return '🧭 **أقدر أساعدك بـ:**\n\n' +
-      '📊 **بياناتك:**\n' +
-      '• "كم مهمة عندي؟"\n' +
-      '• "شو موادي؟"\n' +
-      '• "متى امتحاني القادم؟"\n' +
-      '• "شو رصيدي؟"\n' +
-      '• "معدلي كم؟"\n\n' +
-      '🎯 **التخطيط:**\n' +
-      '• "شو أسجل الترم الجاي؟"\n' +
-      '• "كم باقيلي للتخرج؟"\n' +
-      '• "شنو أدرس الحين؟"\n\n' +
-      '📚 **معلومات المواد:**\n' +
-      '• "وصف مادة شبكات"\n' +
-      '• "متطلبات مشروع تخرج"\n\n' +
-      '🧭 **التنقل:**\n' +
-      '• "افتح المهام" / "روح للميزانية"';
+      '📊 **بياناتك:**\n• "كم مهمة عندي؟"\n• "شو موادي؟"\n• "متى امتحاني القادم؟"\n• "شو رصيدي؟"\n• "معدلي كم؟"\n\n' +
+      '🎯 **التخطيط:**\n• "شو أسجل الترم الجاي؟"\n• "كم باقيلي للتخرج؟"\n• "شنو أدرس الحين؟"\n\n' +
+      '📚 **معلومات المواد:**\n• "وصف مادة شبكات"\n• "متطلبات مشروع تخرج"\n\n' +
+      '🧭 **التنقل:**\n• "افتح المهام" / "روح للميزانية"';
   }
   function hTips(){
     if(/كيف انظم وقت|تنظيم وقت|organiz/.test(norm(lower)))
@@ -195,9 +163,7 @@
         msg += '• ' + t.title + ' — ' + (d === 1 ? 'بكرة' : 'بعد ' + d + ' أيام') + '\n';
       });
     }
-    if(!overdue.length && !dueToday.length && !up.length){
-      msg += '\n✅ ما عندك شي عاجل! 😎';
-    }
+    if(!overdue.length && !dueToday.length && !up.length) msg += '\n✅ ما عندك شي عاجل! 😎';
     ctxSet('tasks', {count: pending.length});
     return msg;
   }
@@ -301,7 +267,7 @@
 
   function hTodaySchedule(){
     var tt = space().timetable || {};
-    var DAYS_EN = window.DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
+    var DAYS_EN = window.DAYS_EN || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     var DAYS_AR = window.DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
     var ti = new Date().getDay();
     var tk = DAYS_EN[ti];
@@ -406,39 +372,56 @@
     return msg;
   }
 
+  /* ✅ hCourseInfo مُصلَحة — تستخدم findCourseByCode */
   function hCourseInfo(lower){
     var DB = window.COURSES_DB || {};
     var keys = Object.keys(DB);
     var found = null, best = 0;
-    // code
-    var cm = lower.match(/\b(\d{6,10})\b/);
+
+    // 1) بالكود — نستخدم findCourseByCode (تتعامل مع الأصفار)
+    var cm = lower.match(/\b(0?\d{6,11})\b/);
     if(cm){
-      keys.forEach(function(k){ if(!found && DB[k].code === cm[1]){ found = k; best = 9999; } });
+      if(typeof window.findCourseByCode === 'function'){
+        var r = window.findCourseByCode(cm[1]);
+        if(r){ found = r.name; best = 9999; }
+      }
+      // fallback: مقارنة بعد إزالة الأصفار
+      if(!found){
+        var cleanCode = cm[1].replace(/^0+/, '');
+        for(var ci = 0; ci < keys.length; ci++){
+          if(String(DB[keys[ci]].code).replace(/^0+/, '') === cleanCode){
+            found = keys[ci]; best = 9999; break;
+          }
+        }
+      }
     }
-    // full name
+
+    // 2) بالاسم الكامل
     if(!found){
-      keys.forEach(function(k){
-        var kn = norm(k);
-        if(lower.indexOf(kn) > -1){ found = k; best = 500; }
-      });
+      for(var j = 0; j < keys.length; j++){
+        var kn = norm(keys[j]);
+        if(lower.indexOf(kn) > -1){ found = keys[j]; best = 500; break; }
+      }
     }
-    // partial — word overlap
+
+    // 3) مطابقة جزئية
     if(!found){
       var tt = tokens(lower).map(stem);
-      keys.forEach(function(k){
-        var nt = tokens(k).map(stem).filter(function(t){ return t.length > 2; });
-        if(!nt.length) return;
-        var matched = nt.filter(function(t){
-          for(var i = 0; i < tt.length; i++){
-            if(tt[i] === t || sim(tt[i], t) >= 0.82) return true;
+      for(var k2 = 0; k2 < keys.length; k2++){
+        var nt = tokens(keys[k2]).map(stem).filter(function(t){ return t.length > 2; });
+        if(!nt.length) continue;
+        var matched = 0;
+        for(var ni = 0; ni < nt.length; ni++){
+          for(var ti2 = 0; ti2 < tt.length; ti2++){
+            if(tt[ti2] === nt[ni] || sim(tt[ti2], nt[ni]) >= 0.82){ matched++; break; }
           }
-          return false;
-        }).length;
+        }
         var ratio = matched / nt.length;
         var sc = matched * 40 + (ratio >= 0.75 ? 60 : 0);
-        if(ratio >= 0.5 && sc > best){ found = k; best = sc; }
-      });
+        if(ratio >= 0.5 && sc > best){ found = keys[k2]; best = sc; }
+      }
     }
+
     if(!found) return null;
     var info = DB[found];
     var t = (window.COURSE_TYPES && window.COURSE_TYPES[info.t]) || {label:'مادة', icon:'📘'};
@@ -464,9 +447,7 @@
     return '⏳ عندك **' + u + '** امتحان قادم 📚';
   }
 
-  /* ============ 7. Intents ============ */
   var INTENTS = [
-    // priority: higher = more specific
     { id:'planNext',  priority:8, triggers:['الترم الجاي','الترم القادم','الفصل الجاي','الفصل القادم','شو اسجل','ماذا اسجل','اسجل ايش','next semester','الشسم'], handler:hPlanNext },
     { id:'progress',  priority:8, triggers:['تقدمي','باقي للتخرج','اتخرج','كم باقي','متبقي للتخرج','graduation','كم خلصت'], handler:hProgress },
     { id:'studyNow',  priority:8, triggers:['شنو ادرس','شو ادرس','ايش ادرس','ادرس ايش','استعد','اراجع','ماذا ادرس','بماذا ادرس','study now'], handler:hStudyNow },
@@ -507,7 +488,6 @@
     return sc;
   }
 
-  /* ============ 8. Multi-intent ============ */
   function splitMulti(text){
     var raw = String(text || '').trim();
     if(tokens(raw).length < 5) return [raw];
@@ -517,7 +497,6 @@
     return valid ? parts : [raw];
   }
 
-  /* ============ 9. Follow-ups ============ */
   function handleFollowUp(lower){
     var c = ctxGet();
     if(!c.topic) return null;
@@ -530,7 +509,6 @@
     return null;
   }
 
-  /* ============ 10. Router ============ */
   function processQuery(q){
     var raw = String(q || '').trim();
     if(!raw) return '🤔 اكتب شي عشان أساعدك!';
@@ -551,7 +529,6 @@
     var raw = String(text || '').trim();
     var lower = norm(raw);
 
-    /* --- Small talk --- */
     if(/^(السلام عليكم|سلام عليكم|سلام|مرحبا|هلا|اهلا|هاي|hi|hello|صباح|مساء)/.test(lower) && tokens(lower).length <= 5){
       return hGreet(lower);
     }
@@ -568,13 +545,11 @@
       return hHelp();
     }
 
-    /* --- Navigation (verb + target) --- */
     if(/(افتح|روح|خذني|انتقل|ودني|goto|open|show me|سير)/.test(lower)){
       var nr = hNavigate(lower);
       if(nr) return nr;
     }
 
-    /* --- Score intents --- */
     var scored = INTENTS.map(function(it){
       var sc = scoreIntent(it, lower);
       return { intent: it, score: sc + (it.priority || 5) * 30, rawScore: sc };
@@ -604,7 +579,6 @@
       '🔍 أو اكتب **"ساعدني"** للقائمة الكاملة.';
   }
 
-  /* ============ 11. UI ============ */
   var SUGG = [
     'كم مهمة عندي؟','متى امتحاني القادم؟','شو موادي؟','كم معدلي؟',
     'كم رصيدي؟','شو أسجل الترم الجاي؟','كم باقيلي للتخرج؟','شنو أدرس الحين؟',
@@ -711,7 +685,6 @@
     }
   }
 
-  /* ============ 12. Public API ============ */
   window.toggleAI = toggleAI;
   window.initAI = initAI;
   window.addAIMessage = addAIMessage;
@@ -739,5 +712,5 @@
   } else {
     setTimeout(bindAIEvents, 200);
   }
-  console.log('🧠 AI v3 loaded — ' + INTENTS.length + ' intents');
+  console.log('🧠 AI v3.1 loaded — ' + INTENTS.length + ' intents (with code normalization)');
 })();
