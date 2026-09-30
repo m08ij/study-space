@@ -1,7 +1,5 @@
 /* ============================================================
-   📸 ocr-advanced.js v7 — FINAL
-   ✅ Table Parser أولاً + fallback line-based
-   ✅ ربط محصّن لزر الرفع + retry
+   📸 ocr-advanced.js v8 — Column Classifier + Learner + Fallback
    ============================================================ */
 (function(){
   'use strict';
@@ -10,7 +8,6 @@
 
   var DAY_LETTER = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
 
-  /* ============ 1) تحميل Tesseract ============ */
   function loadTesseract(){
     if(typeof Tesseract !== 'undefined' && Tesseract.recognize) return Promise.resolve();
     if(window._tessLoading) return window._tessLoading;
@@ -24,7 +21,6 @@
     return window._tessLoading;
   }
 
-  /* ============ 2) تطبيع عربي ============ */
   function normAr(s){
     return String(s||'')
       .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
@@ -55,7 +51,6 @@
     return 1 - (m[b.length][a.length] / L);
   }
 
-  /* ============ 3) فلترة الرأس ============ */
   var HEADER_WORDS = ['رقم الماده','اسم الماده','الشعبه','النظري','العملي','وقت المحاضره','عدد الساعات','القاعه','المحاضره','الفصل','اذا','اده'];
 
   function isHeaderLine(line){
@@ -72,7 +67,6 @@
     return lines.filter(function(l){ return l && l.trim() && !isHeaderLine(l); });
   }
 
-  /* ============ 4) دمج الأسطر المكسورة ============ */
   function mergeHeaderWithNext(lines){
     var out = [], buffer = '';
     function flush(){ if(buffer.trim()) out.push(buffer.trim()); buffer = ''; }
@@ -91,7 +85,6 @@
     return out;
   }
 
-  /* ============ 5) إيجاد المادة من النص ============ */
   function findCourseInText(text){
     var DB = window.COURSES_DB || {};
     var line = normAr(text);
@@ -114,7 +107,6 @@
     return best;
   }
 
-  /* ============ 6) تجميع الكلمات في صفوف (fallback) ============ */
   function groupIntoRows(words, tol){
     tol = tol || 15;
     if(!words || !words.length) return [];
@@ -136,7 +128,6 @@
     return row.map(function(w){ return w.text; }).join(' ');
   }
 
-  /* ============ 7) تحميل الصورة ============ */
   function loadImage(file){
     return new Promise(function(resolve, reject){
       var img = new Image();
@@ -146,9 +137,6 @@
     });
   }
 
-  /* ============================================================
-     8) المعالجة الرئيسية
-     ============================================================ */
   async function analyzeImage(file){
     if(!file || !file.type.startsWith('image/')){
       toast('⚠️ اختر صورة صالحة', 'warn');
@@ -191,14 +179,23 @@
       });
 
       if(bar) bar.style.width = '80%';
-      if(progressText) progressText.textContent = '🏛️ تحليل الجدول...';
+      if(progressText) progressText.textContent = '📊 تحليل الأعمدة...';
 
+      // 1) جرّب Column Classifier أولاً (الأذكى)
       var parsed = { records: [], ok: false };
-      if(window.OCRTableParser){
+      if(window.ColumnClassifier){
+        try{
+          parsed = window.ColumnClassifier.parseTable(result.data, W);
+          console.log('📊 Column Classifier:', parsed.records.length, 'سجل · ok =', parsed.ok);
+        }catch(e){ console.warn('⚠️ Column Classifier فشل:', e); }
+      }
+
+      // 2) لو فشل → جرّب Table Parser القديم
+      if((!parsed.ok || !parsed.records.length) && window.OCRTableParser){
         try{
           parsed = window.OCRTableParser.parse(result.data, W, H);
-          console.log('🏛️ Table Parser:', parsed.records.length, 'سجل · ok =', parsed.ok);
-        }catch(e){ console.warn('⚠️ Table parser فشل:', e); }
+          console.log('🏛️ Table Parser (fallback):', parsed.records.length, 'سجل');
+        }catch(e){ console.warn('⚠️ Table Parser فشل:', e); }
       }
 
       var outputText = '';
@@ -213,8 +210,9 @@
                  (r.timeStart || '--:--') + ' - ' + (r.timeEnd || '--:--') + ' ' +
                  (r.room ? 'قاعة ' + r.room + ' ' : '') + r.hours;
         }).join('\n');
-        if(progressText) progressText.textContent = '✅ جدول — ' + parsed.records.length + ' مادة';
+        if(progressText) progressText.textContent = '✅ ' + parsed.records.length + ' مادة';
       } else {
+        // 3) fallback line-based
         console.log('🔄 fallback (line-based)...');
         var lines = [];
         if(result.data.words && result.data.words.length){
@@ -273,9 +271,6 @@
     }
   }
 
-  /* ============================================================
-     9) التركيب — ربط محصّن
-     ============================================================ */
   function install(){
     var uploadZone = document.getElementById('uploadZone');
     var ocrFile = document.getElementById('ocrFile');
@@ -287,10 +282,10 @@
       return;
     }
 
-    if(uploadZone._v7Bound) return;
-    uploadZone._v7Bound = true;
+    if(uploadZone._v8Bound) return;
+    uploadZone._v8Bound = true;
 
-    console.log('✅ OCR v7: bound to uploadZone');
+    console.log('✅ OCR v8: bound to uploadZone');
 
     uploadZone.addEventListener('click', function(e){
       if(e.target === ocrFile) return;
@@ -319,7 +314,6 @@
     });
   }
 
-  /* ============ التصدير ============ */
   window.ocrAdvanced = {
     analyze: analyzeImage,
     install: install,
@@ -328,16 +322,6 @@
     findCourseInText: findCourseInText
   };
 
-  window.ocrV7Test = function(text){
-    var lines = String(text || '').split('\n');
-    console.log('📝 اختبار:', lines.length, 'سطر');
-    lines.forEach(function(l){
-      var c = findCourseInText(l);
-      console.log('  ➡️', c ? '✅ ' + c : '❌', '|', l.slice(0, 60));
-    });
-  };
-
-  /* تشغيل بمحاولات متعددة */
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 200); });
   } else {
@@ -347,5 +331,5 @@
   setTimeout(install, 1500);
   setTimeout(install, 2500);
 
-  console.log('📸 OCR v7 FINAL — ready');
+  console.log('📸 OCR v8 FINAL — Column Classifier + Learner ready');
 })();
