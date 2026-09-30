@@ -1,8 +1,8 @@
 /* ============================================================
-   📥 timetable-importer.js v7 — HU Smart Parser
-   ✅ وقت ناقص: "0 - 19,30" → يفترض مدة ساعة → 18:30 - 19:30
-   ✅ اسم ذكي: يبحث في COURSES_DB على مستوى النص كامل أولاً
-   ✅ الأيام: يبحث عن "أيام /" كعلامة موحدة
+   📥 timetable-importer.js v8 — HU FINAL
+   ✅ الاسم من النص له أولوية على الكود (OCR يغلط بالأكواد)
+   ✅ وقت ذكي: يختار الأفضل من عدة تطابقات
+   ✅ يدعم "0 - 19:30" و "19,30 - 0"
    ============================================================ */
 (function(){
   'use strict';
@@ -17,7 +17,6 @@
   var DAY_LETTER = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
   var DAY_SHORT = { Sun:'ح', Mon:'ن', Tue:'ث', Wed:'ر', Thu:'خ', Fri:'ج', Sat:'س' };
   var DAY_KEYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var DAY_NAMES_AR = { Sun:'الأحد', Mon:'الاثنين', Tue:'الثلاثاء', Wed:'الأربعاء', Thu:'الخميس', Fri:'الجمعة', Sat:'السبت' };
   var DAY_CLASS = '[حنثرخجس]';
 
   /* ============ 1) تطبيع ============ */
@@ -29,7 +28,7 @@
 
   function preprocess(raw){
     var t = fixDigits(String(raw || ''));
-    t = t.replace(/(\d{1,2})\s*[,.]\s*(\d{2})/g, '$1:$2'); // 09,30 → 09:30
+    t = t.replace(/(\d{1,2})\s*[,.]\s*(\d{2})/g, '$1:$2');
     t = t.replace(/[\u200F\u200E\u200B\u00A0\u200C\u200D]/g, ' ');
     t = t.replace(/\r\n?/g, '\n');
     t = t.replace(/[|¦]/g, ' ');
@@ -58,84 +57,82 @@
   }
 
   /* ============================================================
-     3) 🆕 استخراج الوقت — يتعامل مع الناقص والمشوّه
+     3) استخراج الوقت — نسخة محسّنة (تختار الأفضل)
      ============================================================ */
   function extractTime(text){
     if(!text) return null;
 
-    // (1) كامل: HH:MM - HH:MM
-    var m = text.match(/(\d{1,2}):(\d{2})\s*[-–—~]\s*(\d{1,2}):(\d{2})/);
-    if(m){
-      var h1 = parseInt(m[1],10), mm1 = parseInt(m[2],10);
-      var h2 = parseInt(m[3],10), mm2 = parseInt(m[4],10);
-      if(h1 > 23 || h2 > 23 || mm1 > 59 || mm2 > 59) return null;
+    // اجمع كل الأوقات الكاملة
+    var regex = /(\d{1,2}):(\d{2})\s*[-–—~]\s*(\d{1,2}):(\d{2})/g;
+    var matches = [];
+    var m;
+    while((m = regex.exec(text)) !== null) matches.push(m);
 
-      // 🆕 كشف الوقت المشوّه: 0:00 → 19:30 (فرق 19 ساعة غير منطقي)
-      var needGuess = false;
-      if(h1 < 6 && h2 >= 8 && (h2 - h1) > 4){ needGuess = true; h1 = h2 - 1; mm1 = mm2; }
-      else if(h2 < 6 && h1 >= 8 && (h1 - h2) > 4){ needGuess = true; h2 = h1 + 1; mm2 = mm1; }
+    if(matches.length){
+      var best = null, bestScore = -1;
+      matches.forEach(function(mt){
+        var h1 = parseInt(mt[1],10), mm1 = parseInt(mt[2],10);
+        var h2 = parseInt(mt[3],10), mm2 = parseInt(mt[4],10);
+        if(h1 > 23 || h2 > 23 || mm1 > 59 || mm2 > 59) return;
+        if(h1 < 6 || h2 < 6) return; // وقت فاسد
 
-      // معالجة المعكوس
-      var reversed = false;
-      if(h1 > h2 || (h1 === h2 && mm1 > mm2)){
-        var th = h1, tm = mm1; h1 = h2; mm1 = mm2; h2 = th; mm2 = tm;
-        reversed = true;
+        var forward = (h1 < h2) || (h1 === h2 && mm1 < mm2);
+        var diff = (h2*60+mm2) - (h1*60+mm1);
+        if(diff < 0) diff += 24*60;
+
+        var score = 0;
+        if(forward) score += 15;
+        if(diff >= 45 && diff <= 180) score += 25;
+        else if(diff >= 180) score -= 5;
+
+        if(score > bestScore){
+          bestScore = score;
+          best = { h1: h1, mm1: mm1, h2: h2, mm2: mm2 };
+        }
+      });
+
+      if(best){
+        var h1 = best.h1, mm1 = best.mm1, h2 = best.h2, mm2 = best.mm2;
+        if(h1 > h2 || (h1 === h2 && mm1 > mm2)){
+          var th = h1, tm = mm1; h1 = h2; mm1 = mm2; h2 = th; mm2 = tm;
+        }
+        return { start: p2(h1)+':'+p2(mm1), end: p2(h2)+':'+p2(mm2) };
       }
-      return {
-        start: p2(h1)+':'+p2(mm1),
-        end:   p2(h2)+':'+p2(mm2),
-        match: m[0], index: m.index, reversed: reversed, guessed: needGuess
-      };
     }
 
-    // (2) 🆕 ناقص يسار: "0 - 19:30" → 18:30 - 19:30
+    // ناقص يسار: "0 - 19:30" → 18:30 - 19:30
     m = text.match(/(\d{1,2})\s*[-–—~]\s*(\d{1,2}):(\d{2})/);
     if(m){
       var hA = parseInt(m[1],10);
       var hB = parseInt(m[2],10), mmB = parseInt(m[3],10);
       if(hB > 23 || mmB > 59) return null;
-      var h1n, mm1n, h2n, mm2n;
-      if(hA < 6){
-        // الطرف الأول غالط → افترض مدة ساعة
-        h1n = Math.max(0, hB - 1); mm1n = mmB;
-        h2n = hB; mm2n = mmB;
-      } else {
-        h1n = hA; mm1n = 0;
-        h2n = hB; mm2n = mmB;
-      }
-      return {
-        start: p2(h1n)+':'+p2(mm1n),
-        end: p2(h2n)+':'+p2(mm2n),
-        match: m[0], index: m.index, guessed: true
-      };
+      if(hA < 6) return { start: p2(Math.max(0,hB-1))+':'+p2(mmB), end: p2(hB)+':'+p2(mmB) };
+      return { start: p2(hA)+':00', end: p2(hB)+':'+p2(mmB) };
     }
 
-    // (3) 🆕 ناقص يمين: "19:30 - 0" → 19:30 - 20:30
-    m = text.match(/(\d{1,2}):(\d{2})\s*[-–—~]\s*(\d{1,2})/);
+    // ناقص يمين: "19:30 - 0" → 19:30 - 20:30
+    m = text.match(/(\d{1,2}):(\d{2})\s*[-–—~]\s*(\d{1,2})(?![:\d])/);
     if(m){
       var hA2 = parseInt(m[1],10), mmA2 = parseInt(m[2],10);
       var hB2 = parseInt(m[3],10);
       if(hA2 > 23 || mmA2 > 59) return null;
-      if(hB2 < 6){
-        return {
-          start: p2(hA2)+':'+p2(mmA2),
-          end: p2(Math.min(23, hA2 + 1))+':'+p2(mmA2),
-          match: m[0], index: m.index, guessed: true
-        };
+      if(hB2 < 6) return { start: p2(hA2)+':'+p2(mmA2), end: p2(Math.min(23,hA2+1))+':'+p2(mmA2) };
+      return { start: p2(hA2)+':'+p2(mmA2), end: p2(hB2)+':00' };
+    }
+
+    // ناقص جداً: "0 - 19" → 18:00 - 19:00
+    m = text.match(/\s(\d{1,2})\s*[-–—~]\s*(\d{1,2})(?![:\d])/);
+    if(m){
+      var hA3 = parseInt(m[1],10), hB3 = parseInt(m[2],10);
+      if(hA3 < 6 && hB3 >= 8 && hB3 <= 23){
+        return { start: p2(hB3-1)+':00', end: p2(hB3)+':00' };
       }
-      return {
-        start: p2(hA2)+':'+p2(mmA2),
-        end: p2(hB2)+':00',
-        match: m[0], index: m.index, guessed: true
-      };
     }
 
     return null;
   }
 
-  /* ============================================================
-     4) 🆕 استخراج الأيام — يبحث عن "أيام /" كعلامة
-     ============================================================ */
+  /* ============ 4) الأيام ============ */
   function dayLettersToArray(str){
     var days = [];
     var s = String(str || '');
@@ -149,14 +146,12 @@
   }
 
   function extractDays(text){
-    // (1) ابحث عن "أيام /" — العلامة الرسمية في جدول HU
     var re1 = new RegExp('(?:^|[\\s\\)])((' + DAY_CLASS + '(?:[\\s]*' + DAY_CLASS + ')*))\\s*[\\/]');
     var m = text.match(re1);
     if(m && m[1]){
       var d = dayLettersToArray(m[1]);
       if(d.length) return { days: d, match: m[1] };
     }
-    // (2) Fallback: أيام متتالية بدون slash
     var re2 = new RegExp('(?:^|[\\s\\)])(' + DAY_CLASS + '(?:\\s+' + DAY_CLASS + '){1,5})(?=\\s|$)');
     m = text.match(re2);
     if(m && m[1]){
@@ -206,7 +201,7 @@
   }
 
   /* ============================================================
-     7) 🆕 استخراج الاسم — يبحث في COURSES_DB أولاً
+     7) استخراج الاسم — الأولوية للاسم من النص
      ============================================================ */
   function normArSimple(s){
     return String(s||'')
@@ -224,7 +219,44 @@
     var normalized = String(text || '').replace(/\s+/g, ' ').trim();
     var normSimple = normArSimple(normalized);
 
-    // (1) جرّب الكود أولاً
+    // 1) ابحث عن أطول اسم DB موجود حرفياً في النص
+    var bestName = null, bestLen = 0;
+    for(var key in DB){
+      var keyNorm = normArSimple(key);
+      if(keyNorm.length >= 5 && normSimple.indexOf(keyNorm) > -1){
+        if(keyNorm.length > bestLen){ bestLen = keyNorm.length; bestName = key; }
+      }
+    }
+    if(bestName) return bestName;
+
+    // 2) بدون أقواس
+    for(var key2 in DB){
+      var ck = normArSimple(key2).replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+      if(ck.length >= 5 && normSimple.indexOf(ck) > -1){
+        if(ck.length > bestLen){ bestLen = ck.length; bestName = key2; }
+      }
+    }
+    if(bestName) return bestName;
+
+    // 3) كلمات رئيسية
+    for(var key3 in DB){
+      var ck3 = normArSimple(key3).replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+      var words = ck3.split(/\s+/).filter(function(w){ return w.length > 3; });
+      if(words.length < 2) continue;
+      var matched = 0;
+      words.forEach(function(w){
+        var wStrip = w.replace(/^ال/, '');
+        if(normSimple.indexOf(w) > -1 || normSimple.indexOf(wStrip) > -1) matched++;
+      });
+      var ratio = matched / words.length;
+      if(ratio >= 0.75 && ratio * 100 > bestLen){
+        bestLen = ratio * 100;
+        bestName = key3;
+      }
+    }
+    if(bestName) return bestName;
+
+    // 4) الكود (كخيار أخير قبل الـ fallback)
     if(code){
       var cleanCode = String(code).replace(/^0+/, '');
       if(typeof window.findCourseByCode === 'function'){
@@ -236,48 +268,10 @@
       }
     }
 
-    // (2) ابحث عن أي اسم DB موجود كامل في النص
-    var bestName = null, bestScore = 0;
-    for(var key in DB){
-      var keyNorm = normArSimple(key);
-      if(keyNorm.length >= 5 && normSimple.indexOf(keyNorm) > -1){
-        if(keyNorm.length > bestScore){ bestScore = keyNorm.length; bestName = key; }
-      }
-    }
-    if(bestName) return bestName;
-
-    // (3) جرّب بدون الأقواس
-    for(var key2 in DB){
-      var ck = normArSimple(key2).replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
-      if(ck.length >= 5 && normSimple.indexOf(ck) > -1){
-        if(ck.length > bestScore){ bestScore = ck.length; bestName = key2; }
-      }
-    }
-    if(bestName) return bestName;
-
-    // (4) 🆕 كلمات رئيسية (substring + ratio)
-    for(var key3 in DB){
-      var ck3 = normArSimple(key3).replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
-      var words = ck3.split(/\s+/).filter(function(w){ return w.length > 3; });
-      if(words.length < 2) continue;
-      var matched = 0;
-      words.forEach(function(w){
-        var wStrip = w.replace(/^ال/, '');
-        if(normSimple.indexOf(w) > -1 || normSimple.indexOf(wStrip) > -1) matched++;
-      });
-      var ratio = matched / words.length;
-      if(ratio >= 0.75 && ratio * 100 > bestScore){
-        bestScore = ratio * 100;
-        bestName = key3;
-      }
-    }
-    if(bestName) return bestName;
-
-    // (5) Fallback: قبل "أيام /"
+    // 5) Fallback قبل "أيام /"
     var daysSlash = normalized.match(new RegExp('(' + DAY_CLASS + '(?:[\\s\\/]*' + DAY_CLASS + ')*)\\s*[\\/]'));
     if(daysSlash){
       var before = normalized.substring(0, daysSlash.index).trim();
-      // ابحث عن اسم ينتهي بـ (...)
       var withParen = before.match(/([\u0600-\u06FF][\u0600-\u06FF\s]*\([^)]+\)[\u0600-\u06FF\s]*?)\s+\d{1,3}\s+\d{1,3}\s*$/);
       if(withParen) return cleanName(withParen[1]);
       var m2 = before.match(/^([\s\S]+?)\s+\d{1,3}\s+\d{1,3}\s*$/);
@@ -310,7 +304,7 @@
     return r;
   }
 
-  /* ============ 9) تحليل الجدول ============ */
+  /* ============ 9) تحليل الجدول كامل ============ */
   function parseTable(raw){
     var text = preprocess(raw);
     if(!text.trim()) return [];
@@ -327,36 +321,49 @@
     return rows;
   }
 
-  /* ============ 10) مطابقة مع DB ============ */
+  /* ============================================================
+     10) مطابقة مع DB — الاسم أولاً
+     ============================================================ */
+  function matchByCode(code){
+    if(!code) return null;
+    var DB = window.COURSES_DB || {};
+    var cleanCode = String(code).replace(/^0+/, '');
+    if(typeof window.findCourseByCode === 'function'){
+      var r = window.findCourseByCode(code);
+      if(r && r.name) return r.name;
+    }
+    for(var k in DB){
+      if(String(DB[k].code || '').replace(/^0+/, '') === cleanCode) return k;
+    }
+    return null;
+  }
+
   function matchDB(row){
     var DB = window.COURSES_DB || {};
-    var cleanCode = String(row.code || '').replace(/^0+/, '');
-    if(cleanCode){
-      if(typeof window.findCourseByCode === 'function'){
-        var r = window.findCourseByCode(row.code);
-        if(r && r.name) return r.name;
-      }
-      for(var k in DB){
-        if(String(DB[k].code || '').replace(/^0+/, '') === cleanCode) return k;
-      }
-    }
     var n = (row.name || '').trim();
-    if(!n) return null;
-    if(DB[n]) return n;
-    // fuzzy
-    var eTokens = n.split(/\s+/).filter(function(t){ return t.length > 2; });
-    var best = null, bestScore = 0;
-    for(var k2 in DB){
-      var kTokens = k2.split(/\s+/).filter(function(t){ return t.length > 2; });
-      if(!kTokens.length) continue;
-      var matched = 0;
-      eTokens.forEach(function(t){
-        if(kTokens.some(function(kt){ return kt === t || kt.indexOf(t) > -1 || t.indexOf(kt) > -1; })) matched++;
-      });
-      var score = matched / Math.max(eTokens.length, kTokens.length);
-      if(score > bestScore && score >= 0.6){ bestScore = score; best = k2; }
+
+    // 1) مطابقة مباشرة بالاسم
+    if(n && DB[n]) return n;
+
+    // 2) fuzzy بالاسم
+    if(n && n.length >= 3){
+      var eTokens = n.split(/\s+/).filter(function(t){ return t.length > 2; });
+      var best = null, bestScore = 0;
+      for(var k2 in DB){
+        var kTokens = k2.split(/\s+/).filter(function(t){ return t.length > 2; });
+        if(!kTokens.length) continue;
+        var matched = 0;
+        eTokens.forEach(function(t){
+          if(kTokens.some(function(kt){ return kt === t || kt.indexOf(t) > -1 || t.indexOf(kt) > -1; })) matched++;
+        });
+        var score = matched / Math.max(eTokens.length, kTokens.length);
+        if(score > bestScore && score >= 0.55){ bestScore = score; best = k2; }
+      }
+      if(best) return best;
     }
-    return best;
+
+    // 3) الكود كخيار أخير
+    return matchByCode(row.code);
   }
 
   /* ============ 11) التطبيق ============ */
@@ -384,7 +391,7 @@
       }
 
       var exists = sp.courses.some(function(c){
-        return c.name === finalName || (row.code && c.code === row.code);
+        return c.name === finalName;
       });
       if(!exists && finalName){
         var info = matchedName ? (window.COURSES_DB[matchedName] || {}) : {};
@@ -411,7 +418,7 @@
     return stats;
   }
 
-  /* ============ 12) عينة HU ============ */
+  /* ============ 12) عينة ============ */
   var SAMPLE = [
     '110108101 تفاضل وتكامل (1) 1 0 ح ث خ / 09,30 - 10,30 المادة تدرس بشكل مدمج في مبنى الحسين الباني ح.ب / 104 على منصة(مايكروسوفت teams) 3',
     '121601099 لغة عربية / استدراكية 2 0 ن ر / 10,00 - 08,30 المادة تدرس بشكل مدمج في مجمع قاعات ابن خلدون م.غ / 213 على منصة(مايكروسوفت teams) 3',
@@ -548,7 +555,7 @@
     };
 
     bd.querySelector('#tiiApply').onclick = function(){
-      var valid = state.rows.filter(function(r){ return r.name && r.days.length && r.timeStart; });
+      var valid = state.rows.filter(function(r){ return r.name && r.days.length; });
       if(!valid.length){ toast('⚠️ ما في صفوف صالحة', 'warn', 4000); return; }
       var stats = apply(valid);
       bd.remove();
@@ -578,8 +585,8 @@
     var timer = setInterval(function(){
       tries++;
       var btn = document.getElementById('btnParseOcr');
-      if(btn && !btn._v7Bound){
-        btn._v7Bound = true;
+      if(btn && !btn._v8Bound){
+        btn._v8Bound = true;
         var nb = btn.cloneNode(true);
         btn.parentNode.replaceChild(nb, btn);
         nb.addEventListener('click', function(){
@@ -595,8 +602,8 @@
     var timer2 = setInterval(function(){
       tries2++;
       var btn = document.getElementById('btnPasteOcr');
-      if(btn && !btn._v7Bound){
-        btn._v7Bound = true;
+      if(btn && !btn._v8Bound){
+        btn._v8Bound = true;
         var nb = btn.cloneNode(true);
         btn.parentNode.replaceChild(nb, btn);
         nb.addEventListener('click', function(){ openEditor(SAMPLE); });
@@ -612,11 +619,11 @@
     apply: apply,
     sample: SAMPLE,
     loadSample: function(){ openEditor(SAMPLE); },
-    extractTime: extractTime,   // للاختبار
-    extractName: extractName    // للاختبار
+    extractTime: extractTime,
+    extractName: extractName
   };
 
-  window.ocrV7Test = function(text){
+  window.ocrV8Test = function(text){
     var entries = parseTable(text || SAMPLE);
     console.log('%c🔍 ' + entries.length + ' صف', 'color:#a78bfa;font-weight:bold');
     entries.forEach(function(e){
@@ -630,5 +637,5 @@
     document.addEventListener('DOMContentLoaded', function(){ injectCSS(); install(); });
   } else { injectCSS(); install(); }
 
-  console.log('📥 Timetable Importer v7 — Smart HU Parser');
+  console.log('📥 Timetable Importer v8 — Name-first matcher');
 })();
