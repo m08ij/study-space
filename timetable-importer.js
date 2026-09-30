@@ -1,12 +1,13 @@
 /* ============================================================
-   📥 timetable-importer.js v3 — محلل جدول الجامعة الهاشمية
-   ✅ يفهم الصيغة الرسمية 100%:
-      - وقت بصيغة HH,MM - HH,MM (فاصلة)
+   📥 timetable-importer.js v4 — محلل جدول الجامعة الهاشمية
+   ✅ صُمّم خصيصاً لصيغة الجدول الرسمي:
+      - وقت بصيغة HH,MM - HH,MM
       - قاعة بصيغة ح.ب / 104 (مسافة حول /)
       - وقت معكوس (10,00 - 08,30)
-      - اسم مادة على سطرين
-      - شعب نظرية/عملية قبل الأيام
-      - وصف "المادة تدرس..." و"على منصة..."
+      - أسماء تحتوي / وأقواس
+      - شعبتين (نظري/عملي) قبل الأيام
+   ✅ استراتيجية "الاسم قبل الأرقام":
+      الاسم دائماً ينتهي قبل نمط [رقم] [رقم] [أيام]
    ============================================================ */
 (function(){
   'use strict';
@@ -18,214 +19,157 @@
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function p2(n){ return String(n).padStart(2,'0'); }
 
-  /* ============================================================
-     ثوابت
-     ============================================================ */
   var DAY_LETTER = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
   var DAY_SHORT = { Sun:'ح', Mon:'ن', Tue:'ث', Wed:'ر', Thu:'خ', Fri:'ج', Sat:'س' };
   var DAY_KEYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var DAY_NAMES_AR = { Sun:'الأحد', Mon:'الاثنين', Tue:'الثلاثاء', Wed:'الأربعاء', Thu:'الخميس', Fri:'الجمعة', Sat:'السبت' };
+  var DAY_LETTER_CLASS = '[حنثرخجس]';
 
-  /* ============================================================
-     1) تطبيع النص
-     ============================================================ */
+  /* ============ تطبيع ============ */
   function fixDigits(t){
     return String(t||'').replace(/[٠١٢٣٤٥٦٧٨٩]/g, function(d){
       return String.fromCharCode(d.charCodeAt(0) - 0x0660 + 48);
     });
   }
 
-  function normalize(raw){
+  function preprocess(raw){
     var t = fixDigits(String(raw || ''));
-    // ✅ الأهم: نحوّل الفاصلة/النقطة داخل الأوقات إلى نقطتين
-    // مثال: 09,30 → 09:30
+    // HH,MM أو HH.MM → HH:MM
     t = t.replace(/(\d{1,2})\s*[,.]\s*(\d{2})/g, '$1:$2');
-    // إزالة الرموز الغريبة
-    t = t.replace(/[|¦]/g, ' ');
-    t = t.replace(/[\u200F\u200E\u200B]/g, '');
+    // إزالة الرموز الخفية
+    t = t.replace(/[\u200F\u200E\u200B\u00A0]/g, ' ');
     // توحيد الأسطر
     t = t.replace(/\r\n?/g, '\n');
+    // رموز غريبة
+    t = t.replace(/[|¦]/g, ' ');
+    // رؤوس الأعمدة
+    t = t.replace(/رقم\s+المادة/gi, '');
+    t = t.replace(/اسم\s+المادة/gi, '');
+    t = t.replace(/الشعبة\s+النظري/gi, '');
+    t = t.replace(/الشعبة\s+العملي/gi, '');
+    t = t.replace(/وقت\s+المحاضرة/gi, '');
+    t = t.replace(/رقم\s+القاعة/gi, '');
+    t = t.replace(/عدد\s+الساعات/gi, '');
     return t;
   }
 
-  /* ============================================================
-     2) استخراج الكود
-     ============================================================ */
+  /* ============ استخراج الأكواد ============ */
   function findCodes(text){
     var re = /\b(\d{6,11})\b/g;
     var m, out = [];
     while((m = re.exec(text)) !== null){
-      // تجاهل لو الرقم جزء من وقت (مثل 0930 بين 09:30-10:30)
-      var before = text.substring(Math.max(0, m.index - 3), m.index);
-      var after = text.substring(m.index + m[1].length, m.index + m[1].length + 3);
+      // استبعد لو جزء من وقت
+      var before = text.substring(Math.max(0, m.index - 2), m.index);
+      var after = text.substring(m.index + m[1].length, m.index + m[1].length + 2);
       if(/[:.\-]\s*$/.test(before) || /^\s*[:.\-]/.test(after)) continue;
       out.push({ code: m[1], index: m.index, end: m.index + m[1].length });
     }
     return out;
   }
 
-  /* ============================================================
-     3) استخراج الوقت — يدعم الفاصلة والوقت المعكوس
-     ============================================================ */
+  /* ============ استخراج الوقت ============ */
   function extractTime(text){
-    // الصيغة الأساسية: HH:MM - HH:MM
     var m = text.match(/(\d{1,2}):(\d{2})\s*[-–—~]\s*(\d{1,2}):(\d{2})/);
-    if(m){
-      var h1 = parseInt(m[1],10), mm1 = parseInt(m[2],10);
-      var h2 = parseInt(m[3],10), mm2 = parseInt(m[4],10);
-      if(h1 <= 23 && h2 <= 23 && mm1 <= 59 && mm2 <= 59){
-        // ✅ إصلاح الوقت المعكوس: لو h1 > h2، بدّل
-        var wasReversed = false;
-        if(h1 > h2 || (h1 === h2 && mm1 > mm2)){
-          var th = h1, tm = mm1; h1 = h2; mm1 = mm2; h2 = th; mm2 = tm;
-          wasReversed = true;
-        }
-        return {
-          start: p2(h1)+':'+p2(mm1),
-          end:   p2(h2)+':'+p2(mm2),
-          match: m[0],
-          reversed: wasReversed
-        };
-      }
+    if(!m) return null;
+    var h1 = parseInt(m[1],10), mm1 = parseInt(m[2],10);
+    var h2 = parseInt(m[3],10), mm2 = parseInt(m[4],10);
+    if(h1 > 23 || h2 > 23 || mm1 > 59 || mm2 > 59) return null;
+    var wasReversed = false;
+    if(h1 > h2 || (h1 === h2 && mm1 > mm2)){
+      var th = h1, tm = mm1; h1 = h2; mm1 = mm2; h2 = th; mm2 = tm;
+      wasReversed = true;
     }
-    return null;
+    return {
+      start: p2(h1)+':'+p2(mm1),
+      end:   p2(h2)+':'+p2(mm2),
+      match: m[0],
+      index: m.index,
+      reversed: wasReversed
+    };
   }
 
-  /* ============================================================
-     4) استخراج الأيام — من المنطقة قبل الوقت
-     ============================================================ */
-  function extractDays(text, timeMatch){
-    var zone = text;
-    if(timeMatch){
-      var idx = text.indexOf(timeMatch);
-      if(idx > 0) zone = text.substring(0, idx);
-    }
-    // نبحث عن آخر تسلسل من [حنثرخجس]
-    var re = /[حنثرخجس]+/g;
+  /* ============ استخراج الأيام ============ */
+  // يجمع "ح ث خ" أو "حثخ" أو "ن ر" — قبل الوقت
+  function extractDays(text, beforeIdx){
+    var zone = (beforeIdx >= 0) ? text.substring(0, beforeIdx) : text;
+    // نمط: تسلسل من 1-6 حروف أيام، مفصولة بمسافات أو بدون
+    var re = new RegExp('(?:^|[\\s\\/])([' + DAY_LETTER_CLASS + '](?:[\\s]*' + DAY_LETTER_CLASS + ')*)(?=[\\s\\/]|$)', 'g');
     var m, last = null;
     while((m = re.exec(zone)) !== null){
-      var seq = m[0];
-      if(seq.length < 1 || seq.length > 6) continue;
-      var before = zone[m.index - 1] || '';
-      var after = zone[m.index + seq.length] || '';
-      if(/[\u0600-\u06FF]/.test(before) || /[\u0600-\u06FF]/.test(after)) continue;
-      last = seq;
+      // تأكد أن الحرف قبل السلسلة مو حرف عربي (كلمة)
+      var charBefore = m[0][0];
+      if(/[\u0600-\u06FF]/.test(charBefore)) continue;
+      last = m[1];
     }
-    if(!last) return [];
+    if(!last) return { days: [], match: null };
     var days = [];
     for(var i = 0; i < last.length; i++){
-      var d = DAY_LETTER[last[i]];
+      var ch = last[i];
+      if(/\s/.test(ch)) continue;
+      var d = DAY_LETTER[ch];
       if(d && days.indexOf(d) === -1) days.push(d);
     }
-    return days;
+    return { days: days, match: last };
   }
 
-  /* ============================================================
-     5) استخراج القاعة — يدعم "ح.ب / 104" و "م.غ / 213"
-     ============================================================ */
+  /* ============ استخراج القاعة ============ */
   function extractRoom(text){
-    // النمط: حرف.حرف (مسافات؟) / (مسافات؟) رقم
-    // أمثلة: "ح.ب / 104" — "م.غ / 213" — "ح.ب/105" — "م.ب 302"
+    // "ح.ب / 104" — "م.غ / 213" — "ح.ب/105" — "م.ب 302"
     var patterns = [
-      // ح.ب / 104
-      /([حمم][\s.]*[بغبجمع][\s.]*)\s*\/\s*(\d+)/,
-      // ح.ب 104 (بدون /)
-      /([حمم][\s.]*[بغبجمع][\s.]*)\s+(\d+)/,
-      // قاعة 104
-      /(?:قاعة|قاعه|ق\.)\s*([A-Za-z0-9\u0600-\u06FF\-]+)/i,
-      // Room 104
-      /(?:room|hall|lab|Rm)\s*([A-Za-z0-9\-]+)/i
+      /([حمم][\s.]*[بغبجمع][\s.]*)\s*\/\s*(\d{2,4})/,
+      /([حمم][\s.]*[بغبجمع][\s.]*)\s+(\d{2,4})/
     ];
     for(var i = 0; i < patterns.length; i++){
       var m = text.match(patterns[i]);
       if(m){
-        if(m[2] !== undefined){
-          // ح.ب + رقم
-          return m[1].replace(/\s+/g, ' ').trim() + ' ' + m[2];
-        }
-        return m[0].replace(/\s+/g, ' ').trim();
+        var prefix = m[1].replace(/\s+/g, ' ').trim();
+        // تأكد أن الأرقام ليست شعبة (1-3 خانات)
+        if(m[2].length >= 2) return prefix + ' ' + m[2];
       }
     }
     return '';
   }
 
-  /* ============================================================
-     6) استخراج الساعات (رقم وحيد في النهاية)
-     ============================================================ */
-  function extractHours(text, timeMatch){
-    var t = text;
-    if(timeMatch) t = t.replace(timeMatch, ' ');
-    // رقم وحيد في نهاية النص (1-6)
-    var m = t.match(/\s(\d)\s*$/);
+  /* ============ استخراج الساعات ============ */
+  function extractHours(text){
+    var m = text.match(/\s(\d)\s*$/);
     if(m){
       var h = parseInt(m[1],10);
       if(h >= 1 && h <= 6) return h;
     }
-    // أو رقم بين مسافتين بعد القاعة
     return 3;
   }
 
-  /* ============================================================
-     7) تنظيف الاسم — إزالة كل الزوائد
-     ============================================================ */
-  function cleanName(text, code, time, days, room){
-    var n = text;
-    if(code) n = n.replace(code, ' ');
-
-    // احذف الوقت
-    if(time && time.match) n = n.replace(time.match, ' ');
-
-    // احذف الأيام (ح ن ث ر خ فقط، مع مسافات أو شرطات)
-    n = n.replace(/(?:^|[\s\/|\\\-–—,؛;])[حنثرخجس](?:[\s\/|\\\-–—,؛;]+[حنثرخجس]){0,5}(?=[\s\/|\\\-–—,؛;]|$)/g, ' ');
-
-    // احذف القاعة
-    if(room){
-      // احذف كل الأشكال المحتملة
-      n = n.replace(/[حمم][\s.]*[بغبجمع][\s.]*\s*\/?\s*\d+/g, ' ');
-      n = n.replace(new RegExp(room.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), ' ');
-    }
-
-    // احذف الوصف المدرسي
-    n = n.replace(/المادة\s+تدرس[^\n]*/gi, ' ');
-    n = n.replace(/الماده\s+تدرس[^\n]*/gi, ' ');
-    n = n.replace(/تدرس\s+بشكل[^\n]*/gi, ' ');
-    n = n.replace(/على\s+منصة[^\n]*/gi, ' ');
-    n = n.replace(/على\s+منصه[^\n]*/gi, ' ');
-    n = n.replace(/\(?\s*مايكروسوفت\s*\)?/gi, ' ');
-    n = n.replace(/\(?\s*teams\s*\)?/gi, ' ');
-    n = n.replace(/\(?\s*Microsoft\s*\)?/gi, ' ');
-    n = n.replace(/(?:مدمج|مدمجا|وجاهي|وجاهيا|حضوريا|افتراضي|عن\s+بعد|عن\s+بعد)/g, ' ');
-    n = n.replace(/في\s+(?:مبنى|مبنه|مجمع|مجمّع|قاعات)\s+[^\n\/,،؛]+/gi, ' ');
-
-    // احذف أرقام الشعبة (نظري/عملي): رقم وحيد أو رقمين متتاليين قبل الأيام
-    n = n.replace(/\s+\d{1,3}\s+\d{1,2}\s+/g, ' ');
-
-    // احذف عدد الساعات (رقم وحيد في النهاية)
-    n = n.replace(/\s+\d\s*$/g, ' ');
-
-    // احذف الشرطات المائلة مع الحرص (لأن الاسم قد يحتوي / مثل "لغة عربية / استدراكية")
-    // نحذف فقط لو / معزولة بدون سياق
-    n = n.replace(/^\s*[\/|\\]\s*/, ' ');
-    n = n.replace(/\s*[\/|\\]\s*$/, ' ');
-
-    // نظّف
-    n = n.replace(/\s+/g, ' ').trim();
-    return n;
+  /* ============ استخراج الاسم — الأهم! ============ */
+  // الاسم ينتهي مباشرة قبل: [رقم] [رقم] [أيام]
+  function extractName(text){
+    var trimmed = text.trim();
+    // 1) نمط كامل: اسم + رقمين + أيام
+    var m = trimmed.match(new RegExp('^(.+?)\\s+\\d{1,3}\\s+\\d{1,3}\\s+' + DAY_LETTER_CLASS));
+    if(m) return cleanName(m[1]);
+    // 2) نمط مختصر: اسم + أيام
+    m = trimmed.match(new RegExp('^(.+?)\\s+' + DAY_LETTER_CLASS + '(?:\\s*' + DAY_LETTER_CLASS + ')*\\s*(?=[\\/\\s])'));
+    if(m) return cleanName(m[1]);
+    // 3) احتياطي: قبل الوقت
+    m = trimmed.match(/^(.+?)\s+\d{1,2}:\d{2}/);
+    if(m) return cleanName(m[1]);
+    // 4) احتياطي أخير: أول 80 حرف
+    return cleanName(trimmed.slice(0, 80));
   }
 
-  /* ============================================================
-     8) التحليل الرئيسي — صف بصف
-     ============================================================ */
-  function parseRows(raw, debug){
-    var log = debug ? console.log.bind(console, '[TII]') : function(){};
-    var text = normalize(raw);
-    log('📄 النص المطبّع:', text.substring(0, 300));
+  function cleanName(name){
+    return String(name || '')
+      .replace(/\s+/g, ' ')
+      .replace(/^\s*[\/\\|]+\s*/, '')
+      .replace(/\s*[\/\\|]+\s*$/, '')
+      .trim();
+  }
 
+  /* ============ التحليل الرئيسي ============ */
+  function parseTable(raw){
+    var text = preprocess(raw);
     if(!text.trim()) return [];
-
     var codes = findCodes(text);
-    log('🔍 أكواد موجودة:', codes.map(function(c){ return c.code; }));
-
     if(!codes.length) return [];
 
     var rows = [];
@@ -233,37 +177,42 @@
       var start = codes[i].end;
       var end = (i + 1 < codes.length) ? codes[i + 1].index : text.length;
       var chunk = text.substring(start, end).replace(/\s+/g, ' ').trim();
-
-      log('— صف ' + (i+1) + ' (كود ' + codes[i].code + '):', chunk.substring(0, 200));
-
-      var time = extractTime(chunk);
-      var days = extractDays(chunk, time ? time.match : null);
-      var room = extractRoom(chunk);
-      var hours = extractHours(chunk, time ? time.match : null);
-      var name = cleanName(chunk, codes[i].code, time, days, room);
-
-      if(!name || name.length < 2){
-        name = 'مادة ' + codes[i].code;
-      }
-
-      var row = {
-        code: codes[i].code,
-        name: name,
-        days: days,
-        timeStart: time ? time.start : '',
-        timeEnd: time ? time.end : '',
-        room: room,
-        hours: hours
-      };
-      log('   → اسم:', name, '| أيام:', days.join(','), '| وقت:', row.timeStart, '→', row.timeEnd, '| قاعة:', room);
+      var row = parseRow(chunk, codes[i].code);
       rows.push(row);
     }
     return rows;
   }
 
-  /* ============================================================
-     9) المطابقة مع COURSES_DB
-     ============================================================ */
+  function parseRow(chunk, code){
+    var result = { code: code, name: '', days: [], timeStart: '', timeEnd: '', room: '', hours: 3 };
+
+    // 1) الوقت (نقطة البداية لكل شي)
+    var time = extractTime(chunk);
+    if(time){
+      result.timeStart = time.start;
+      result.timeEnd = time.end;
+    }
+
+    // 2) الأيام (قبل الوقت)
+    var daysInfo = extractDays(chunk, time ? time.index : -1);
+    result.days = daysInfo.days;
+
+    // 3) القاعة
+    result.room = extractRoom(chunk);
+
+    // 4) الساعات
+    result.hours = extractHours(chunk);
+
+    // 5) الاسم (من بداية chunk)
+    result.name = extractName(chunk);
+
+    if(!result.name || result.name.length < 2){
+      result.name = 'مادة ' + code;
+    }
+    return result;
+  }
+
+  /* ============ مطابقة مع COURSES_DB ============ */
   function matchDB(row){
     var DB = window.COURSES_DB || {};
     var cleanCode = String(row.code || '').replace(/^0+/, '');
@@ -275,8 +224,10 @@
     for(var k in DB){
       if(String(DB[k].code).replace(/^0+/, '') === cleanCode) return k;
     }
+    // مطابقة بالاسم (مهم للأكواد الجديدة مثل 121601099)
     var n = (row.name || '').trim();
     if(DB[n]) return n;
+    // fuzzy
     var eTokens = n.split(/\s+/).filter(function(t){ return t.length > 2; });
     var best = null, bestScore = 0;
     for(var k2 in DB){
@@ -292,9 +243,7 @@
     return best;
   }
 
-  /* ============================================================
-     10) التطبيق
-     ============================================================ */
+  /* ============ التطبيق ============ */
   function apply(rows){
     var sp = getSpace();
     if(!sp.timetable) sp.timetable = {};
@@ -312,11 +261,7 @@
         row.days.forEach(function(day){
           var key = day + '-' + row.timeStart;
           if(!sp.timetable[key]){
-            sp.timetable[key] = {
-              name: finalName,
-              room: row.room || '',
-              instructor: ''
-            };
+            sp.timetable[key] = { name: finalName, room: row.room || '', instructor: '' };
             stats.timetable++;
           }
         });
@@ -328,12 +273,10 @@
       if(!exists && finalName){
         var info = matchedName ? (window.COURSES_DB[matchedName] || {}) : {};
         sp.courses.push({
-          id: uid(),
-          name: finalName,
+          id: uid(), name: finalName,
           code: row.code || info.code || '',
           hours: row.hours || info.h || 3,
-          instructor: '',
-          room: row.room || ''
+          instructor: '', room: row.room || ''
         });
         stats.courses++;
       }
@@ -352,10 +295,8 @@
     return stats;
   }
 
-  /* ============================================================
-     11) بيانات الاختبار — من صورتك بالضبط!
-     ============================================================ */
-  var SAMPLE_REAL =
+  /* ============ عينات الاختبار ============ */
+  var SAMPLE_SINGLE =
     '110108101 تفاضل وتكامل (1) 1 0 ح ث خ / 09,30 - 10,30 المادة تدرس بشكل مدمج في مبنى الحسين الباني ح.ب / 104 على منصة(مايكروسوفت teams) 3\n' +
     '121601099 لغة عربية / استدراكية 2 0 ن ر / 10,00 - 08,30 المادة تدرس بشكل مدمج في مجمع قاعات ابن خلدون م.غ / 213 على منصة(مايكروسوفت teams) 3\n' +
     '1701081136 فيزياء عامة (1) 4 0 ح ث خ / 10,30 - 11,30 المادة تدرس وجاهي في مبنى الحسين الباني ح.ب / 105 3\n' +
@@ -368,43 +309,37 @@
     '2116021101\nمهارات التواصل باللغة الانجليزية\n10\n0\nح ث خ / 18,30 - 19,30\nالمادة تدرس عن بعد على منصة(مايكروسوفت teams)\n3';
 
   var SAMPLES = {
-    '🎯 جدولك الحقيقي (سطر واحد لكل مادة)': SAMPLE_REAL,
-    '📄 جدولك الحقيقي (كل حقل بسطر - OCR)': SAMPLE_MULTILINE
+    '🎯 جدولك (سطر لكل مادة)': SAMPLE_SINGLE,
+    '📄 جدولك (سطر لكل حقل - OCR)': SAMPLE_MULTILINE
   };
 
-  /* ============================================================
-     12) نافذة الاختبار الذاتي
-     ============================================================ */
+  /* ============ اختبار ذاتي ============ */
   function openSelfTest(){
     document.querySelectorAll('.modal-backdrop').forEach(function(m){ m.remove(); });
     var bd = document.createElement('div');
     bd.className = 'modal-backdrop show';
     var html = '<div class="modal" style="max-width:900px;width:96vw;padding:22px;max-height:92vh;overflow-y:auto">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
-    html += '<h3 style="margin:0">🧪 اختبار المحلل — بياناتك الحقيقية</h3>';
+    html += '<h3 style="margin:0">🧪 اختبار المحلل v4</h3>';
     html += '<button class="btn btn-sm btn-ghost" id="stClose">✕</button></div>';
 
     Object.keys(SAMPLES).forEach(function(key){
-      var sample = SAMPLES[key];
       var parsed = [];
       var error = null;
-      try{ parsed = parseRows(sample, false); }
-      catch(e){ error = e.message; }
-      var ok = parsed.length === 4;
+      try{ parsed = parseTable(SAMPLES[key]); }catch(e){ error = e.message; }
+      var ok = parsed.length === 4 && parsed.every(function(r){ return r.name && r.days.length && r.timeStart; });
       var color = ok ? 'var(--green)' : 'var(--red)';
       html += '<div style="background:var(--card);border:1px solid var(--border);border-right:3px solid ' + color + ';border-radius:12px;padding:14px;margin-bottom:10px">';
       html += '<div style="font-weight:700;font-size:.9rem;margin-bottom:8px">' + (ok ? '✅' : '❌') + ' ' + esc(key) + ' <span style="color:var(--muted);font-size:.75rem">(' + parsed.length + '/4)</span></div>';
-      if(error){
-        html += '<div style="color:var(--red);font-size:.78rem">خطأ: ' + esc(error) + '</div>';
-      } else if(parsed.length){
-        parsed.forEach(function(r, i){
+      if(error) html += '<div style="color:var(--red);font-size:.78rem">خطأ: ' + esc(error) + '</div>';
+      else if(parsed.length){
+        parsed.forEach(function(r){
           var match = matchDB(r);
           var dayStr = r.days.map(function(d){ return DAY_NAMES_AR[d]; }).join('، ');
-          var timeOK = r.timeStart && r.timeEnd;
           html += '<div style="padding:8px 10px;background:var(--bg2);border-radius:8px;font-size:.75rem;margin-bottom:5px">';
           html += '<div style="font-weight:700;color:' + (match ? 'var(--green)' : 'var(--amber)') + '">' + (match ? '✅' : '⚠️') + ' ' + esc(match || r.name) + '</div>';
-          html += '<div style="color:var(--muted2);font-family:monospace;font-size:.66rem;margin-top:2px">' + esc(r.code) + '</div>';
-          html += '<div style="font-size:.7rem;margin-top:3px">📅 ' + (dayStr || '❌ لا أيام') + ' · ⏰ ' + (timeOK ? r.timeStart + '→' + r.timeEnd : '❌ لا وقت') + ' · 📍 ' + (r.room || '—') + '</div>';
+          html += '<div style="color:var(--muted2);font-family:monospace;font-size:.68rem;margin-top:2px">' + esc(r.code) + '</div>';
+          html += '<div style="font-size:.7rem;margin-top:3px">📅 ' + (dayStr || '❌') + ' · ⏰ ' + (r.timeStart ? r.timeStart + '→' + r.timeEnd : '❌') + ' · 📍 ' + (r.room || '—') + '</div>';
           html += '</div>';
         });
       }
@@ -423,13 +358,11 @@
     bd.onclick = function(e){ if(e.target === bd) bd.remove(); };
     bd.querySelector('#stOpenImporter').onclick = function(){
       bd.remove();
-      openEditor(SAMPLE_REAL);
+      openEditor(SAMPLE_SINGLE);
     };
   }
 
-  /* ============================================================
-     13) نافذة التحرير
-     ============================================================ */
+  /* ============ نافذة التحرير ============ */
   function openEditor(initialText){
     document.querySelectorAll('.modal-backdrop').forEach(function(m){ m.remove(); });
     var state = { rows: [] };
@@ -447,7 +380,7 @@
           '</div>' +
         '</div>' +
         '<div style="background:var(--grad-soft);border:1px solid var(--glow);border-radius:10px;padding:10px;margin-bottom:12px;font-size:.76rem;line-height:1.6">' +
-          '📌 الصق النص → اضغط "تحليل" → راجع الصفوف → اضغط "تطبيق". كل حقل قابل للتعديل. زر 🐛 يشخّص كل خطوة.' +
+          '📌 الصق نص الجدول → اضغط "تحليل النص" → راجع الصفوف → "تطبيق". كل حقل قابل للتعديل.' +
         '</div>' +
         '<textarea id="tiiInput" placeholder="الصق النص..." style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:10px;font-family:monospace;font-size:.76rem;min-height:90px;resize:vertical;direction:rtl;outline:none;line-height:1.5"></textarea>' +
         '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">' +
@@ -557,7 +490,7 @@
       var text = input.value.trim();
       if(!text){ toast('الصق نص أولاً', 'warn'); return; }
       var rows;
-      try{ rows = parseRows(text, false); }
+      try{ rows = parseTable(text); }
       catch(e){ toast('فشل التحليل: ' + e.message, 'warn', 4000); return; }
       if(!rows.length){ toast('⚠️ ما لقيت أكواد (6-11 رقم)', 'warn', 3500); return; }
       state.rows = rows;
@@ -587,9 +520,7 @@
     if(initialText) setTimeout(function(){ bd.querySelector('#tiiParse').click(); }, 100);
   }
 
-  /* ============================================================
-     14) نافذة التشخيص
-     ============================================================ */
+  /* ============ نافذة التشخيص ============ */
   function openDebug(){
     document.querySelectorAll('.modal-backdrop').forEach(function(m){ m.remove(); });
     var bd = document.createElement('div');
@@ -600,9 +531,8 @@
           '<h3 style="margin:0">🐛 تشخيص المحلل</h3>' +
           '<button class="btn btn-sm btn-ghost" id="dbgClose">✕</button>' +
         '</div>' +
-        '<p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">الصق نصاً وشوف كيف يفهمه المحلل خطوة بخطوة.</p>' +
         '<textarea id="dbgInput" placeholder="الصق نص..." style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:12px;border-radius:10px;font-family:monospace;font-size:.78rem;min-height:140px;resize:vertical;direction:rtl;outline:none;line-height:1.6"></textarea>' +
-        '<button class="btn btn-sm" id="dbgGo" style="margin-top:10px">🔍 حلّل واعرض</button>' +
+        '<button class="btn btn-sm" id="dbgGo" style="margin-top:10px">🔍 حلّل</button>' +
         '<div id="dbgOutput" style="margin-top:16px"></div>' +
         '<div class="modal-actions" style="margin-top:14px">' +
           '<button class="btn btn-sm btn-ghost" id="dbgClose2">إغلاق</button>' +
@@ -618,21 +548,20 @@
       var text = bd.querySelector('#dbgInput').value.trim();
       if(!text){ toast('الصق نصاً', 'warn'); return; }
       var out = [];
-      out.push('📄 طول النص: ' + text.length + ' حرف');
-      var normalized = normalize(text);
-      out.push('🧹 بعد التطبيع (أول 200 حرف):\n' + normalized.substring(0, 200));
-      var codes = findCodes(normalized);
-      out.push('🔢 أكواد موجودة: ' + codes.length + ' → ' + codes.map(function(c){ return c.code; }).join(', '));
-      var rows = parseRows(text, false);
-      out.push('📊 صفوف مستخرجة: ' + rows.length);
+      out.push('📄 طول النص: ' + text.length);
+      var pre = preprocess(text);
+      out.push('🧹 بعد التطبيع:\n' + pre.substring(0, 250));
+      var codes = findCodes(pre);
+      out.push('🔢 الأكواد (' + codes.length + '): ' + codes.map(function(c){ return c.code; }).join(', '));
+      var rows = parseTable(text);
+      out.push('📊 الصفوف: ' + rows.length);
       rows.forEach(function(r, i){
         out.push('\n── صف ' + (i+1) + ' ──');
         out.push('كود: ' + r.code);
         out.push('اسم: ' + r.name);
-        out.push('أيام: ' + (r.days.join(',') || '❌ فاضي'));
-        out.push('وقت: ' + (r.timeStart ? r.timeStart + ' → ' + r.timeEnd : '❌ فاضي'));
+        out.push('أيام: ' + (r.days.join(',') || '❌'));
+        out.push('وقت: ' + (r.timeStart ? r.timeStart + ' → ' + r.timeEnd : '❌'));
         out.push('قاعة: ' + (r.room || 'فاضي'));
-        out.push('ساعات: ' + r.hours);
       });
       bd.querySelector('#dbgOutput').innerHTML =
         '<pre style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:.74rem;line-height:1.6;direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-word;color:var(--text)">' +
@@ -640,18 +569,17 @@
     };
   }
 
-  /* ============================================================
-     15) Public API + Install
-     ============================================================ */
+  /* ============ API عام ============ */
   window.TimetableImporter = {
     open: openEditor,
-    parse: parseRows,
+    parse: parseTable,
     apply: apply,
     test: openSelfTest,
     debug: openDebug,
     samples: SAMPLES
   };
 
+  /* ============ Install ============ */
   function injectCSS(){
     if(document.getElementById('tii-css')) return;
     var s = document.createElement('style');
@@ -720,6 +648,5 @@
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ injectCSS(); install(); });
   } else { injectCSS(); install(); }
-
-  console.log('📥 Timetable Importer v3 — محلل جدول الجامعة الهاشمية');
+  console.log('📥 Timetable Importer v4 — محلل جدول الجامعة الهاشمية');
 })();
