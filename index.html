@@ -1023,7 +1023,7 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 <script src="calendar-view.js"></script>    <!-- 🆕 -->
 <script src="custom-dashboard.js"></script> <!-- 🆕 -->
 <script src="mindmap.js"></script>          <!-- 🆕 -->
-<script src="ocr-smart.js"></script>
+<script src="ocr-parser-v8.js"></script>
 <script>
 /* ==================== GLOBAL STATE ==================== */
 var space = null;
@@ -2339,42 +2339,6 @@ function pasteOcrExample(){
   if(resultEl) resultEl.style.display = 'block';
   if(ta) ta.value = 'Sunday 08:00-09:00 Calculus 1 Room 101\nSunday 10:00-11:00 Programming Room Lab1\nMonday 09:00-10:00 Physics Room A\nTuesday 08:00-09:00 Programming Room 302';
   toast('تم التحميل', 'info', 2500);
-}
-function parseOcrText(){
-  var ta = document.getElementById('ocrTextarea'); var raw = ta ? ta.value.trim() : '';
-  if(!raw){ toast('لا يوجد نص', 'warn'); return; }
-  var dayMap = {
-    'sunday':'Sun','sun':'Sun','monday':'Mon','mon':'Mon',
-    'tuesday':'Tue','tue':'Tue','wednesday':'Wed','wed':'Wed','thursday':'Thu','thu':'Thu'
-  };
-  var lines = raw.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
-  var added = 0;
-  space.timetable = space.timetable || {};
-  lines.forEach(function(line){
-    var day = null;
-    var words = line.split(/[\s,،\-]+/).map(function(w){ return w.toLowerCase(); });
-    for(var i=0;i<words.length;i++){
-      var clean = words[i].replace(/[^a-z]/g, '');
-      if(dayMap[clean]){ day = dayMap[clean]; break; }
-    }
-    if(!day) return;
-    var times = line.match(/\d{1,2}\s*:\s*\d{2}/g);
-    if(!times) return;
-    var start = times[0].replace(/\s/g, '');
-    var hourNum = parseInt(start.split(':')[0], 10);
-	var minute = parseInt(start.split(':')[1] || '0', 10);
-	var slot = hourNum.toString().padStart(2,'0') + ':' + minute.toString().padStart(2,'0');
-	/* ✅ نقبل أي وقت، ما لازم يكون من TIME_SLOTS */
-    var working = line;
-    Object.keys(dayMap).forEach(function(k){ working = working.replace(new RegExp(k, 'gi'), ' '); });
-    working = working.replace(/\d{1,2}\s*:\s*\d{2}(\s*-\s*\d{1,2}\s*:\s*\d{2})?/g, ' ').trim();
-    if(working.length < 2) return;
-    var key = day + '-' + slot;
-    if(!space.timetable[key]){ space.timetable[key] = {name: working, room: '', instructor: ''}; added++; }
-  });
-  saveSpace(); renderTimetable(); renderDashboard();
-  if(added > 0) toast('✓ تمت ' + added + ' محاضرة', 'success', 2500);
-  else toast('لم يتم التعرف', 'warn', 3000);
 }
 
 /* ==================== COURSES ==================== */
@@ -3807,7 +3771,12 @@ async function boot(){
       }
     });
   }
-
+  safeRun('Validate DB', function(){
+    if(typeof window.validateCoursesDB === 'function'){
+      var issues = window.validateCoursesDB();
+      if(issues.length) console.warn('⚠️ DB issues:', issues);
+    }
+  });
   console.log('✅ Boot complete');
 }
 if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }
