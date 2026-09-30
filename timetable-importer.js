@@ -1,9 +1,8 @@
 /* ============================================================
-   📥 timetable-importer.js v5 — مدرَّب على جدول HU
-   ✅ يفهم الصيغة الرسمية للجامعة الهاشمية
-   ✅ يتعامل مع: 09,30 (فاصلة)، 10,00-08,30 (معكوس)، ح.ب / 104
-   ✅ أسماء المواد تنتهي قبل [رقم] [رقم] [أيام]
-   ✅ زر تحميل عينة من الجدول مباشرة
+   📥 timetable-importer.js v6 — مدرَّب على جدول HU
+   ✅ يفصل الشعبة النظري/العملي عن اسم المادة
+   ✅ يبني التحليل على "أيام /" كمحور
+   ✅ وقت معكوس (10,00 - 08,30) → 08:30 → 10:00
    ============================================================ */
 (function(){
   'use strict';
@@ -21,9 +20,7 @@
   var DAY_NAMES_AR = { Sun:'الأحد', Mon:'الاثنين', Tue:'الثلاثاء', Wed:'الأربعاء', Thu:'الخميس', Fri:'الجمعة', Sat:'السبت' };
   var DAY_CLASS = '[حنثرخجس]';
 
-  /* ============================================================
-     1) تطبيع — يحوّل الفاصلة والنقطة داخل الوقت لنقطتين
-     ============================================================ */
+  /* ============ 1) تطبيع ============ */
   function fixDigits(t){
     return String(t||'').replace(/[٠١٢٣٤٥٦٧٨٩]/g, function(d){
       return String.fromCharCode(d.charCodeAt(0) - 0x0660 + 48);
@@ -32,43 +29,46 @@
 
   function preprocess(raw){
     var t = fixDigits(String(raw || ''));
-    // 09,30 → 09:30   09.30 → 09:30
+    // 09,30 → 09:30
     t = t.replace(/(\d{1,2})\s*[,.]\s*(\d{2})/g, '$1:$2');
     // إزالة الرموز المخفية
-    t = t.replace(/[\u200F\u200E\u200B\u00A0]/g, ' ');
+    t = t.replace(/[\u200F\u200E\u200B\u00A0\u200C\u200D]/g, ' ');
     // توحيد الأسطر
     t = t.replace(/\r\n?/g, '\n');
-    // الرموز الغريبة
+    // رموز غريبة
     t = t.replace(/[|¦]/g, ' ');
-    // رؤوس الأعمدة
+    // رؤوس أعمدة كاملة
+    t = t.replace(/كما\s+هو\s+اسم[^\n]*/gi, ' ');
     t = t.replace(/رقم\s+المادة/gi, ' ');
     t = t.replace(/اسم\s+المادة/gi, ' ');
     t = t.replace(/الشعبة\s+النظري/gi, ' ');
     t = t.replace(/الشعبة\s+العملي/gi, ' ');
+    t = t.replace(/وقت\s+المحاضرة\s*[\/\\]?\s*رقم\s+القاعة/gi, ' ');
     t = t.replace(/وقت\s+المحاضرة[^\n]*/gi, ' ');
     t = t.replace(/عدد\s+الساعات/gi, ' ');
+    t = t.replace(/[ \t]+/g, ' ');
     return t;
   }
 
-  /* ============================================================
-     2) استخراج الأكواد — 6-11 رقم
-     ============================================================ */
+  /* ============ 2) إيجاد الأكواد ============ */
   function findCodes(text){
-    var re = /\b(\d{6,11})\b/g;
+    var re = /\d{8,11}/g;
     var m, out = [];
     while((m = re.exec(text)) !== null){
-      // استبعد لو جزء من وقت
-      var before = text.substring(Math.max(0, m.index - 2), m.index);
-      var after = text.substring(m.index + m[1].length, m.index + m[1].length + 2);
-      if(/[:.\-]\s*$/.test(before) || /^\s*[:.\-]/.test(after)) continue;
-      out.push({ code: m[1], index: m.index, end: m.index + m[1].length });
+      var code = m[0];
+      var idx = m.index;
+      if(idx > 0 && /\d/.test(text.charAt(idx - 1))) continue;
+      if(idx + code.length < text.length && /\d/.test(text.charAt(idx + code.length))) continue;
+      var before2 = text.substring(Math.max(0, idx - 2), idx);
+      var after2 = text.substring(idx + code.length, idx + code.length + 2);
+      if(/[:]\s*$/.test(before2)) continue;
+      if(/^\s*[:]/.test(after2)) continue;
+      out.push({ code: code, index: idx, end: idx + code.length });
     }
     return out;
   }
 
-  /* ============================================================
-     3) استخراج الوقت — يدعم المعكوس
-     ============================================================ */
+  /* ============ 3) الوقت ============ */
   function extractTime(text){
     var m = text.match(/(\d{1,2}):(\d{2})\s*[-–—~]\s*(\d{1,2}):(\d{2})/);
     if(!m) return null;
@@ -80,46 +80,27 @@
       var th = h1, tm = mm1; h1 = h2; mm1 = mm2; h2 = th; mm2 = tm;
       reversed = true;
     }
-    return {
-      start: p2(h1)+':'+p2(mm1),
-      end:   p2(h2)+':'+p2(mm2),
-      match: m[0],
-      index: m.index,
-      reversed: reversed
-    };
+    return { start: p2(h1)+':'+p2(mm1), end: p2(h2)+':'+p2(mm2), match: m[0], index: m.index, reversed: reversed };
   }
 
-  /* ============================================================
-     4) استخراج الأيام — ح ث خ أو ن ر (مع مسافات)
-     ============================================================ */
-  function extractDays(text, beforeIdx){
-    var zone = (beforeIdx >= 0) ? text.substring(0, beforeIdx) : text;
-    // نمط: تسلسل من 1-6 حروف أيام مفصولة بمسافة أو بدون
-    var re = new RegExp('(?:^|[\\s\\/])([' + DAY_CLASS + '](?:[\\s]*' + DAY_CLASS + ')*)(?=[\\s\\/]|$)', 'g');
-    var m, last = null;
-    while((m = re.exec(zone)) !== null){
-      var charBefore = m[0][0];
-      if(/[\u0600-\u06FF]/.test(charBefore)) continue;
-      last = m[1];
-    }
-    if(!last) return { days: [], match: null };
+  /* ============ 4) الأيام ============ */
+  function dayLettersToArray(str){
     var days = [];
-    for(var i = 0; i < last.length; i++){
-      var ch = last[i];
+    var s = String(str || '');
+    for(var i = 0; i < s.length; i++){
+      var ch = s.charAt(i);
       if(/\s/.test(ch)) continue;
       var d = DAY_LETTER[ch];
       if(d && days.indexOf(d) === -1) days.push(d);
     }
-    return { days: days, match: last };
+    return days.sort(function(a,b){ return DAY_KEYS.indexOf(a) - DAY_KEYS.indexOf(b); });
   }
 
-  /* ============================================================
-     5) استخراج القاعة — ح.ب / 104 أو م.غ / 213
-     ============================================================ */
+  /* ============ 5) القاعة ============ */
   function extractRoom(text){
     var patterns = [
-      /([حمم][\s.]*[بغبجمع][\s.]*)\s*\/\s*(\d{2,4})/,
-      /([حمم][\s.]*[بغبجمع][\s.]*)\s+(\d{2,4})/
+      /([حمنر][\s.]*[بغبجمع][\s.]*)\s*[\/\\]\s*(\d{2,4})/,
+      /([حمنر][\s.]*[بغبجمع][\s.]*)\s+(\d{2,4})/
     ];
     for(var i = 0; i < patterns.length; i++){
       var m = text.match(patterns[i]);
@@ -128,12 +109,12 @@
         if(m[2].length >= 2) return prefix + ' ' + m[2];
       }
     }
+    var m2 = text.match(/[\/\\]\s*(\d{3})\b/);
+    if(m2) return m2[1];
     return '';
   }
 
-  /* ============================================================
-     6) استخراج الساعات — رقم وحيد في نهاية النص (1-6)
-     ============================================================ */
+  /* ============ 6) الساعات ============ */
   function extractHours(text){
     var m = text.match(/\s(\d)\s*$/);
     if(m){
@@ -143,42 +124,23 @@
     return 3;
   }
 
-  /* ============================================================
-     7) استخراج الاسم — الأهم!
-     الاسم ينتهي قبل: [رقم] [رقم] [أيام]
-     ============================================================ */
+  /* ============ 7) تنظيف الاسم ============ */
   function cleanName(name){
-    return String(name || '')
-      .replace(/\s+/g, ' ')
-      .replace(/^\s*[\/\\|]+\s*/, '')
-      .replace(/\s*[\/\\|]+\s*$/, '')
-      .trim();
+    var s = String(name || '');
+    s = s.replace(/\s+/g, ' ');
+    s = s.replace(/^\s*[\/\\|:\-،,.]+\s*/, '');
+    s = s.replace(/\s*[\/\\|:\-،,.]+\s*$/, '');
+    s = s.replace(/\s*الشعبة\s*$/, '');
+    s = s.replace(/\s*النظري\s*$/, '');
+    s = s.replace(/\s*العملي\s*$/, '');
+    return s.trim();
   }
 
-  function extractName(text){
-    var trimmed = text.trim();
-
-    // 1) اسم + رقمين + أيام
-    var m = trimmed.match(new RegExp('^(.+?)\\s+\\d{1,3}\\s+\\d{1,3}\\s+' + DAY_CLASS));
-    if(m) return cleanName(m[1]);
-
-    // 2) اسم + أيام
-    m = trimmed.match(new RegExp('^(.+?)\\s+' + DAY_CLASS + '(?:\\s*' + DAY_CLASS + ')*\\s*(?=[\\/\\s])'));
-    if(m) return cleanName(m[1]);
-
-    // 3) قبل الوقت
-    m = trimmed.match(/^(.+?)\s+\d{1,2}:\d{2}/);
-    if(m) return cleanName(m[1]);
-
-    // 4) احتياطي: أول 80 حرف
-    return cleanName(trimmed.slice(0, 80));
-  }
-
-  /* ============================================================
-     8) تحليل صف واحد
-     ============================================================ */
+  /* ============ 8) تحليل صف — الجديد ============ */
   function parseRow(chunk, code){
     var r = { code: code, name: '', days: [], timeStart: '', timeEnd: '', room: '', hours: 3 };
+    chunk = String(chunk || '').replace(/\s+/g, ' ').trim();
+    if(!chunk){ r.name = 'مادة ' + code; return r; }
 
     var time = extractTime(chunk);
     if(time){
@@ -186,20 +148,47 @@
       r.timeEnd = time.end;
     }
 
-    var daysInfo = extractDays(chunk, time ? time.index : -1);
-    r.days = daysInfo.days;
+    // 🔑 المحور: "أيام /"
+    var daysSlash = chunk.match(new RegExp('(' + DAY_CLASS + '(?:[\\s\\/]*' + DAY_CLASS + ')*)\\s*[\\/]'));
+
+    if(daysSlash){
+      r.days = dayLettersToArray(daysSlash[1]);
+      var beforeDays = chunk.substring(0, daysSlash.index).trim();
+
+      // احذف آخر رقمين (نظري + عملي)
+      var m2 = beforeDays.match(/^([\s\S]+?)\s+\d{1,3}\s+\d{1,3}\s*$/);
+      if(m2 && m2[1].trim().length >= 2){
+        r.name = cleanName(m2[1]);
+      } else {
+        // احذف آخر رقم واحد
+        var m1 = beforeDays.match(/^([\s\S]+?)\s+\d{1,3}\s*$/);
+        if(m1 && m1[1].trim().length >= 2){
+          r.name = cleanName(m1[1]);
+        } else {
+          r.name = cleanName(beforeDays);
+        }
+      }
+    } else {
+      // Fallback
+      var dInfo = chunk.match(new RegExp('(' + DAY_CLASS + '(?:[\\s]*' + DAY_CLASS + ')*)'));
+      if(dInfo) r.days = dayLettersToArray(dInfo[1]);
+      var t = chunk.trim();
+      var m = t.match(new RegExp('^([\\s\\S]+?)\\s+\\d{1,3}\\s+\\d{1,3}\\s+' + DAY_CLASS));
+      if(m) r.name = cleanName(m[1]);
+      else {
+        m = t.match(new RegExp('^([\\s\\S]+?)\\s+' + DAY_CLASS));
+        if(m) r.name = cleanName(m[1]);
+        else r.name = cleanName(t.slice(0, 80));
+      }
+    }
 
     r.room = extractRoom(chunk);
     r.hours = extractHours(chunk);
-    r.name = extractName(chunk);
-
     if(!r.name || r.name.length < 2) r.name = 'مادة ' + code;
     return r;
   }
 
-  /* ============================================================
-     9) تحليل الجدول كامل
-     ============================================================ */
+  /* ============ 9) تحليل الجدول كامل ============ */
   function parseTable(raw){
     var text = preprocess(raw);
     if(!text.trim()) return [];
@@ -216,9 +205,7 @@
     return rows;
   }
 
-  /* ============================================================
-     10) مطابقة مع COURSES_DB
-     ============================================================ */
+  /* ============ 10) مطابقة مع COURSES_DB ============ */
   function matchDB(row){
     var DB = window.COURSES_DB || {};
     var cleanCode = String(row.code || '').replace(/^0+/, '');
@@ -232,7 +219,6 @@
     }
     var n = (row.name || '').trim();
     if(DB[n]) return n;
-    // fuzzy
     var eTokens = n.split(/\s+/).filter(function(t){ return t.length > 2; });
     var best = null, bestScore = 0;
     for(var k2 in DB){
@@ -248,9 +234,7 @@
     return best;
   }
 
-  /* ============================================================
-     11) التطبيق — جدول + مواد + حضور
-     ============================================================ */
+  /* ============ 11) التطبيق ============ */
   function apply(rows){
     var sp = getSpace();
     if(!sp.timetable) sp.timetable = {};
@@ -302,19 +286,15 @@
     return stats;
   }
 
-  /* ============================================================
-     12) عينة من الجدول الحقيقي (4 مواد)
-     ============================================================ */
+  /* ============ 12) عينة HU ============ */
   var SAMPLE = [
-    '110108101 تفاضل وتكامل (1) 1 0 ح ث خ / 09,30 - 10,30 المادة تدرس بشكل مدمج في مبنى الحسين الباني ح.ب / 104 على منصة مايكروسوفت teams 3',
-    '121601099 لغة عربية / استدراكية 2 0 ن ر / 10,00 - 08,30 المادة تدرس بشكل مدمج في مجمع قاعات ابن خلدون م.غ / 213 على منصة مايكروسوفت teams 3',
+    '110108101 تفاضل وتكامل (1) 1 0 ح ث خ / 09,30 - 10,30 المادة تدرس بشكل مدمج في مبنى الحسين الباني ح.ب / 104 على منصة(مايكروسوفت teams) 3',
+    '121601099 لغة عربية / استدراكية 2 0 ن ر / 10,00 - 08,30 المادة تدرس بشكل مدمج في مجمع قاعات ابن خلدون م.غ / 213 على منصة(مايكروسوفت teams) 3',
     '1701081136 فيزياء عامة (1) 4 0 ح ث خ / 10,30 - 11,30 المادة تدرس وجاهي في مبنى الحسين الباني ح.ب / 105 3',
-    '2116021101 مهارات التواصل باللغة الانجليزية 10 0 ح ث خ / 18,30 - 19,30 المادة تدرس عن بعد على منصة مايكروسوفت teams 3'
+    '2116021101 مهارات التواصل باللغة الانجليزية 10 0 ح ث خ / 18,30 - 19,30 المادة تدرس عن بعد على منصة(مايكروسوفت teams) 3'
   ].join('\n');
 
-  /* ============================================================
-     13) نافذة الاستيراد
-     ============================================================ */
+  /* ============ 13) نافذة الاستيراد ============ */
   function openEditor(initialText){
     document.querySelectorAll('.modal-backdrop').forEach(function(m){ m.remove(); });
     var state = { rows: [] };
@@ -331,7 +311,7 @@
           '</div>' +
         '</div>' +
         '<div style="background:var(--grad-soft);border:1px solid var(--glow);border-radius:10px;padding:10px;margin-bottom:12px;font-size:.76rem;line-height:1.6">' +
-          '📌 الصق نص الجدول → اضغط "تحليل النص" → راجع الصفوف → "تطبيق". أو اضغط <b>"📋 تحميل عينتي"</b> لتجرب مباشرة.' +
+          '📌 الصق نص الجدول → "تحليل النص" → راجع الصفوف → "تطبيق". أو اضغط <b>"📋 تحميل عينتي"</b>.' +
         '</div>' +
         '<textarea id="tiiInput" placeholder="الصق النص..." style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:10px;font-family:monospace;font-size:.76rem;min-height:90px;resize:vertical;direction:rtl;outline:none;line-height:1.5"></textarea>' +
         '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">' +
@@ -357,7 +337,7 @@
 
     function renderRows(){
       if(!state.rows.length){
-        rowsWrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.85rem">لا يوجد صفوف — اضغط "تحميل عينتي" أو الصق نصاً</div>';
+        rowsWrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:.85rem">لا يوجد صفوف</div>';
         countEl.textContent = '0 صف';
         return;
       }
@@ -388,10 +368,6 @@
           var rowEl = inp.closest('.tii-row');
           var idx = parseInt(rowEl.dataset.idx, 10);
           state.rows[idx][inp.dataset.field] = inp.value;
-          if(inp.dataset.field === 'code' || inp.dataset.field === 'name'){
-            clearTimeout(window._tiiMatchTimer);
-            window._tiiMatchTimer = setTimeout(renderRows, 600);
-          }
         });
       });
       rowsWrap.querySelectorAll('[data-day]').forEach(function(btn){
@@ -422,12 +398,12 @@
       input.value = SAMPLE;
       state.rows = parseTable(SAMPLE);
       renderRows();
-      toast('📋 تم تحميل 4 مواد من عينتك', 'success', 2500);
+      toast('📋 تم تحميل ' + state.rows.length + ' مواد من عينتك', 'success', 2500);
     };
 
     bd.querySelector('#tiiParse').onclick = function(){
       var text = input.value.trim();
-      if(!text){ toast('الصق نص أولاً أو اضغط "تحميل عينتي"', 'warn'); return; }
+      if(!text){ toast('الصق نص أولاً', 'warn'); return; }
       var rows;
       try{ rows = parseTable(text); }
       catch(e){ toast('فشل: ' + e.message, 'warn', 4000); return; }
@@ -459,9 +435,7 @@
     if(initialText) setTimeout(function(){ bd.querySelector('#tiiParse').click(); }, 100);
   }
 
-  /* ============================================================
-     14) التركيب
-     ============================================================ */
+  /* ============ 14) التركيب ============ */
   function injectCSS(){
     if(document.getElementById('tii-css')) return;
     var s = document.createElement('style');
@@ -477,37 +451,32 @@
   }
 
   function install(){
-    // اربط زر "تحليل وملء الجدول"
     var tries = 0;
     var timer = setInterval(function(){
       tries++;
       var btn = document.getElementById('btnParseOcr');
-      if(btn && !btn._v5Bound){
-        btn._v5Bound = true;
-        var newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('click', function(){
+      if(btn && !btn._v6Bound){
+        btn._v6Bound = true;
+        var nb = btn.cloneNode(true);
+        btn.parentNode.replaceChild(nb, btn);
+        nb.addEventListener('click', function(){
           var ta = document.getElementById('ocrTextarea');
-          var text = ta && ta.value.trim() ? ta.value : '';
-          openEditor(text);
+          openEditor(ta && ta.value.trim() ? ta.value : '');
         });
         clearInterval(timer);
       }
       if(tries > 60) clearInterval(timer);
     }, 500);
 
-    // اربط زر "تجربة OCR بمثال نصي" — يفتح المستورد مع العينة
     var tries2 = 0;
     var timer2 = setInterval(function(){
       tries2++;
       var btn = document.getElementById('btnPasteOcr');
-      if(btn && !btn._v5Bound){
-        btn._v5Bound = true;
-        var newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('click', function(){
-          openEditor(SAMPLE);
-        });
+      if(btn && !btn._v6Bound){
+        btn._v6Bound = true;
+        var nb = btn.cloneNode(true);
+        btn.parentNode.replaceChild(nb, btn);
+        nb.addEventListener('click', function(){ openEditor(SAMPLE); });
         clearInterval(timer2);
       }
       if(tries2 > 60) clearInterval(timer2);
@@ -522,7 +491,7 @@
     loadSample: function(){ openEditor(SAMPLE); }
   };
 
-  window.ocrV5Test = function(text){
+  window.ocrV6Test = function(text){
     var entries = parseTable(text || SAMPLE);
     console.log('%c🔍 ' + entries.length + ' صف', 'color:#a78bfa;font-weight:bold');
     entries.forEach(function(e){
@@ -536,5 +505,5 @@
     document.addEventListener('DOMContentLoaded', function(){ injectCSS(); install(); });
   } else { injectCSS(); install(); }
 
-  console.log('📥 Timetable Importer v5 — مدرَّب على صيغة HU');
+  console.log('📥 Timetable Importer v6 — HU structured parser');
 })();
