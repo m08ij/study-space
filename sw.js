@@ -19,7 +19,7 @@ var URLS_TO_CACHE = [
   './calendar-view.js',
   './custom-dashboard.js',
   './mindmap.js',
-  './ocr-smart.js',
+  './timetable-importer.js',
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
