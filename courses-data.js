@@ -279,3 +279,28 @@ window.searchCourses = searchCourses;
 window.validateCoursesDB = validateCoursesDB;
 
 console.log('📚 Courses DB v4 loaded — ' + Object.keys(COURSES_DB).length + ' مادة');
+
+/* ========== 🔗 Aliases — أكواد بديلة من الجداول الرسمية ========== */
+(function(){
+  var aliases = {
+    "فيزياء عامة (1)":                    ["1701081136"],
+    "لغة عربية / استدراكية":               ["121601099"],
+    "لغة انجليزية / استدراكية":            ["121602099"],
+    "تفاضل وتكامل (1)":                   ["110108101"],
+    "مهارات التواصل باللغة الانجليزية":    ["2116021101"],
+    "مهارات التواصل باللغة العربية":       ["2116011101"]
+  };
+
+  Object.keys(aliases).forEach(function(name){
+    if (COURSES_DB[name]){
+      COURSES_DB[name].aliases = (COURSES_DB[name].aliases || []).concat(aliases[name]);
+      // حدّث الفهرس
+      aliases[name].forEach(function(code){
+        if(!COURSE_BY_CODE[code]) COURSE_BY_CODE[code] = [];
+        if(COURSE_BY_CODE[code].indexOf(name) === -1) COURSE_BY_CODE[code].push(name);
+      });
+    }
+  });
+
+  console.log('🔗 Added ' + Object.keys(aliases).length + ' alias groups');
+})();
