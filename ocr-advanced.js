@@ -160,7 +160,7 @@
                 var fd = new FormData();
                 fd.append('apikey', 'helloworld');
                 fd.append('url', 'https://i.imgur.com/Aq3YqjP.jpg');
-                fd.append('language', 'ara');
+                formData.append('language', 'arabic');
                 fd.append('OCREngine', '1');
                 var r = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body: fd });
                 var j = await r.json();
