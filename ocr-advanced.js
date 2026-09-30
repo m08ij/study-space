@@ -1,44 +1,61 @@
 /* ============================================================
    ☁️ ocr-advanced.js — OCR عبر OCR.space API (مجاني)
-   ✅ مجاني 25,000 طلب/شهر — بلا بطاقة ائتمان
-   ✅ يدعم العربية + الجداول
-   ✅ يعمل من المتصفح مباشرة
-   ⚠️ ضع مفتاحك في المتغير API_KEY تحت
+   ✅ OCREngine=1 (الأفضل للعربي)
+   ✅ isTable=true لفهم الجداول
+   ✅ مجاني 25,000 طلب/شهر
    ============================================================ */
 (function() {
     'use strict';
 
     /* ============================================================
-       🔑 ضع مفتاحك هنا (من https://ocr.space/ocrapi)
+       🔑 مفتاح OCR.space
        ============================================================ */
-    var API_KEY = ' K81400074888957';   // ← استبدل بمفتاحك الحقيقي
-
+    var API_KEY = 'K81400074888957';
     /* ============================================================ */
 
     function toast(m, t, d){ if(typeof window.toast === 'function') window.toast(m, t || 'info', d || 2500); }
 
-    /* ============ إرسال الصورة لـ OCR.space ============ */
+    /* ============ إرسال الصورة ============ */
     async function callOCRSpace(file) {
         var formData = new FormData();
-        formData.append('file', file);
-        formData.append('language', 'ara');           // ✅ اللغة العربية
-        formData.append('isOverlayRequired', 'false');
-        formData.append('detectOrientation', 'true');  // ✅ كشف الدوران
-        formData.append('scale', 'true');              // ✅ تحسين تلقائي
-        formData.append('isTable', 'true');            // ✅ فهم الجداول
-        formData.append('OCREngine', '2');             // ✅ محرك 2 أفضل للعربي
+
+        // ✅ ترتيب مهم: apikey أولاً
         formData.append('apikey', API_KEY);
+        formData.append('file', file);
+        formData.append('language', 'ara');            // العربية
+        formData.append('OCREngine', '1');             // ✅ Engine 1 (يدعم العربي)
+        formData.append('isTable', 'true');            // ✅ فهم الجداول
+        formData.append('isOverlayRequired', 'false');
+        formData.append('detectOrientation', 'true');
+        formData.append('scale', 'true');
+        formData.append('filetype', file.type || 'image/jpeg');
+
+        console.log('☁️ POST to OCR.space...', {
+            name: file.name, size: file.size, type: file.type
+        });
 
         var res = await fetch('https://api.ocr.space/parse/image', {
             method: 'POST',
             body: formData
         });
 
-        if (!res.ok) {
-            throw new Error('فشل الاتصال بالخادم (' + res.status + ')');
+        console.log('📡 Response status:', res.status);
+
+        // ✅ نقرأ الرد حتى لو فشل — لنعرف السبب الحقيقي
+        var data;
+        try {
+            data = await res.json();
+        } catch (e) {
+            throw new Error('فشل الاتصال — الخادم رد ' + res.status);
         }
 
-        var data = await res.json();
+        console.log('📦 Response body:', data);
+
+        if (!res.ok) {
+            var em = data.ErrorMessage || data.error || ('HTTP ' + res.status);
+            if (Array.isArray(em)) em = em.join(' · ');
+            throw new Error(em);
+        }
 
         if (data.IsErroredOnProcessing) {
             var msg = data.ErrorMessage;
@@ -47,7 +64,7 @@
         }
 
         if (!data.ParsedResults || !data.ParsedResults.length) {
-            throw new Error('لم يتم استخراج أي نص');
+            throw new Error('لم يُستخرج أي نص');
         }
 
         return data.ParsedResults[0].ParsedText || '';
@@ -56,33 +73,26 @@
     /* ============ تحليل الصورة ============ */
     async function analyzeImage(file) {
         if (!file || !file.type.startsWith('image/')) {
-            toast('⚠️ الرجاء اختيار صورة صالحة.', 'warn');
+            toast('⚠️ اختر صورة صالحة', 'warn');
             return;
         }
 
-        if (API_KEY === 'K8123456789' || !API_KEY || API_KEY.length < 10) {
-            toast('⚠️ ضع مفتاح OCR.space في الملف أولاً', 'warn', 5000);
-            return;
-        }
-
-        // معاينة
         var preview = document.getElementById('ocrPreview');
         if (preview) {
             preview.style.display = 'block';
             preview.innerHTML = '<img src="' + URL.createObjectURL(file) + '" style="max-width:100%;border-radius:12px;max-height:300px">';
         }
 
-        // شريط التقدم
         var progress = document.getElementById('ocrProgress');
         var bar = document.getElementById('ocrBar');
         var progressText = document.getElementById('ocrText');
         if (progress) progress.style.display = 'block';
         if (bar) bar.style.width = '20%';
-        if (progressText) progressText.textContent = '☁️ يرسل الصورة للخادم...';
+        if (progressText) progressText.textContent = '☁️ يرسل للخادم...';
 
         try {
             if (bar) bar.style.width = '50%';
-            if (progressText) progressText.textContent = '⏳ جاري تحليل الجدول...';
+            if (progressText) progressText.textContent = '⏳ جاري التحليل...';
 
             var text = await callOCRSpace(file);
 
@@ -97,7 +107,6 @@
 
             toast('✅ استُخرج ' + text.split('\n').length + ' سطر', 'success', 3000);
 
-            // فتح المستورد تلقائياً
             if (window.TimetableImporter && window.TimetableImporter.open) {
                 setTimeout(function(){
                     window.TimetableImporter.open(text);
@@ -105,10 +114,10 @@
             }
 
         } catch (error) {
-            console.error('OCR Error:', error);
-            if (progressText) progressText.textContent = '❌ فشل التحليل: ' + error.message;
+            console.error('❌ OCR Error:', error);
+            if (progressText) progressText.textContent = '❌ فشل: ' + error.message;
             if (bar) bar.style.width = '0%';
-            toast('فشل: ' + error.message, 'warn', 5000);
+            toast('فشل: ' + error.message, 'warn', 6000);
         }
     }
 
@@ -116,19 +125,12 @@
     function install() {
         var uploadZone = document.getElementById('uploadZone');
         var ocrFile = document.getElementById('ocrFile');
-
-        if (!uploadZone || !ocrFile) {
-            console.warn('⚠️ عناصر رفع الصورة غير موجودة');
-            return;
-        }
-
+        if (!uploadZone || !ocrFile) return;
         if (uploadZone._advancedBound) return;
         uploadZone._advancedBound = true;
 
         uploadZone.addEventListener('click', function(e){
-            if (e.target.tagName !== 'INPUT') {
-                ocrFile.click();
-            }
+            if (e.target.tagName !== 'INPUT') ocrFile.click();
         });
 
         ocrFile.addEventListener('change', function(e){
@@ -146,30 +148,48 @@
             if (f) analyzeImage(f);
         });
 
-        console.log('☁️ OCR.space: bound to input');
+        console.log('☁️ OCR.space bound');
     }
 
-    /* ============ API عام ============ */
+    /* ============ اختبار ============ */
     window.ocrAdvanced = {
         analyze: analyzeImage,
-        setKey: function(k){ API_KEY = k; },
         test: async function(){
-            console.log('🔍 اختبار OCR.space...');
-            if (!API_KEY || API_KEY.length < 10) {
-                console.error('❌ لم يتم إعداد المفتاح');
-                return 'no-key';
+            console.log('🧪 اختبار OCR.space بـ helloworld...');
+            try {
+                var fd = new FormData();
+                fd.append('apikey', 'helloworld');
+                fd.append('url', 'https://i.imgur.com/Aq3YqjP.jpg');
+                fd.append('language', 'ara');
+                fd.append('OCREngine', '1');
+                var r = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body: fd });
+                var j = await r.json();
+                console.log('Response:', j);
+                return j;
+            } catch(e) {
+                console.error(e);
+                return 'failed';
             }
-            console.log('✅ المفتاح موجود (' + API_KEY.substring(0, 6) + '...)');
-            return 'ready';
+        },
+        testKey: async function(){
+            console.log('🧪 اختبار مفتاحك...');
+            var fd = new FormData();
+            fd.append('apikey', API_KEY);
+            fd.append('url', 'https://i.imgur.com/Aq3YqjP.jpg');
+            fd.append('language', 'ara');
+            fd.append('OCREngine', '1');
+            var r = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body: fd });
+            var j = await r.json();
+            console.log('Response:', j);
+            return j;
         }
     };
 
-    /* ============ التشغيل ============ */
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 1000); });
     } else {
         setTimeout(install, 1000);
     }
 
-    console.log('☁️ OCR.space module loaded — ' + (API_KEY.length > 10 ? 'المفتاح جاهز' : '⚠️ ضع المفتاح'));
+    console.log('☁️ OCR.space loaded — key: ' + API_KEY.substring(0, 6) + '...');
 })();
