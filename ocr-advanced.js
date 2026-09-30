@@ -1,88 +1,56 @@
 /* ============================================================
-   📸 ocr-advanced.js — OCR متقدم للجداول العربية
-   ✅ @paddleocr/paddleocr-js مع تركيبات متعددة
-   ✅ Fallback تلقائي: يجرب lang='arabic' + PP-OCRv3 أولاً
-   ✅ يعمل بالكامل في المتصفح — بلا سيرفر
+   ☁️ ocr-advanced.js — OCR عبر OCR.space API (مجاني)
+   ✅ مجاني 25,000 طلب/شهر — بلا بطاقة ائتمان
+   ✅ يدعم العربية + الجداول
+   ✅ يعمل من المتصفح مباشرة
+   ⚠️ ضع مفتاحك في المتغير API_KEY تحت
    ============================================================ */
 (function() {
     'use strict';
 
+    /* ============================================================
+       🔑 ضع مفتاحك هنا (من https://ocr.space/ocrapi)
+       ============================================================ */
+    var API_KEY = ' K81400074888957';   // ← استبدل بمفتاحك الحقيقي
+
+    /* ============================================================ */
+
     function toast(m, t, d){ if(typeof window.toast === 'function') window.toast(m, t || 'info', d || 2500); }
 
-    let ocrEngine = null;
-    let isInitializing = false;
-    let engineConfig = null;
+    /* ============ إرسال الصورة لـ OCR.space ============ */
+    async function callOCRSpace(file) {
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('language', 'ara');           // ✅ اللغة العربية
+        formData.append('isOverlayRequired', 'false');
+        formData.append('detectOrientation', 'true');  // ✅ كشف الدوران
+        formData.append('scale', 'true');              // ✅ تحسين تلقائي
+        formData.append('isTable', 'true');            // ✅ فهم الجداول
+        formData.append('OCREngine', '2');             // ✅ محرك 2 أفضل للعربي
+        formData.append('apikey', API_KEY);
 
-    /* ============ تحميل مكتبة PaddleOCR ============ */
-    async function loadPaddleOCR() {
-        if (window.PaddleOCR) return window.PaddleOCR;
-        console.log('⏳ تحميل مكتبة PaddleOCR...');
-        var module = await import('https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js/+esm');
-        window.PaddleOCR = module.PaddleOCR;
-        console.log('✅ PaddleOCR loaded');
-        return window.PaddleOCR;
-    }
+        var res = await fetch('https://api.ocr.space/parse/image', {
+            method: 'POST',
+            body: formData
+        });
 
-    /* ============ تهيئة المحرك — تركيبات متعددة ============ */
-    async function initOCR() {
-        if (ocrEngine) return ocrEngine;
-        if (isInitializing) {
-            while (isInitializing) { await new Promise(function(r){ setTimeout(r, 100); }); }
-            return ocrEngine;
+        if (!res.ok) {
+            throw new Error('فشل الاتصال بالخادم (' + res.status + ')');
         }
 
-        isInitializing = true;
-        try {
-            var PaddleOCR = await loadPaddleOCR();
+        var data = await res.json();
 
-            toast('⏳ تهيئة محرك OCR للعربية (قد يستغرق دقيقة)...', 'info', 5000);
-
-            // ✅ جرّب عدة تركيبات — الأول اللي ينجح يفوز
-            var configs = [
-                { lang: 'arabic', ocrVersion: 'PP-OCRv3' },
-                { lang: 'arabic', ocrVersion: 'PP-OCRv4' },
-                { lang: 'ar',     ocrVersion: 'PP-OCRv3' },
-                { lang: 'ar',     ocrVersion: 'PP-OCRv4' },
-                { lang: 'en',     ocrVersion: 'PP-OCRv4' }  // fallback أخير
-            ];
-
-            var lastError = null;
-            for (var i = 0; i < configs.length; i++) {
-                try {
-                    console.log('🔄 Trying:', configs[i].lang, configs[i].ocrVersion);
-                    ocrEngine = await PaddleOCR.create({
-                        lang: configs[i].lang,
-                        ocrVersion: configs[i].ocrVersion,
-                        ortOptions: {
-                            backend: 'wasm',
-                            wasmPaths: 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/',
-                            numThreads: 2
-                        }
-                    });
-                    engineConfig = configs[i];
-                    console.log('✅ نجح مع:', configs[i]);
-                    break;
-                } catch (e) {
-                    console.warn('❌ فشل:', configs[i], e.message);
-                    lastError = e;
-                    ocrEngine = null;
-                }
-            }
-
-            if (!ocrEngine) {
-                throw lastError || new Error('كل التركيبات فشلت');
-            }
-
-            toast('✅ محرك OCR جاهز!', 'success', 2500);
-
-        } catch (e) {
-            console.error('OCR init failed:', e);
-            toast('❌ فشل تهيئة OCR: ' + (e.message || e), 'warn', 5000);
-            throw e;
-        } finally {
-            isInitializing = false;
+        if (data.IsErroredOnProcessing) {
+            var msg = data.ErrorMessage;
+            if (Array.isArray(msg)) msg = msg.join(' · ');
+            throw new Error(msg || 'فشل التحليل');
         }
-        return ocrEngine;
+
+        if (!data.ParsedResults || !data.ParsedResults.length) {
+            throw new Error('لم يتم استخراج أي نص');
+        }
+
+        return data.ParsedResults[0].ParsedText || '';
     }
 
     /* ============ تحليل الصورة ============ */
@@ -92,7 +60,12 @@
             return;
         }
 
-        // معاينة الصورة
+        if (API_KEY === 'K8123456789' || !API_KEY || API_KEY.length < 10) {
+            toast('⚠️ ضع مفتاح OCR.space في الملف أولاً', 'warn', 5000);
+            return;
+        }
+
+        // معاينة
         var preview = document.getElementById('ocrPreview');
         if (preview) {
             preview.style.display = 'block';
@@ -104,56 +77,42 @@
         var bar = document.getElementById('ocrBar');
         var progressText = document.getElementById('ocrText');
         if (progress) progress.style.display = 'block';
-        if (bar) bar.style.width = '5%';
-        if (progressText) progressText.textContent = '⏳ تهيئة المحرك...';
+        if (bar) bar.style.width = '20%';
+        if (progressText) progressText.textContent = '☁️ يرسل الصورة للخادم...';
 
         try {
-            var engine = await initOCR();
-            if (bar) bar.style.width = '40%';
-            if (progressText) progressText.textContent = '⏳ قراءة الجدول...';
+            if (bar) bar.style.width = '50%';
+            if (progressText) progressText.textContent = '⏳ جاري تحليل الجدول...';
 
-            // تنفيذ OCR
-            var results = await engine.predict(file);
-            var result = results[0] || {};
+            var text = await callOCRSpace(file);
 
             if (bar) bar.style.width = '100%';
-            if (progressText) progressText.textContent = '✅ تم التحليل';
-
-            // استخراج النص
-            var extractedText = '';
-            if (result.items && Array.isArray(result.items)) {
-                extractedText = result.items
-                    .map(function(item){ return item.text || ''; })
-                    .filter(function(t){ return t.length > 0; })
-                    .join('\n');
-            } else if (result.text) {
-                extractedText = result.text;
-            }
+            if (progressText) progressText.textContent = '✅ تم التحليل (' + text.split('\n').length + ' سطر)';
 
             var ta = document.getElementById('ocrTextarea');
-            if (ta) ta.value = extractedText;
+            if (ta) ta.value = text;
 
             var resultEl = document.getElementById('ocrResult');
             if (resultEl) resultEl.style.display = 'block';
 
-            toast('✅ استُخرج ' + extractedText.split('\n').length + ' سطر', 'success', 3000);
+            toast('✅ استُخرج ' + text.split('\n').length + ' سطر', 'success', 3000);
 
             // فتح المستورد تلقائياً
             if (window.TimetableImporter && window.TimetableImporter.open) {
                 setTimeout(function(){
-                    window.TimetableImporter.open(extractedText);
+                    window.TimetableImporter.open(text);
                 }, 600);
             }
 
         } catch (error) {
             console.error('OCR Error:', error);
-            if (progressText) progressText.textContent = '❌ فشل التحليل';
+            if (progressText) progressText.textContent = '❌ فشل التحليل: ' + error.message;
             if (bar) bar.style.width = '0%';
-            toast('فشل التحليل: ' + (error.message || 'خطأ غير معروف'), 'warn', 5000);
+            toast('فشل: ' + error.message, 'warn', 5000);
         }
     }
 
-    /* ============ ربط زر رفع الصورة ============ */
+    /* ============ ربط الزر ============ */
     function install() {
         var uploadZone = document.getElementById('uploadZone');
         var ocrFile = document.getElementById('ocrFile');
@@ -166,21 +125,18 @@
         if (uploadZone._advancedBound) return;
         uploadZone._advancedBound = true;
 
-        // فتح مدخل الملفات عند النقر
         uploadZone.addEventListener('click', function(e){
             if (e.target.tagName !== 'INPUT') {
                 ocrFile.click();
             }
         });
 
-        // ربط تغيير الملف بالتحليل
         ocrFile.addEventListener('change', function(e){
             var f = e.target.files[0];
             if (f) analyzeImage(f);
             ocrFile.value = '';
         });
 
-        // السحب والإفلات
         uploadZone.addEventListener('dragover', function(e){ e.preventDefault(); uploadZone.classList.add('dragover'); });
         uploadZone.addEventListener('dragleave', function(){ uploadZone.classList.remove('dragover'); });
         uploadZone.addEventListener('drop', function(e){
@@ -190,23 +146,21 @@
             if (f) analyzeImage(f);
         });
 
-        console.log('📸 Advanced OCR: bound to input');
+        console.log('☁️ OCR.space: bound to input');
     }
 
-    /* ============ واجهة عامة ============ */
+    /* ============ API عام ============ */
     window.ocrAdvanced = {
         analyze: analyzeImage,
-        init: initOCR,
+        setKey: function(k){ API_KEY = k; },
         test: async function(){
-            console.log('🔍 اختبار OCR...');
-            try {
-                await initOCR();
-                console.log('✅ المحرك جاهز (تركيبة: ' + JSON.stringify(engineConfig) + ')');
-                return 'ready';
-            } catch (e) {
-                console.error('❌ فشل:', e);
-                return 'failed';
+            console.log('🔍 اختبار OCR.space...');
+            if (!API_KEY || API_KEY.length < 10) {
+                console.error('❌ لم يتم إعداد المفتاح');
+                return 'no-key';
             }
+            console.log('✅ المفتاح موجود (' + API_KEY.substring(0, 6) + '...)');
+            return 'ready';
         }
     };
 
@@ -217,5 +171,5 @@
         setTimeout(install, 1000);
     }
 
-    console.log('📸 Advanced OCR loaded — PaddleOCR.js (Arabic)');
+    console.log('☁️ OCR.space module loaded — ' + (API_KEY.length > 10 ? 'المفتاح جاهز' : '⚠️ ضع المفتاح'));
 })();
