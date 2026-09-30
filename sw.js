@@ -18,7 +18,7 @@ var URLS_TO_CACHE = [
   './calendar-view.js',        // 🆕
   './custom-dashboard.js',     // 🆕
   './mindmap.js',              // 🆕
-  './ocr-plus.js',             // 🆕
+  './ocr-smart.js',    // بدل ocr-plus.js             // 🆕
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
