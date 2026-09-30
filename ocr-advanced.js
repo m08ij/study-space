@@ -34,7 +34,7 @@
             name: file.name, size: file.size, type: file.type
         });
 
-        var res = await fetch('https://api.ocr.space/parse/image', {
+        var res = await fetch('https://ocr-proxy.mohanad-jawabrah.workers.dev/', {
             method: 'POST',
             body: formData
         });
