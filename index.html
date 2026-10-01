@@ -1026,48 +1026,7 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 <script src="timetable-importer.js"></script>
 <script src="ocr-table-parser.js"></script>
 <script src="column-classifier.js"></script>
-<script src="timetable-importer.js"></script>
 <script src="ocr-grid.js"></script>
-<script>
-/* 🔧 OCR Failsafe — لو ocr-advanced.js فشل */
-(function(){
-  function bind(){
-    var z = document.getElementById('uploadZone');
-    var f = document.getElementById('ocrFile');
-    if(!z || !f){ return setTimeout(bind, 300); }
-    if(z._v7Bound || z._safeBound) return;
-    z._safeBound = true;
-    console.log('🔧 OCR Failsafe binding');
-    z.addEventListener('click', function(e){
-      if(e.target === f) return;
-      e.preventDefault();
-      f.click();
-    });
-    f.addEventListener('change', function(e){
-      var file = e.target.files && e.target.files[0];
-      if(!file) return;
-      if(window.ocrAdvanced && window.ocrAdvanced.analyze){
-        window.ocrAdvanced.analyze(file);
-      } else {
-        console.error('❌ ocrAdvanced غير محمّل');
-        if(typeof window.toast === 'function') window.toast('⚠️ خدمة OCR غير جاهزة', 'warn', 3000);
-      }
-      f.value = '';
-    });
-    z.addEventListener('dragover', function(e){ e.preventDefault(); z.classList.add('dragover'); });
-    z.addEventListener('dragleave', function(){ z.classList.remove('dragover'); });
-    z.addEventListener('drop', function(e){
-      e.preventDefault(); z.classList.remove('dragover');
-      var file = e.dataTransfer.files && e.dataTransfer.files[0];
-      if(file && window.ocrAdvanced && window.ocrAdvanced.analyze){
-        window.ocrAdvanced.analyze(file);
-      }
-    });
-  }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
-  else bind();
-})();
-</script>
 <script>
 /* ==================== GLOBAL STATE ==================== */
 var space = null;

@@ -214,11 +214,21 @@ function findCourseByCode(code){
     var name = COURSE_BY_CODE[code][0];
     return {name: name, info: COURSES_DB[name]};
   }
-  // 2) مطابقة بدون أصفار
+
+  // 2) مطابقة بدون أصفار + aliases
   var keys = Object.keys(COURSES_DB);
   for(var i = 0; i < keys.length; i++){
-    if(COURSES_DB[keys[i]].code.replace(/^0+/, '') === normalized){
-      return {name: keys[i], info: COURSES_DB[keys[i]]};
+    var info = COURSES_DB[keys[i]];
+    if(info.code.replace(/^0+/, '') === normalized){
+      return {name: keys[i], info: info};
+    }
+    // ✅ افحص الـ aliases
+    if(info.aliases && info.aliases.length){
+      for(var a = 0; a < info.aliases.length; a++){
+        if(String(info.aliases[a]).replace(/^0+/, '') === normalized){
+          return {name: keys[i], info: info};
+        }
+      }
     }
   }
   return null;

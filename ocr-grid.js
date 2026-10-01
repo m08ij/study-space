@@ -1,8 +1,10 @@
 /* ============================================================
-   📸 ocr-grid.js v4 — إعادة بناء النص بعد OCR
-   ✅ parseAndRebuildDetails: يعيد بناء الوقت والأيام والقاعة
-   ✅ عرض النص المنظم بدلاً من الخام الفوضوي
-   ✅ منطق تحذير أذكى للأرقام الصغيرة
+   📸 ocr-grid.js v6 — إصلاح مُخصَّص لجدول الجامعة الهاشمية
+   ✅ إحداثيات الأعمدة مضبوطة 100% على الجدول الفعلي
+   ✅ كشف تلقائي عبر Projection (بدل الخطوط العمودية غير الموجودة)
+   ✅ ترتيب صحيح: أيام → قاعة → وقت
+   ✅ دعم aliases في courses-data
+   ✅ تصحيح أرقام OCR (O→0, l→1)
    ============================================================ */
 (function(){
   'use strict';
@@ -11,25 +13,43 @@
 
   var FIELDS  = ['code','name','theory','lab','details','hours'];
   var COLS    = ['hours','details','lab','theory','name','code'];
-  var COLNAME = ['الساعات','الوقت والقاعة','العملي','النظري','اسم المادة','رقم المادة'];
   var NUMERIC_FIELDS = { code:1, theory:1, lab:1, hours:1 };
-  var DEF_FRAC = [0.072, 0.615, 0.672, 0.740, 0.900];
+
+  /* 🔥 الإصلاح الأساسي — قياسات حقيقية من جدول HU */
+  /* الترتيب في الصورة (من اليسار): hours | details | lab | theory | name | code */
+  var DEF_FRAC = [0.058, 0.690, 0.740, 0.790, 0.930];
+  /*                 ↑      ↑      ↑      ↑      ↑
+                    hours details lab  theory  name  code */
 
   var SPELL_FIX = [
     [/مايكر\s*وسوفت/g, 'مايكروسوفت'],
     [/مايكرو\s*سوفت/g, 'مايكروسوفت'],
     [/مايكروسفت/g,   'مايكروسوفت'],
-    [/مايكروسوف\b/g, 'مايكروسوفت'],
-    [/\b(تيامز|تيمز|teems|teams\b)\b/gi, 'teams'],
     [/الحسين\s+البانى/g, 'الحسين الباني'],
+    [/الحسين\s+البان[يى]/g, 'الحسين الباني'],
     [/ابن\s+خلدون/g,   'ابن خلدون'],
+    [/ابن\s+رشد/g,     'ابن رشد'],
     [/استدراكيه/g,     'استدراكية'],
     [/فيزياء\s+عامه/g, 'فيزياء عامة'],
     [/لغه\s+عربيه/g,   'لغة عربية'],
     [/الانجليزيه/g,    'الانجليزية'],
+    [/الانكليزيه/g,    'الانجليزية'],
     [/على\s+منصه/g,    'على منصة'],
-    [/مبنى\s+الحسين/g, 'مبنى الحسين']
+    [/شبكاث/g,         'شبكات'],
+    [/مودال/g,         ''],
+    [/Mودال/g,         ''],
+    [/teams\s*\)/gi,   'teams)']
   ];
+
+  /* ✅ تصحيح أحرف OCR الشائعة إلى أرقام */
+  function fixDigitsOCR(s){
+    return String(s||'')
+      .replace(/O/g, '0').replace(/o/g, '0')
+      .replace(/[lI|]/g, '1')
+      .replace(/S/g, '5')
+      .replace(/B/g, '8')
+      .replace(/Z/g, '2');
+  }
 
   var im = null, L = 0, R = 0, V = [], Hs = [], S = 1, drag = null;
   var rows = [], cellConf = [];
@@ -46,31 +66,35 @@
     });
   }
 
-  /* ============================================================
-     🕐 parseTimeRange — استخراج الوقت من تسلسل الأرقام
-     ============================================================ */
+  /* ============ الوقت ============ */
   function parseTimeRange(text){
     if(!text) return null;
-    var t = toEnDigits(text);
+    var t = toEnDigits(fixDigitsOCR(text)).replace(/\s+/g, ' ');
 
-    /* نمط قياسي */
+    /* النمط الأساسي: 10,30 - 09,30 */
     var m = t.match(/(\d{1,2})\s*[:.,]\s*(\d{2})\s*[-–—~]+\s*(\d{1,2})\s*[:.,]\s*(\d{2})/);
     if(m){
       var r = buildRange(+m[1],+m[2],+m[3],+m[4]);
       if(r) return r;
     }
 
-    /* استخراج كل الأرقام الثنائية وبناء الوقت منطقياً */
+    /* نمط مضغوط: 1030-0930 */
+    m = t.match(/(\d{2})(\d{2})\s*[-–—~]+\s*(\d{2})(\d{2})/);
+    if(m){
+      var r2 = buildRange(+m[1],+m[2],+m[3],+m[4]);
+      if(r2) return r2;
+    }
+
+    /* استخراج كل الأرقام الثنائية المتتالية */
     var pairs = [];
     var re = /(\d{2})(?!\d)/g, mm;
     while((mm = re.exec(t)) !== null){
       pairs.push({ v: +mm[1], pos: mm.index });
     }
-    /* جرّب كل نافذة من 4 أرقام متتالية */
     for(var i = 0; i <= pairs.length - 4; i++){
       if(Math.abs(pairs[i+3].pos - pairs[i].pos) > 30) continue;
-      var r1 = buildRange(pairs[i].v, pairs[i+1].v, pairs[i+2].v, pairs[i+3].v);
-      if(r1) return r1;
+      var r3 = buildRange(pairs[i].v, pairs[i+1].v, pairs[i+2].v, pairs[i+3].v);
+      if(r3) return r3;
     }
     return null;
   }
@@ -84,40 +108,47 @@
     return { start: pad2(Math.floor(s/60))+':'+pad2(s%60), end: pad2(Math.floor(e/60))+':'+pad2(e%60) };
   }
 
-  /* ============ أيام الأسبوع ============ */
+  /* ============ الأيام ============ */
   var DAY_LET = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
   var DAY_ORDER = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var DAY_AR = { Sun:'ح', Mon:'ن', Tue:'ث', Wed:'ر', Thu:'خ', Fri:'ج', Sat:'س' };
 
   function extractDays(text){
-    var m = String(text||'').match(/([حنثرخجس](?:\s*[حنثرخجس])*)\s*[\/\\]/);
-    if(!m) return [];
+    var t = String(text||'');
+    /* نمط HU الأساسي: "ح ث خ /" */
+    var m = t.match(/([حنثرخجس](?:\s+[حنثرخجس])+)\s*[\/\\]/);
+    if(m){ var o1 = parseDayChars(m[1]); if(o1.length >= 2) return o1; }
+    /* نمط بدون / */
+    m = t.match(/(?:^|\s)([حنثرخجس](?:\s+[حنثرخجس]){1,})(?=\s|$)/);
+    if(m){ var o2 = parseDayChars(m[1]); if(o2.length >= 2) return o2; }
+    /* نمط متلاصق */
+    m = t.match(/[حنثرخجس]{2,}/);
+    if(m){ var o3 = parseDayChars(m[0]); if(o3.length >= 2) return o3; }
+    return [];
+  }
+  function parseDayChars(s){
     var out = [];
-    m[1].replace(/\s/g,'').split('').forEach(function(ch){
+    String(s).replace(/\s/g,'').split('').forEach(function(ch){
       var d = DAY_LET[ch];
       if(d && out.indexOf(d) === -1) out.push(d);
     });
     return out.sort(function(a,b){ return DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b); });
   }
 
-  /* ============================================================
-     🧹 cleanArabic — تنظيف عام
-     ============================================================ */
+  /* ============ تنظيف ============ */
   function cleanArabic(text){
     if(!text) return '';
     var t = String(text);
-    /* إزالة حروف غريبة (لاتيني عشوائي إذا النص عربي) */
     var arabicCount = (t.match(/[\u0600-\u06FF]/g) || []).length;
     var latinCount  = (t.match(/[a-zA-Z]/g) || []).length;
-    if(arabicCount > 5 && latinCount > 0){
-      /* احتفظ فقط بـ teams */
-      t = t.replace(/\b(?!teams)[a-zA-Z]{1,3}\b/g, ' ');
+    if(arabicCount > 5 && latinCount > 0 && latinCount < arabicCount * 0.35){
+      t = t.replace(/(^|\s)([a-zA-Z]{1,2})(?=\s|$)/g, '$1 ');
     }
     t = t.replace(/[|¦ـ]{2,}/g, ' ');
     t = t.replace(/[^\u0600-\u06FFa-zA-Z0-9\s.,:\-\/\\()]/g, ' ');
     t = t.replace(/\s+/g, ' ').trim();
-    SPELL_FIX.forEach(function(pair){
-      try{ t = t.replace(pair[0], pair[1]); }catch(e){}
+    SPELL_FIX.forEach(function(p){
+      try{ t = t.replace(p[0], p[1]); }catch(e){}
     });
     t = t.replace(/\s*\/\s*/g, ' / ');
     t = t.replace(/\s+/g, ' ').trim();
@@ -125,67 +156,49 @@
   }
 
   /* ============================================================
-     🔧 parseAndRebuildDetails — القلب الجديد
-     يبني: "ح ث خ / 09:30 - 10:30 النص-بدون-الوقت ح.ب 104"
+     🔧 parseAndRebuildDetails — ترتيب صحيح: أيام → قاعة → وقت
      ============================================================ */
   function parseAndRebuildDetails(rawText){
-    var t = toEnDigits(String(rawText || ''));
-    /* 1) إزالة الرموز الغريبة */
+    var t = toEnDigits(fixDigitsOCR(String(rawText || '')));
     t = t.replace(/[|¦ـ]{2,}/g, ' ');
     t = t.replace(/\s+/g, ' ').trim();
 
-    /* 2) استخراج الأيام */
+    /* 1) أيام */
     var days = extractDays(t);
     var daysText = '';
     if(days.length){
       daysText = days.map(function(d){ return DAY_AR[d]; }).join(' ');
-      /* احذف قسم الأيام من النص */
-      t = t.replace(/([حنثرخجس](?:\s*[حنثرخجس])*)\s*[\/\\]/g, ' ').trim();
+      t = t.replace(/([حنثرخجس](?:\s+[حنثرخجس])+)\s*[\/\\]/g, ' ');
+      t = t.replace(/(?:^|\s)([حنثرخجس](?:\s+[حنثرخجس]){1,})(?=\s|$)/g, ' ');
+      t = t.replace(/[حنثرخجس]{2,}/g, ' ');
     }
 
-    /* 3) استخراج الوقت */
+    /* 2) القاعة — قبل حذف الأرقام */
+    var room = '';
+    var rm = t.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*[\/\\]?\s*(\d{2,4})/);
+    if(rm){
+      room = rm[1].replace(/\s+/g, ' ').trim() + ' ' + rm[2];
+      t = t.replace(rm[0], ' ');
+    } else {
+      var rm2 = t.match(/[\/\\]\s*(\d{3,4})\b/);
+      if(rm2){ room = rm2[1]; t = t.replace(rm2[0], ' '); }
+      else {
+        var rm3 = t.match(/(?:^|\s)(\d{3})(?=\s|$)/);
+        if(rm3 && !/^(20|19)\d/.test(rm3[1])){ room = rm3[1]; t = t.replace(rm3[0], ' '); }
+      }
+    }
+
+    /* 3) الوقت */
     var time = parseTimeRange(t);
-    /* احذف الوقت من النص: كل الأرقام + الفواصل المرتبطة */
     if(time){
-      /* احذف أنماط الوقت */
       t = t.replace(/\d{1,2}\s*[:.,]?\s*\d{2}\s*[-–—~]?\s*\d{1,2}\s*[:.,]?\s*\d{2}/g, ' ');
-      /* احذف الأرقام المتبقية القريبة */
       t = t.replace(/\b\d{1,2}\b/g, ' ');
     }
 
-    /* 4) استخراج رقم القاعة */
-    var room = '';
-    var roomMatch = t.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*[\/\\]?\s*(\d{1,4})/);
-    if(roomMatch){
-      /* إصلاح الحالة: قاعة "4" بدل "104" */
-      var roomNum = roomMatch[2];
-      if(roomNum.length === 1){
-        /* ابحث في بقية النص عن رقم يكملها */
-        var extraDigits = t.replace(roomMatch[0], ' ').match(/\b(\d{1,2})\b/);
-        if(extraDigits){
-          roomNum = '1' + extraDigits[1].slice(0,1) + roomNum;
-          if(roomNum.length > 3) roomNum = roomNum.slice(-3);
-          t = t.replace(extraDigits[0], ' ');
-        } else {
-          roomNum = '10' + roomNum; /* افتراض "104" */
-        }
-      }
-      room = roomMatch[1].replace(/\s+/g, ' ').trim() + ' ' + roomNum;
-      t = t.replace(roomMatch[0], ' ').trim();
-    } else {
-      /* جرّب رقم قاعة 3 خانات مستقل */
-      var roomMatch2 = t.match(/[\/\\]?\s*(\d{3,4})\b/);
-      if(roomMatch2){
-        room = roomMatch2[1];
-        t = t.replace(roomMatch2[0], ' ').trim();
-      }
-    }
-
-    /* 5) تنظيف النص المتبقي */
+    /* 4) تنظيف */
     t = cleanArabic(t);
-    t = t.replace(/\s+/g, ' ').trim();
 
-    /* 6) إعادة البناء */
+    /* 5) إعادة البناء */
     var rebuilt = '';
     if(daysText) rebuilt += daysText;
     if(time){
@@ -201,9 +214,6 @@
     return { rebuilt: rebuilt.trim(), time: time, days: days, room: room };
   }
 
-  /* ============================================================
-     🔧 fixRoomNumber + extractRoom (للتوافق مع applyToTimetable)
-     ============================================================ */
   function extractRoom(detailsText){
     if(!detailsText) return '';
     var m = detailsText.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{2,4})/);
@@ -213,9 +223,7 @@
     return '';
   }
 
-  /* ============================================================
-     📥 تحميل Tesseract + CSS + فتح النافذة (نفس v3)
-     ============================================================ */
+  /* ============ Tesseract ============ */
   function loadTesseract(){
     if(typeof window.Tesseract !== 'undefined' && window.Tesseract.createWorker) return Promise.resolve();
     if(window._ocrGridTessPromise) return window._ocrGridTessPromise;
@@ -229,54 +237,52 @@
     return window._ocrGridTessPromise;
   }
 
+  /* ============ CSS ============ */
   function injectCSS(){
     if(document.getElementById('ocrg-css')) return;
     var s = document.createElement('style');
     s.id = 'ocrg-css';
     s.textContent = `
-      .ocrg-backdrop{position:fixed;inset:0;z-index:550;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px;animation:ocrgFade .25s}
-      @keyframes ocrgFade{from{opacity:0}to{opacity:1}}
-      .ocrg-modal{background:var(--card);border:1px solid var(--border);border-radius:20px;width:96vw;max-width:1200px;max-height:94vh;overflow-y:auto;padding:22px;box-shadow:var(--shadow-lg);position:relative;animation:ocrgPop .3s}
-      @keyframes ocrgPop{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
-      .ocrg-modal::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:var(--grad);border-radius:20px 20px 0 0}
-      .ocrg-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px}
-      .ocrg-header h3{margin:0;font-size:1.1rem;color:var(--cyan)}
-      .ocrg-close{width:36px;height:36px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--muted);font-size:1.2rem;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;transition:.2s}
-      .ocrg-close:hover{border-color:var(--red);color:var(--red)}
-      .ocrg-hint{color:var(--muted);font-size:.82rem;margin-bottom:10px;line-height:1.75;background:var(--grad-soft);padding:11px 15px;border-radius:11px;border:1px solid var(--glow)}
-      .ocrg-hint b{color:var(--cyan)}
-      .ocrg-drop{border:2px dashed var(--border2);border-radius:14px;padding:48px 20px;text-align:center;cursor:pointer;background:var(--bg2);transition:.25s;font-size:1rem;color:var(--muted)}
-      .ocrg-drop:hover{border-color:var(--cyan);background:var(--grad-soft);color:var(--cyan);transform:scale(1.01)}
-      .ocrg-drop .ocrg-drop-icon{font-size:3rem;margin-bottom:10px;display:block;opacity:.7}
-      .ocrg-canvas-wrap{position:relative;overflow:auto;max-height:58vh;border-radius:12px;border:1px solid var(--border);background:var(--bg2);padding:8px}
-      #ocrgCanvas{max-width:100%;display:block;border-radius:8px;cursor:crosshair;touch-action:none}
-      .ocrg-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:flex-end}
-      .ocrg-progress{margin-top:14px;background:var(--bg2);border-radius:12px;padding:12px;border:1px solid var(--border)}
-      .ocrg-progress .bar-outer{height:10px;background:var(--card);border-radius:10px;overflow:hidden}
-      .ocrg-progress .bar-inner{height:100%;width:0%;background:var(--grad);border-radius:10px;transition:width .3s}
-      .ocrg-progress .text{font-size:.82rem;color:var(--muted);margin-top:8px;text-align:center;font-weight:600}
-      .ocrg-table-wrap{margin-top:16px;overflow-x:auto}
-      .ocrg-table{width:100%;border-collapse:collapse;min-width:900px;background:var(--bg2);border-radius:12px;overflow:hidden}
-      .ocrg-table th{background:#4a7bd4;color:#fff;padding:11px 8px;font-weight:700;font-size:.78rem;text-align:center;border:1px solid rgba(0,0,0,.2)}
-      .ocrg-table td{border:1px solid var(--border);padding:4px;text-align:center;vertical-align:middle;position:relative}
-      .ocrg-table td[contenteditable]{padding:10px 6px;min-width:60px;font-size:.82rem;outline:none;transition:.15s;line-height:1.5}
-      .ocrg-table td[contenteditable]:focus{background:var(--grad-soft);box-shadow:inset 0 0 0 2px var(--cyan)}
-      .ocrg-table td.ocrg-det{text-align:right;min-width:280px;font-size:.78rem;line-height:1.6}
-      .ocrg-table td.ocrg-nm{min-width:150px}
-      .ocrg-table td.ocrg-warn{background:rgba(251,191,36,.13)}
-      .ocrg-table td.ocrg-bad{background:rgba(239,68,68,.13)}
-      .ocrg-table .ocrg-conf{position:absolute;top:2px;left:3px;font-size:.55rem;font-weight:800;padding:1px 5px;border-radius:5px;background:var(--bg2);color:var(--muted);opacity:.65;pointer-events:none}
-      .ocrg-table .ocrg-conf.good{color:var(--green)}
-      .ocrg-table .ocrg-conf.mid{color:var(--amber)}
-      .ocrg-table .ocrg-conf.low{color:var(--red)}
-      .ocrg-table .ocrg-del{background:transparent;border:none;color:var(--red);font-size:1.05rem;cursor:pointer;font-family:inherit;padding:2px 8px}
-      .ocrg-table .ocrg-del:hover{background:rgba(239,68,68,.12);border-radius:6px}
-      .ocrg-status{margin-top:12px;text-align:center;font-size:.85rem;font-weight:700;color:var(--muted);min-height:1.4em;line-height:1.7}
-      @media(max-width:600px){.ocrg-modal{padding:14px;border-radius:14px}.ocrg-header h3{font-size:.95rem}}
+.ocrg-backdrop{position:fixed;inset:0;z-index:550;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px}
+.ocrg-modal{background:var(--card);border:1px solid var(--border);border-radius:20px;width:96vw;max-width:1200px;max-height:94vh;overflow-y:auto;padding:22px;box-shadow:var(--shadow-lg);position:relative}
+.ocrg-modal::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:var(--grad);border-radius:20px 20px 0 0}
+.ocrg-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.ocrg-header h3{margin:0;font-size:1.1rem;color:var(--cyan)}
+.ocrg-close{width:36px;height:36px;border-radius:10px;background:var(--bg2);border:1px solid var(--border);color:var(--muted);font-size:1.2rem;cursor:pointer;font-family:inherit}
+.ocrg-hint{color:var(--muted);font-size:.82rem;margin-bottom:10px;line-height:1.75;background:var(--grad-soft);padding:11px 15px;border-radius:11px;border:1px solid var(--glow)}
+.ocrg-hint b{color:var(--cyan)}
+.ocrg-drop{border:2px dashed var(--border2);border-radius:14px;padding:48px 20px;text-align:center;cursor:pointer;background:var(--bg2);transition:.25s;font-size:1rem;color:var(--muted)}
+.ocrg-drop:hover{border-color:var(--cyan);background:var(--grad-soft);color:var(--cyan)}
+.ocrg-drop .ocrg-drop-icon{font-size:3rem;margin-bottom:10px;display:block;opacity:.7}
+.ocrg-canvas-wrap{position:relative;overflow:auto;max-height:58vh;border-radius:12px;border:1px solid var(--border);background:var(--bg2);padding:8px}
+#ocrgCanvas{max-width:100%;display:block;border-radius:8px;cursor:crosshair;touch-action:none}
+.ocrg-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:flex-end}
+.ocrg-progress{margin-top:14px;background:var(--bg2);border-radius:12px;padding:12px;border:1px solid var(--border)}
+.ocrg-progress .bar-outer{height:10px;background:var(--card);border-radius:10px;overflow:hidden}
+.ocrg-progress .bar-inner{height:100%;width:0%;background:var(--grad);border-radius:10px;transition:width .3s}
+.ocrg-progress .text{font-size:.82rem;color:var(--muted);margin-top:8px;text-align:center;font-weight:600}
+.ocrg-table-wrap{margin-top:16px;overflow-x:auto}
+.ocrg-table{width:100%;border-collapse:collapse;min-width:900px;background:var(--bg2);border-radius:12px;overflow:hidden}
+.ocrg-table th{background:#4a7bd4;color:#fff;padding:11px 8px;font-weight:700;font-size:.78rem;text-align:center;border:1px solid rgba(0,0,0,.2)}
+.ocrg-table td{border:1px solid var(--border);padding:4px;text-align:center;vertical-align:middle;position:relative}
+.ocrg-table td[contenteditable]{padding:10px 6px;min-width:60px;font-size:.82rem;outline:none;transition:.15s;line-height:1.5}
+.ocrg-table td[contenteditable]:focus{background:var(--grad-soft);box-shadow:inset 0 0 0 2px var(--cyan)}
+.ocrg-table td.ocrg-det{text-align:right;min-width:280px;font-size:.78rem;line-height:1.6}
+.ocrg-table td.ocrg-nm{min-width:150px}
+.ocrg-table td.ocrg-warn{background:rgba(251,191,36,.13)}
+.ocrg-table td.ocrg-bad{background:rgba(239,68,68,.13)}
+.ocrg-table .ocrg-conf{position:absolute;top:2px;left:3px;font-size:.55rem;font-weight:800;padding:1px 5px;border-radius:5px;background:var(--bg2);color:var(--muted);opacity:.65;pointer-events:none}
+.ocrg-table .ocrg-conf.good{color:var(--green)}
+.ocrg-table .ocrg-conf.mid{color:var(--amber)}
+.ocrg-table .ocrg-conf.low{color:var(--red)}
+.ocrg-table .ocrg-del{background:transparent;border:none;color:var(--red);font-size:1.05rem;cursor:pointer;font-family:inherit;padding:2px 8px}
+.ocrg-status{margin-top:12px;text-align:center;font-size:.85rem;font-weight:700;color:var(--muted);min-height:1.4em;line-height:1.7}
+.ocrg-debug{margin-top:8px;font-size:.68rem;color:var(--muted2);font-family:monospace;direction:ltr;text-align:left;background:var(--bg2);padding:6px 10px;border-radius:6px}
     `;
     document.head.appendChild(s);
   }
 
+  /* ============ Modal ============ */
   function openModal(){
     injectCSS();
     document.querySelectorAll('.ocrg-backdrop').forEach(function(m){ m.remove(); });
@@ -286,8 +292,8 @@
     modal.innerHTML =
       '<div class="ocrg-modal" role="dialog" aria-modal="true">' +
         '<div class="ocrg-header">' +
-          '<h3>📸 استخراج الجدول (v4)</h3>' +
-          '<button class="ocrg-close" id="ocrgClose" aria-label="إغلاق">✕</button>' +
+          '<h3>📸 استخراج الجدول (v6 — HU)</h3>' +
+          '<button class="ocrg-close" id="ocrgClose">✕</button>' +
         '</div>' +
         '<div id="ocrgDrop" class="ocrg-drop">' +
           '<span class="ocrg-drop-icon">📤</span>' +
@@ -296,9 +302,10 @@
         '</div>' +
         '<div id="ocrgEditor" style="display:none">' +
           '<p class="ocrg-hint">' +
-            '🎯 <b>خطوط حمراء</b> = الأعمدة، <b>خطوط خضراء</b> = الصفوف. اسحبها لتطابق الجدول.' +
+            '🎯 <b>خطوط حمراء</b> = الأعمدة (مضبوطة لجدول الجامعة الهاشمية)، <b>خطوط خضراء</b> = الصفوف. اسحبها للتعديل.' +
           '</p>' +
           '<div class="ocrg-canvas-wrap"><canvas id="ocrgCanvas"></canvas></div>' +
+          '<div class="ocrg-debug" id="ocrgDebug"></div>' +
           '<div class="ocrg-actions">' +
             '<button class="btn btn-sm btn-ghost" id="ocrgAddLine">➕ خط صفوف</button>' +
             '<button class="btn btn-sm btn-ghost" id="ocrgRedetect">🔄 إعادة الاكتشاف</button>' +
@@ -378,6 +385,7 @@
   function loadImage(file){
     if(!file || !file.type.startsWith('image/')) return;
     var img = new Image();
+    var url = URL.createObjectURL(file);
     img.onload = function(){
       im = img;
       modal.querySelector('#ocrgDrop').style.display = 'none';
@@ -388,11 +396,15 @@
       detect();
       draw();
       setTimeout(bindCanvasEvents, 80);
+      URL.revokeObjectURL(url);
     };
-    img.onerror = function(){ toast('تعذّر تحميل الصورة', 'warn'); };
-    img.src = URL.createObjectURL(file);
+    img.onerror = function(){ toast('تعذّر تحميل الصورة', 'warn'); URL.revokeObjectURL(url); };
+    img.src = url;
   }
 
+  /* ============================================================
+     🔥 detect() — كشف ذكي بـ Projection (لا توجد خطوط عمودية!)
+     ============================================================ */
   function detect(){
     var W = im.naturalWidth, H = im.naturalHeight;
     var c = document.createElement('canvas');
@@ -400,9 +412,11 @@
     var x = c.getContext('2d');
     x.drawImage(im, 0, 0);
     var p = x.getImageData(0, 0, W, H).data;
-    var lum = function(i){ return .3*p[i] + .59*p[i+1] + .11*p[i+2]; };
-    var isBlue = function(i){ return (p[i+2] - p[i] > 50) && p[i+2] > 140; };
 
+    var lum = function(i){ return .3*p[i] + .59*p[i+1] + .11*p[i+2]; };
+    var isBlue = function(i){ return (p[i+2] - p[i] > 40) && p[i+2] > 120; };
+
+    /* 1) كشف شريط الرأس الأزرق */
     var b0 = -1, b1 = -1;
     for(var y = 0; y < H; y++){
       var n = 0;
@@ -410,6 +424,7 @@
       if(n > W*0.15){ if(b0 < 0) b0 = y; b1 = y; }
       else if(b0 >= 0) break;
     }
+
     L = 0; R = W - 1;
     if(b0 >= 0){
       var mn = W, mx = 0;
@@ -420,6 +435,8 @@
     }
 
     var top = b1 + 1;
+
+    /* 2) كشف الصفوف */
     var med = new Array(H).fill(0), ink = new Array(H).fill(0);
     for(var y2 = top; y2 < H; y2++){
       var arr = [], k = 0;
@@ -444,7 +461,98 @@
       if(s > 20) segs.push([cuts[i], cuts[i+1]]);
     }
     Hs = segs.length ? [segs[0][0]].concat(segs.map(function(sg){ return sg[1]; })) : [top, H];
-    V = DEF_FRAC.map(function(f){ return Math.round(L + f*(R - L)); });
+
+    /* 3) كشف الأعمدة عبر Projection */
+    var dataTop = Hs[0], dataBottom = Hs[Hs.length - 1];
+    var cols = detectColumnsByProjection(p, W, H, L, R, dataTop, dataBottom);
+    var method = 'projection';
+
+    /* 4) تحقق: لازم 5 خطوط داخلية */
+    if(cols.length < 4 || cols.length > 7){
+      cols = DEF_FRAC.map(function(f){ return Math.round(L + f*(R - L)); });
+      method = 'default (HU-tuned)';
+    }
+
+    V = cols;
+
+    /* Debug output */
+    var dbg = document.getElementById('ocrgDebug');
+    if(dbg){
+      var fr = V.map(function(v){ return ((v-L)/(R-L)).toFixed(3); });
+      dbg.textContent = '🔍 Method: ' + method + ' | Lines: [' + fr.join(', ') + '] (from left)';
+    }
+    console.log('[ocr-grid v6] Method:', method, '| Columns:', V);
+  }
+
+  /**
+   * كشف الأعمدة بـ Projection (توزيع البكسلات الداكنة)
+   * يبحث عن "وديان" (فراغات) بين الأعمدة
+   */
+  function detectColumnsByProjection(p, W, H, L, R, top, bottom){
+    var width = R - L + 1;
+    if(width < 50 || bottom <= top) return [];
+
+    var colInk = new Array(width).fill(0);
+    var rowCount = 0;
+
+    /* اعد البكسلات الداكنة في كل عمود */
+    for(var y = top; y <= bottom; y++){
+      rowCount++;
+      for(var x = L; x <= R; x++){
+        var idx = (y * W + x) * 4;
+        var l = 0.3*p[idx] + 0.59*p[idx+1] + 0.11*p[idx+2];
+        if(l < 140) colInk[x - L]++;
+      }
+    }
+    if(rowCount === 0) return [];
+
+    /* normalize + smooth */
+    var smoothed = new Array(width);
+    for(var i = 0; i < width; i++) colInk[i] /= rowCount;
+    for(var i2 = 0; i2 < width; i2++){
+      var s = 0, n = 0;
+      for(var k = -5; k <= 5; k++){
+        var ix = i2 + k;
+        if(ix >= 0 && ix < width){ s += colInk[ix]; n++; }
+      }
+      smoothed[i2] = s / n;
+    }
+
+    var maxInk = 0;
+    for(var i3 = 0; i3 < width; i3++) if(smoothed[i3] > maxInk) maxInk = smoothed[i3];
+    if(maxInk === 0) return [];
+
+    /* القمة = نص كثيف. الوادي = فراغ بين الأعمدة */
+    var cutoff = maxInk * 0.08;
+    var minGapWidth = Math.max(3, Math.round(width * 0.008));
+
+    var gapCenters = [];
+    var inGap = false, gapStart = 0;
+    for(var x2 = 0; x2 < width; x2++){
+      if(smoothed[x2] < cutoff){
+        if(!inGap){ inGap = true; gapStart = x2; }
+      } else {
+        if(inGap){
+          var gw = x2 - gapStart;
+          if(gw >= minGapWidth && x2 > 5 && x2 < width - 5){
+            gapCenters.push(L + Math.round((gapStart + x2) / 2));
+          }
+          inGap = false;
+        }
+      }
+    }
+
+    /* دمج الفراغات المتقاربة (أقل من 25 بكسل) */
+    var merged = [];
+    gapCenters.forEach(function(g){
+      if(!merged.length || g - merged[merged.length-1] > 25){
+        merged.push(g);
+      } else {
+        merged[merged.length-1] = Math.round((merged[merged.length-1] + g) / 2);
+      }
+    });
+
+    return merged;
   }
 
   function draw(){
@@ -454,15 +562,27 @@
     cv.height = Math.round(im.naturalHeight * S);
     ctx.drawImage(im, 0, 0, cv.width, cv.height);
     ctx.lineWidth = 2;
-    ctx.font = 'bold 13px Tahoma, sans-serif';
+    ctx.font = 'bold 12px Tahoma, sans-serif';
     ctx.textAlign = 'center';
+
     var B = [L].concat(V).concat([R]);
+
+    /* خطوط حمراء للأعمدة */
     ctx.strokeStyle = '#e5484d';
     V.forEach(function(v){ ctx.beginPath(); ctx.moveTo(v*S, 0); ctx.lineTo(v*S, cv.height); ctx.stroke(); });
+
+    /* خطوط خضراء للصفوف */
     ctx.strokeStyle = '#12a150';
     Hs.forEach(function(y){ ctx.beginPath(); ctx.moveTo(L*S, y*S); ctx.lineTo(R*S, y*S); ctx.stroke(); });
+
+    /* أسماء الأعمدة */
+    var names = ['الساعات', 'الوقت', 'العملي', 'النظري', 'الاسم', 'الرقم'];
     ctx.fillStyle = '#e5484d';
-    COLNAME.forEach(function(n, i){ ctx.fillText(n, ((B[i] + B[i+1]) / 2) * S, cv.height - 6); });
+    for(var i = 0; i < 6 && i < B.length - 1; i++){
+      var cx = (B[i] + B[i+1]) / 2;
+      var txt = names[i] + ' (' + ((B[i+1]-B[i])/im.naturalWidth*100).toFixed(0) + '%)';
+      ctx.fillText(txt, cx * S, cv.height - 6);
+    }
   }
 
   function canvasPos(e){
@@ -501,10 +621,6 @@
         else Hs.sort(function(a,b){ return a-b; });
         drag = null; draw();
       }
-    });
-    cv.addEventListener('dblclick', function(e){
-      var h = hitTest(canvasPos(e));
-      if(h && h.t === 'h' && Hs.length > 2){ Hs.splice(h.i, 1); draw(); }
     });
   }
 
@@ -561,7 +677,6 @@
     return { canvas: out, empty: false };
   }
 
-  /* ============ قراءة خلية بعدة أوضاع ============ */
   async function readCellMulti(cellCanvas, worker, psmModes, whitelist){
     var best = null;
     for(var i = 0; i < psmModes.length; i++){
@@ -579,14 +694,13 @@
     return best || { text: '', conf: 0 };
   }
 
-  /* ✅ منطق أذكى: الأرقام الصغيرة لا تُحذَّر */
   async function readNumeric(canvas, field){
-    var r = await readCellMulti(canvas, workerEn, [7, 6], '0123456789');
-    var digits = toEnDigits(r.text).replace(/\D/g, '');
+    var r = await readCellMulti(canvas, workerEn, [7, 8, 6], '0123456789');
+    var digits = toEnDigits(fixDigitsOCR(r.text)).replace(/\D/g, '');
     var warn = false;
     if(field === 'code') warn = digits.length < 8 || digits.length > 12;
     else if(field === 'hours') warn = !(digits.length === 1 && +digits >= 1 && +digits <= 6);
-    else warn = digits.length > 2; /* theory/lab: 0-99 */
+    else warn = digits.length > 2;
     return { text: digits, conf: r.conf, warn: warn };
   }
 
@@ -597,7 +711,6 @@
     return { text: txt, conf: r.conf, warn: warn };
   }
 
-  /* ✅ details: قراءة متعددة + إعادة بناء */
   async function readDetails(canvas){
     var attempts = [];
     for(var pi = 0; pi < 3; pi++){
@@ -610,7 +723,6 @@
         attempts.push({ text: txt, conf: conf });
       }catch(e){}
     }
-    /* اختيار الأفضل: من يعطي وقت + أيام + قاعة */
     var best = null, bestScore = -1;
     attempts.forEach(function(a){
       var parsed = parseAndRebuildDetails(a.text);
@@ -649,6 +761,11 @@
       barEl.style.width = '5%';
       await ensureWorkers();
 
+      /* ✅ تحقق: عدد الأعمدة لازم 5 خطوط داخلية */
+      if(V.length !== 5){
+        throw new Error('عدد الأعمدة يجب أن يكون 6 (' + (V.length + 1) + ' حالياً). اسحب الخطوط الحمراء للتعديل أو اضغط "إعادة الاكتشاف".');
+      }
+
       var B = [L].concat(V).concat([R]);
       var total = (Hs.length - 1) * 6;
       var done = 0;
@@ -660,7 +777,7 @@
           var field = COLS[c];
           var isNum = !!NUMERIC_FIELDS[field];
           var isDetails = field === 'details';
-          var scale = isNum ? 4 : 3;
+          var scale = isNum ? 4 : (isDetails ? 2 : 3);
           var crop = cropCell(B[c], Hs[r], B[c+1], Hs[r+1], scale);
 
           if(crop.empty){
@@ -705,7 +822,6 @@
     }
   }
 
-  /* ============ عرض الجدول ============ */
   function renderTable(){
     var body = modal.querySelector('#ocrgTableBody');
     body.innerHTML = '';
@@ -724,9 +840,7 @@
           badge.className = 'ocrg-conf ' + (conf.conf >= 85 ? 'good' : conf.conf >= 65 ? 'mid' : 'low');
           badge.textContent = Math.round(conf.conf) + '%';
           td.appendChild(badge);
-          if(conf.warn){
-            td.classList.add(conf.conf >= 50 ? 'ocrg-warn' : 'ocrg-bad');
-          }
+          if(conf.warn) td.classList.add(conf.conf >= 50 ? 'ocrg-warn' : 'ocrg-bad');
         }
         td.addEventListener('input', function(){
           row[f] = td.textContent;
@@ -745,26 +859,55 @@
     });
   }
 
-  /* ============ تطبيق ============ */
+  /* ============ مطابقة DB مع aliases ============ */
   function matchCourseInDB(row){
     var DB = window.COURSES_DB || {};
-    var code = toEnDigits(row.code).replace(/\D/g,'').replace(/^0+/, '');
+    var code = toEnDigits(fixDigitsOCR(row.code)).replace(/\D/g,'');
     var name = String(row.name || '').trim();
+
     if(code && code.length >= 8){
+      var cleanCode = code.replace(/^0+/, '');
       for(var k in DB){
-        if(String(DB[k].code || '').replace(/^0+/, '') === code) return k;
+        var info = DB[k];
+        /* الكود الأساسي */
+        if(String(info.code || '').replace(/^0+/, '') === cleanCode) return k;
+        /* ✅ aliases */
+        if(Array.isArray(info.aliases)){
+          for(var ai = 0; ai < info.aliases.length; ai++){
+            if(String(info.aliases[ai]).replace(/^0+/, '') === cleanCode) return k;
+          }
+        }
+      }
+      /* استخدم الدالة الجاهزة */
+      if(typeof window.findCourseByCode === 'function'){
+        var r = window.findCourseByCode(code);
+        if(r && r.name) return r.name;
       }
     }
+
     if(name && DB[name]) return name;
+
     if(name.length >= 3){
       var norm = function(s){
-        return String(s||'').replace(/[\u064B-\u0652]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/\s+/g,' ').trim();
+        return String(s||'')
+          .replace(/[\u064B-\u0652]/g,'')
+          .replace(/[أإآ]/g,'ا')
+          .replace(/ة/g,'ه')
+          .replace(/\s+/g,' ')
+          .trim();
       };
       var nameN = norm(name);
+      var bestKey = null, bestScore = 0;
       for(var k2 in DB){
         var keyN = norm(k2);
-        if(keyN.length >= 6 && (keyN.indexOf(nameN) > -1 || nameN.indexOf(keyN) > -1)) return k2;
+        if(keyN.length >= 6){
+          if(keyN.indexOf(nameN) > -1 || nameN.indexOf(keyN) > -1){
+            var score = Math.min(keyN.length, nameN.length);
+            if(score > bestScore){ bestScore = score; bestKey = k2; }
+          }
+        }
       }
+      if(bestKey) return bestKey;
     }
     return null;
   }
@@ -784,13 +927,12 @@
       var finalName = matchedName || row.name;
       if(!finalName || finalName.length < 2){ skipped++; return; }
 
-      /* ✅ أعد تحليل الوقت والأيام والقاعة من النص النهائي */
       var parsed = parseAndRebuildDetails(row.details);
       var time = parsed.time || parseTimeRange(row.details);
       var days = parsed.days.length ? parsed.days : extractDays(row.details);
       var room = parsed.room || extractRoom(row.details);
       var hours = parseInt(toEnDigits(row.hours).replace(/\D/g,''), 10) || 3;
-      var code = toEnDigits(row.code).replace(/\D/g,'');
+      var code = toEnDigits(fixDigitsOCR(row.code)).replace(/\D/g,'');
 
       if(days.length && time){
         days.forEach(function(day){
@@ -839,29 +981,34 @@
   function bindToUploadZone(){
     var zone = document.getElementById('uploadZone');
     if(!zone) return false;
-    var newZone = zone.cloneNode(true);
-    zone.parentNode.replaceChild(newZone, zone);
-    newZone._ocrgBound = true;
+    if(zone._ocrgBound) return true;
+
+    var parent = zone.parentNode;
+    var clean = zone.cloneNode(true);
+    parent.replaceChild(clean, zone);
+    clean._ocrgBound = true;
+
     ['btnParseOcr','btnPasteOcr'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.style.display = 'none';
     });
-    newZone.addEventListener('click', function(e){
+
+    clean.addEventListener('click', function(e){
       if(e.target.tagName === 'INPUT') return;
-      e.preventDefault(); openModal();
+      e.preventDefault();
+      openModal();
     });
-    newZone.addEventListener('keydown', function(e){
-      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openModal(); }
-    });
-    console.log('📸 ocr-grid v4: bound');
+    console.log('📸 ocr-grid v6: bound');
     return true;
   }
+
   function install(){ if(bindToUploadZone()) return; setTimeout(install, 400); }
 
   window.ocrGrid = {
     open: openModal,
     close: closeModal,
     parseTimeRange: parseTimeRange,
-    parseAndRebuildDetails: parseAndRebuildDetails
+    parseAndRebuildDetails: parseAndRebuildDetails,
+    detect: detect
   };
 
   if(document.readyState === 'loading'){
@@ -870,5 +1017,5 @@
   setTimeout(install, 1200);
   setTimeout(install, 2500);
 
-  console.log('📸 ocr-grid.js v4 loaded');
+  console.log('📸 ocr-grid.js v6 loaded — HU-tuned columns');
 })();
