@@ -1,9 +1,8 @@
 /* ============================================================
-   📸 ocr-grid.js v3 — Grid-Based OCR محسّن
-   ✅ استخراج الوقت من تسلسل الأرقام (لا يعتمد على الترقيم)
-   ✅ قراءة كل خلية بأوضاع متعددة واختيار الأفضل
-   ✅ إصلاح ذكي لأرقام القاعات والأخطاء الإملائية
-   ✅ كشف الخلايا المشبوهة تلقائياً
+   📸 ocr-grid.js v4 — إعادة بناء النص بعد OCR
+   ✅ parseAndRebuildDetails: يعيد بناء الوقت والأيام والقاعة
+   ✅ عرض النص المنظم بدلاً من الخام الفوضوي
+   ✅ منطق تحذير أذكى للأرقام الصغيرة
    ============================================================ */
 (function(){
   'use strict';
@@ -16,34 +15,28 @@
   var NUMERIC_FIELDS = { code:1, theory:1, lab:1, hours:1 };
   var DEF_FRAC = [0.072, 0.615, 0.672, 0.740, 0.900];
 
-  /* ============ إصلاحات إملائية موسّعة ============ */
   var SPELL_FIX = [
     [/مايكر\s*وسوفت/g, 'مايكروسوفت'],
     [/مايكرو\s*سوفت/g, 'مايكروسوفت'],
     [/مايكروسفت/g,   'مايكروسوفت'],
     [/مايكروسوف\b/g, 'مايكروسوفت'],
-    [/مايکروسوفت/g,  'مايكروسوفت'],
-    [/\b(تيامز|تيمز|teems|Tearns|Тeams|teams\b)\b/gi, 'teams'],
-    [/مايكر\s*وسفت/g, 'مايكروسوفت'],
+    [/\b(تيامز|تيمز|teems|teams\b)\b/gi, 'teams'],
     [/الحسين\s+البانى/g, 'الحسين الباني'],
-    [/الحسين\s+الباتي/g, 'الحسين الباني'],
     [/ابن\s+خلدون/g,   'ابن خلدون'],
     [/استدراكيه/g,     'استدراكية'],
     [/فيزياء\s+عامه/g, 'فيزياء عامة'],
     [/لغه\s+عربيه/g,   'لغة عربية'],
     [/الانجليزيه/g,    'الانجليزية'],
     [/على\s+منصه/g,    'على منصة'],
-    [/بشكل\s+مدمج/g,   'بشكل مدمج']
+    [/مبنى\s+الحسين/g, 'مبنى الحسين']
   ];
 
-  /* ============ الحالة ============ */
   var im = null, L = 0, R = 0, V = [], Hs = [], S = 1, drag = null;
   var rows = [], cellConf = [];
   var cv = null, ctx = null;
-  var workerAr = null, workerEn = null, workerDetails = null;
+  var workerAr = null, workerEn = null;
   var busy = false, modal = null;
 
-  /* ============ أدوات ============ */
   function toast(m,t,d){ if(typeof window.toast === 'function') window.toast(m, t||'info', d||2500); }
   function uid(){ return (window.uid ? window.uid() : Date.now().toString(36)+Math.random().toString(36).slice(2,6)); }
   function pad2(n){ return String(n).padStart(2,'0'); }
@@ -54,128 +47,175 @@
   }
 
   /* ============================================================
-     🕐 استخراج الوقت من تسلسل الأرقام (الطريقة الجذرية)
-     لا يعتمد على وجود `-` أو `,` — فقط يستخرج الأرقام ويبني الوقت
+     🕐 parseTimeRange — استخراج الوقت من تسلسل الأرقام
      ============================================================ */
   function parseTimeRange(text){
     if(!text) return null;
     var t = toEnDigits(text);
 
-    /* استراتيجية 1: النمط القياسي (يشتغل 80% من الوقت) */
+    /* نمط قياسي */
     var m = t.match(/(\d{1,2})\s*[:.,]\s*(\d{2})\s*[-–—~]+\s*(\d{1,2})\s*[:.,]\s*(\d{2})/);
     if(m){
-      var h1=+m[1], m1=+m[2], h2=+m[3], m2=+m[4];
-      if(validH(h1) && validH(h2) && validM(m1) && validM(m2)){
-        return buildRange(h1,m1,h2,m2);
-      }
+      var r = buildRange(+m[1],+m[2],+m[3],+m[4]);
+      if(r) return r;
     }
 
-    /* استراتيجية 2: تسلسل أزواج من رقمين — الأكثر صموداً */
-    /* مثال: "10 30 - 0 09,30" → ["10","30","09","30"] */
+    /* استخراج كل الأرقام الثنائية وبناء الوقت منطقياً */
     var pairs = [];
     var re = /(\d{2})(?!\d)/g, mm;
     while((mm = re.exec(t)) !== null){
       pairs.push({ v: +mm[1], pos: mm.index });
     }
-
-    /* ابحث عن تسلسل (ساعة، دقيقة، ساعة، دقيقة) صالح */
+    /* جرّب كل نافذة من 4 أرقام متتالية */
     for(var i = 0; i <= pairs.length - 4; i++){
-      var h1 = pairs[i].v, m1 = pairs[i+1].v;
-      var h2 = pairs[i+2].v, m2 = pairs[i+3].v;
-      if(validH(h1) && validM(m1) && validH(h2) && validM(m2)){
-        /* تأكد أن الزوجين قريبان من بعضهما */
-        if(Math.abs(pairs[i+3].pos - pairs[i].pos) < 25){
-          var r = buildRange(h1, m1, h2, m2);
-          if(r) return r;
-        }
-      }
+      if(Math.abs(pairs[i+3].pos - pairs[i].pos) > 30) continue;
+      var r1 = buildRange(pairs[i].v, pairs[i+1].v, pairs[i+2].v, pairs[i+3].v);
+      if(r1) return r1;
     }
-
-    /* استراتيجية 3: التسلسل العكسي (دقيقة، ساعة) */
-    for(var k = 0; k <= pairs.length - 4; k++){
-      var m1b = pairs[k].v, h1b = pairs[k+1].v;
-      var m2b = pairs[k+2].v, h2b = pairs[k+3].v;
-      if(validH(h1b) && validM(m1b) && validH(h2b) && validM(m2b)){
-        if(Math.abs(pairs[k+3].pos - pairs[k].pos) < 25){
-          var r2 = buildRange(h1b, m1b, h2b, m2b);
-          if(r2) return r2;
-        }
-      }
-    }
-
     return null;
   }
-
-  function validH(h){ return h >= 6 && h <= 23; }
-  function validM(m){ return m >= 0 && m <= 59; }
   function buildRange(h1,m1,h2,m2){
+    if(h1 < 6 || h1 > 23 || h2 < 6 || h2 > 23) return null;
+    if(m1 < 0 || m1 > 59 || m2 < 0 || m2 > 59) return null;
     var t1 = h1*60+m1, t2 = h2*60+m2;
     if(t1 === t2) return null;
     var s = Math.min(t1,t2), e = Math.max(t1,t2);
-    if(e - s > 6*60) return null; /* مدة معقولة كحد أقصى 6 ساعات */
-    return {
-      start: pad2(Math.floor(s/60))+':'+pad2(s%60),
-      end:   pad2(Math.floor(e/60))+':'+pad2(e%60)
-    };
+    if(e - s > 6*60) return null;
+    return { start: pad2(Math.floor(s/60))+':'+pad2(s%60), end: pad2(Math.floor(e/60))+':'+pad2(e%60) };
   }
 
   /* ============ أيام الأسبوع ============ */
+  var DAY_LET = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
+  var DAY_ORDER = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var DAY_AR = { Sun:'ح', Mon:'ن', Tue:'ث', Wed:'ر', Thu:'خ', Fri:'ج', Sat:'س' };
+
   function extractDays(text){
-    var LET = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
-    var ORDER = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     var m = String(text||'').match(/([حنثرخجس](?:\s*[حنثرخجس])*)\s*[\/\\]/);
     if(!m) return [];
     var out = [];
     m[1].replace(/\s/g,'').split('').forEach(function(ch){
-      var d = LET[ch];
+      var d = DAY_LET[ch];
       if(d && out.indexOf(d) === -1) out.push(d);
     });
-    return out.sort(function(a,b){ return ORDER.indexOf(a) - ORDER.indexOf(b); });
+    return out.sort(function(a,b){ return DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b); });
   }
 
-  /* ============ إصلاح رقم القاعة المقطوع ============ */
-  function fixRoomNumber(text){
-    if(!text) return text;
-    var t = String(text);
-
-    /* حالة A: "ح.ب / N" و "N2" منفصلين في السطر → دمجهما */
-    var reA = /([حمنر][\s.]?[بغبجمع])\s*[\/\\]\s*(\d)\s+(?=[^]*?(\d)(?=\s|$))/;
-    var mA = t.match(/([حمنر][\s.]?[بغبجمع])\s*[\/\\]\s*(\d)\b[\s\S]{0,40}?\b(\d)(?=\s|$)/);
-    if(mA){
-      var combined = mA[2] + mA[3];
-      if(combined.length === 2){
-        /* حولها لـ رقم قاعة 3 خانات — عادةً 1XX */
-        t = t.replace(mA[0], mA[1] + ' ' + '1' + combined);
-      }
-    }
-
-    /* حالة B: "ح.ب / NN" — غالباً NN هو آخر خانتين من رقم من 3 خانات */
-    /* نترك للمستخدم التصحيح */
-
-    /* حالة C: أرقام فردية متتابعة "1 0 4" → "104" */
-    t = t.replace(/([حمنر][\s.]?[بغبجمع])\s+(\d)\s+(\d)\s+(\d)\b/g, function(_, p, a, b, c){
-      return p + ' ' + a + b + c;
-    });
-
-    return t.replace(/\s+/g,' ').trim();
-  }
-
-  /* ============ تنظيف عربي عام ============ */
+  /* ============================================================
+     🧹 cleanArabic — تنظيف عام
+     ============================================================ */
   function cleanArabic(text){
     if(!text) return '';
-    var t = String(text).trim();
-    t = t.replace(/\s+/g, ' ');
+    var t = String(text);
+    /* إزالة حروف غريبة (لاتيني عشوائي إذا النص عربي) */
+    var arabicCount = (t.match(/[\u0600-\u06FF]/g) || []).length;
+    var latinCount  = (t.match(/[a-zA-Z]/g) || []).length;
+    if(arabicCount > 5 && latinCount > 0){
+      /* احتفظ فقط بـ teams */
+      t = t.replace(/\b(?!teams)[a-zA-Z]{1,3}\b/g, ' ');
+    }
     t = t.replace(/[|¦ـ]{2,}/g, ' ');
+    t = t.replace(/[^\u0600-\u06FFa-zA-Z0-9\s.,:\-\/\\()]/g, ' ');
+    t = t.replace(/\s+/g, ' ').trim();
     SPELL_FIX.forEach(function(pair){
       try{ t = t.replace(pair[0], pair[1]); }catch(e){}
     });
     t = t.replace(/\s*\/\s*/g, ' / ');
-    t = t.replace(/\s*\(\s*/g, ' (').replace(/\s*\)\s*/g, ') ');
     t = t.replace(/\s+/g, ' ').trim();
     return t;
   }
 
-  /* ============ تحميل Tesseract ============ */
+  /* ============================================================
+     🔧 parseAndRebuildDetails — القلب الجديد
+     يبني: "ح ث خ / 09:30 - 10:30 النص-بدون-الوقت ح.ب 104"
+     ============================================================ */
+  function parseAndRebuildDetails(rawText){
+    var t = toEnDigits(String(rawText || ''));
+    /* 1) إزالة الرموز الغريبة */
+    t = t.replace(/[|¦ـ]{2,}/g, ' ');
+    t = t.replace(/\s+/g, ' ').trim();
+
+    /* 2) استخراج الأيام */
+    var days = extractDays(t);
+    var daysText = '';
+    if(days.length){
+      daysText = days.map(function(d){ return DAY_AR[d]; }).join(' ');
+      /* احذف قسم الأيام من النص */
+      t = t.replace(/([حنثرخجس](?:\s*[حنثرخجس])*)\s*[\/\\]/g, ' ').trim();
+    }
+
+    /* 3) استخراج الوقت */
+    var time = parseTimeRange(t);
+    /* احذف الوقت من النص: كل الأرقام + الفواصل المرتبطة */
+    if(time){
+      /* احذف أنماط الوقت */
+      t = t.replace(/\d{1,2}\s*[:.,]?\s*\d{2}\s*[-–—~]?\s*\d{1,2}\s*[:.,]?\s*\d{2}/g, ' ');
+      /* احذف الأرقام المتبقية القريبة */
+      t = t.replace(/\b\d{1,2}\b/g, ' ');
+    }
+
+    /* 4) استخراج رقم القاعة */
+    var room = '';
+    var roomMatch = t.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*[\/\\]?\s*(\d{1,4})/);
+    if(roomMatch){
+      /* إصلاح الحالة: قاعة "4" بدل "104" */
+      var roomNum = roomMatch[2];
+      if(roomNum.length === 1){
+        /* ابحث في بقية النص عن رقم يكملها */
+        var extraDigits = t.replace(roomMatch[0], ' ').match(/\b(\d{1,2})\b/);
+        if(extraDigits){
+          roomNum = '1' + extraDigits[1].slice(0,1) + roomNum;
+          if(roomNum.length > 3) roomNum = roomNum.slice(-3);
+          t = t.replace(extraDigits[0], ' ');
+        } else {
+          roomNum = '10' + roomNum; /* افتراض "104" */
+        }
+      }
+      room = roomMatch[1].replace(/\s+/g, ' ').trim() + ' ' + roomNum;
+      t = t.replace(roomMatch[0], ' ').trim();
+    } else {
+      /* جرّب رقم قاعة 3 خانات مستقل */
+      var roomMatch2 = t.match(/[\/\\]?\s*(\d{3,4})\b/);
+      if(roomMatch2){
+        room = roomMatch2[1];
+        t = t.replace(roomMatch2[0], ' ').trim();
+      }
+    }
+
+    /* 5) تنظيف النص المتبقي */
+    t = cleanArabic(t);
+    t = t.replace(/\s+/g, ' ').trim();
+
+    /* 6) إعادة البناء */
+    var rebuilt = '';
+    if(daysText) rebuilt += daysText;
+    if(time){
+      if(rebuilt) rebuilt += ' / ';
+      rebuilt += time.start + ' - ' + time.end;
+    } else {
+      if(rebuilt) rebuilt += ' / ';
+      rebuilt += '--:--';
+    }
+    if(t) rebuilt += ' ' + t;
+    if(room) rebuilt += ' ' + room;
+
+    return { rebuilt: rebuilt.trim(), time: time, days: days, room: room };
+  }
+
+  /* ============================================================
+     🔧 fixRoomNumber + extractRoom (للتوافق مع applyToTimetable)
+     ============================================================ */
+  function extractRoom(detailsText){
+    if(!detailsText) return '';
+    var m = detailsText.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{2,4})/);
+    if(m) return m[1].replace(/\s+/g,' ').trim() + ' ' + m[2];
+    m = detailsText.match(/[\/\\]?\s*(\d{3,4})\b/);
+    if(m) return m[1];
+    return '';
+  }
+
+  /* ============================================================
+     📥 تحميل Tesseract + CSS + فتح النافذة (نفس v3)
+     ============================================================ */
   function loadTesseract(){
     if(typeof window.Tesseract !== 'undefined' && window.Tesseract.createWorker) return Promise.resolve();
     if(window._ocrGridTessPromise) return window._ocrGridTessPromise;
@@ -189,15 +229,14 @@
     return window._ocrGridTessPromise;
   }
 
-  /* ============ CSS ============ */
   function injectCSS(){
     if(document.getElementById('ocrg-css')) return;
     var s = document.createElement('style');
     s.id = 'ocrg-css';
     s.textContent = `
-      .ocrg-backdrop{position:fixed;inset:0;z-index:550;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px;animation:ocrgFade .25s ease}
+      .ocrg-backdrop{position:fixed;inset:0;z-index:550;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px;animation:ocrgFade .25s}
       @keyframes ocrgFade{from{opacity:0}to{opacity:1}}
-      .ocrg-modal{background:var(--card);border:1px solid var(--border);border-radius:20px;width:96vw;max-width:1200px;max-height:94vh;overflow-y:auto;padding:22px;box-shadow:var(--shadow-lg);position:relative;animation:ocrgPop .3s ease}
+      .ocrg-modal{background:var(--card);border:1px solid var(--border);border-radius:20px;width:96vw;max-width:1200px;max-height:94vh;overflow-y:auto;padding:22px;box-shadow:var(--shadow-lg);position:relative;animation:ocrgPop .3s}
       @keyframes ocrgPop{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
       .ocrg-modal::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:var(--grad);border-radius:20px 20px 0 0}
       .ocrg-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px}
@@ -238,7 +277,6 @@
     document.head.appendChild(s);
   }
 
-  /* ============ فتح/إغلاق ============ */
   function openModal(){
     injectCSS();
     document.querySelectorAll('.ocrg-backdrop').forEach(function(m){ m.remove(); });
@@ -248,7 +286,7 @@
     modal.innerHTML =
       '<div class="ocrg-modal" role="dialog" aria-modal="true">' +
         '<div class="ocrg-header">' +
-          '<h3>📸 استخراج الجدول من صورة (v3)</h3>' +
+          '<h3>📸 استخراج الجدول (v4)</h3>' +
           '<button class="ocrg-close" id="ocrgClose" aria-label="إغلاق">✕</button>' +
         '</div>' +
         '<div id="ocrgDrop" class="ocrg-drop">' +
@@ -258,8 +296,7 @@
         '</div>' +
         '<div id="ocrgEditor" style="display:none">' +
           '<p class="ocrg-hint">' +
-            '🎯 <b>خطوط حمراء</b> = الأعمدة، <b>خطوط خضراء</b> = الصفوف. ' +
-            'اسحبها لتطابق الجدول. <b>نقر مزدوج</b> على خط أخضر لحذفه.' +
+            '🎯 <b>خطوط حمراء</b> = الأعمدة، <b>خطوط خضراء</b> = الصفوف. اسحبها لتطابق الجدول.' +
           '</p>' +
           '<div class="ocrg-canvas-wrap"><canvas id="ocrgCanvas"></canvas></div>' +
           '<div class="ocrg-actions">' +
@@ -338,7 +375,6 @@
   }
   function onEscKey(e){ if(e.key === 'Escape') closeModal(); }
 
-  /* ============ تحميل الصورة والاكتشاف ============ */
   function loadImage(file){
     if(!file || !file.type.startsWith('image/')) return;
     var img = new Image();
@@ -417,24 +453,16 @@
     cv.width  = Math.round(im.naturalWidth  * S);
     cv.height = Math.round(im.naturalHeight * S);
     ctx.drawImage(im, 0, 0, cv.width, cv.height);
-
     ctx.lineWidth = 2;
     ctx.font = 'bold 13px Tahoma, sans-serif';
     ctx.textAlign = 'center';
     var B = [L].concat(V).concat([R]);
-
     ctx.strokeStyle = '#e5484d';
-    V.forEach(function(v){
-      ctx.beginPath(); ctx.moveTo(v*S, 0); ctx.lineTo(v*S, cv.height); ctx.stroke();
-    });
+    V.forEach(function(v){ ctx.beginPath(); ctx.moveTo(v*S, 0); ctx.lineTo(v*S, cv.height); ctx.stroke(); });
     ctx.strokeStyle = '#12a150';
-    Hs.forEach(function(y){
-      ctx.beginPath(); ctx.moveTo(L*S, y*S); ctx.lineTo(R*S, y*S); ctx.stroke();
-    });
+    Hs.forEach(function(y){ ctx.beginPath(); ctx.moveTo(L*S, y*S); ctx.lineTo(R*S, y*S); ctx.stroke(); });
     ctx.fillStyle = '#e5484d';
-    COLNAME.forEach(function(n, i){
-      ctx.fillText(n, ((B[i] + B[i+1]) / 2) * S, cv.height - 6);
-    });
+    COLNAME.forEach(function(n, i){ ctx.fillText(n, ((B[i] + B[i+1]) / 2) * S, cv.height - 6); });
   }
 
   function canvasPos(e){
@@ -480,14 +508,13 @@
     });
   }
 
-  /* ============ قص الخلية + Otsu ============ */
+  /* ============ قص + Otsu ============ */
   function cropCell(x0, y0, x1, y1, scale){
     var w = Math.max(4, x1-x0), h = Math.max(4, y1-y0), pad = 10;
     var tmp = document.createElement('canvas');
     tmp.width = w; tmp.height = h;
     var tg = tmp.getContext('2d');
     tg.drawImage(im, x0, y0, w, h, 0, 0, w, h);
-
     var imageData = tg.getImageData(0, 0, w, h);
     var d = imageData.data;
     var hist = new Array(256).fill(0);
@@ -508,7 +535,6 @@
       var between = wB * wF * (mB-mF) * (mB-mF);
       if(between > maxVar){ maxVar = between; otsu = t3; }
     }
-
     var minX = w, maxX = 0, minY = h, maxY = 0;
     for(var y2 = 0; y2 < h; y2++){
       for(var x2 = 0; x2 < w; x2++){
@@ -516,16 +542,13 @@
         var val = d[idx] > otsu ? 255 : 0;
         d[idx]=d[idx+1]=d[idx+2]=val;
         if(val === 0){
-          if(x2 < minX) minX = x2;
-          if(x2 > maxX) maxX = x2;
-          if(y2 < minY) minY = y2;
-          if(y2 > maxY) maxY = y2;
+          if(x2 < minX) minX = x2; if(x2 > maxX) maxX = x2;
+          if(y2 < minY) minY = y2; if(y2 > maxY) maxY = y2;
         }
       }
     }
     tg.putImageData(imageData, 0, 0);
     if(maxX <= minX || maxY <= minY) return { canvas: tmp, empty: true };
-
     var trimW = maxX-minX+1, trimH = maxY-minY+1;
     var outW = Math.round(trimW*scale) + pad*2;
     var outH = Math.round(trimH*scale) + pad*2;
@@ -550,60 +573,63 @@
         var txt = (res && res.data && res.data.text) || '';
         var conf = (res && res.data && typeof res.data.confidence === 'number') ? res.data.confidence : 0;
         if(!best || conf > best.conf) best = { text: txt, conf: conf };
-        if(conf > 88) break; /* ممتاز، توقف */
+        if(conf > 88) break;
       }catch(e){}
     }
     return best || { text: '', conf: 0 };
   }
 
-  async function readNumeric(canvas, expectedLen){
+  /* ✅ منطق أذكى: الأرقام الصغيرة لا تُحذَّر */
+  async function readNumeric(canvas, field){
     var r = await readCellMulti(canvas, workerEn, [7, 6], '0123456789');
     var digits = toEnDigits(r.text).replace(/\D/g, '');
-    return { text: digits, conf: r.conf, warn: digits.length === 0 || (expectedLen && digits.length !== expectedLen) };
+    var warn = false;
+    if(field === 'code') warn = digits.length < 8 || digits.length > 12;
+    else if(field === 'hours') warn = !(digits.length === 1 && +digits >= 1 && +digits <= 6);
+    else warn = digits.length > 2; /* theory/lab: 0-99 */
+    return { text: digits, conf: r.conf, warn: warn };
   }
 
   async function readText(canvas){
     var r = await readCellMulti(canvas, workerAr, [6, 7, 4], null);
     var txt = cleanArabic(r.text);
-    return { text: txt, conf: r.conf, warn: r.conf < 65 || txt.length < 3 };
+    var warn = txt.length < 3;
+    return { text: txt, conf: r.conf, warn: warn };
   }
 
+  /* ✅ details: قراءة متعددة + إعادة بناء */
   async function readDetails(canvas){
-    /* جرّب عدة أوضاع، واختر القراءة التي تحتوي على وقت صالح */
     var attempts = [];
-    for(var psm of [6, 4, 7]){
+    for(var pi = 0; pi < 3; pi++){
+      var psm = [6, 4, 7][pi];
       try{
         await workerAr.setParameters({ tessedit_pageseg_mode: String(psm) });
         var res = await workerAr.recognize(canvas);
         var txt = (res && res.data && res.data.text) || '';
         var conf = (res && res.data && typeof res.data.confidence === 'number') ? res.data.confidence : 0;
-        attempts.push({ text: txt, conf: conf, psm: psm });
+        attempts.push({ text: txt, conf: conf });
       }catch(e){}
     }
-
+    /* اختيار الأفضل: من يعطي وقت + أيام + قاعة */
     var best = null, bestScore = -1;
     attempts.forEach(function(a){
-      var cleaned = cleanArabic(a.text);
-      var fixed = fixRoomNumber(cleaned);
-      var time = parseTimeRange(fixed);
-      var digits = (fixed.match(/\d/g) || []).length;
-      /* معيار: وقت صالح (+50) + ثقة + عدد أرقام */
-      var score = a.conf + (time ? 50 : 0) + Math.min(digits, 20);
+      var parsed = parseAndRebuildDetails(a.text);
+      var score = a.conf
+        + (parsed.time ? 60 : 0)
+        + (parsed.days.length ? 25 : 0)
+        + (parsed.room ? 20 : 0);
       if(score > bestScore){
         bestScore = score;
-        best = { text: fixed, conf: a.conf, warn: !time };
+        best = { text: parsed.rebuilt, conf: a.conf, warn: !parsed.time || !parsed.days.length };
       }
     });
-
     return best || { text: '', conf: 0, warn: true };
   }
 
-  /* ============ Workers ============ */
   async function ensureWorkers(){
     await loadTesseract();
-    if(!workerAr)     workerAr     = await window.Tesseract.createWorker('ara+eng', 1);
-    if(!workerEn)     workerEn     = await window.Tesseract.createWorker('eng', 1);
-    if(!workerDetails) workerDetails = workerAr; /* نستخدم نفس الـ worker */
+    if(!workerAr) workerAr = await window.Tesseract.createWorker('ara+eng', 1);
+    if(!workerEn) workerEn = await window.Tesseract.createWorker('eng', 1);
   }
 
   /* ============ الاستخراج ============ */
@@ -638,10 +664,10 @@
           var crop = cropCell(B[c], Hs[r], B[c+1], Hs[r+1], scale);
 
           if(crop.empty){
-            rowObj[field] = ''; confRow[field] = { conf:0, warn:true };
+            rowObj[field] = '';
+            confRow[field] = { conf: 0, warn: (field === 'code' || field === 'name') };
           } else if(isNum){
-            var expectedLen = field === 'code' ? null : 1;
-            var resNum = await readNumeric(crop.canvas, expectedLen);
+            var resNum = await readNumeric(crop.canvas, field);
             rowObj[field] = resNum.text;
             confRow[field] = { conf: resNum.conf, warn: resNum.warn };
           } else if(isDetails){
@@ -660,43 +686,6 @@
         rows.push(rowObj);
         cellConf.push(confRow);
       }
-
-      /* ✅ فلترة ذكية: أكواد المواد يجب أن تكون 9 أرقام */
-      for(var ri = 0; ri < rows.length; ri++){
-        var code = rows[ri].code || '';
-        if(code && code.length < 8){
-          /* حاول إصلاح: إذا كان أقل من 9، ابحث عن صف بنفس الاسم */
-          var name = (rows[ri].name || '').trim();
-          for(var rj = 0; rj < rows.length; rj++){
-            if(rj !== ri && rows[rj].name && name && rows[rj].name.indexOf(name.slice(0,10)) > -1 && (rows[rj].code||'').length >= 8){
-              rows[ri].code = rows[rj].code;
-              cellConf[ri].code = { conf: 60, warn: true };
-              break;
-            }
-          }
-        }
-      }
-
-      /* ✅ فلترة أرقام القاعات المشبوهة (كل الأرقام 3 خانات، أحدها 1-2) */
-      var roomLens = [];
-      rows.forEach(function(row){
-        var m = row.details && row.details.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{1,4})/);
-        if(m) roomLens.push(m[2].length);
-      });
-      var commonLen = 3; /* افتراضي */
-      if(roomLens.length){
-        var counts = {};
-        roomLens.forEach(function(l){ counts[l] = (counts[l]||0) + 1; });
-        commonLen = parseInt(Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; })[0], 10) || 3;
-      }
-      rows.forEach(function(row, i){
-        var m = row.details && row.details.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{1,4})/);
-        if(m && m[2].length !== commonLen){
-          if(cellConf[i] && cellConf[i].details){
-            cellConf[i].details.warn = true;
-          }
-        }
-      });
 
       barEl.style.width = '100%';
       textEl.textContent = '✅ استُخرجت ' + rows.length + ' صفوف';
@@ -756,16 +745,7 @@
     });
   }
 
-  /* ============ تطبيق على الجدول ============ */
-  function extractRoom(text){
-    if(!text) return '';
-    var m = text.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{2,4})/);
-    if(m) return m[1].replace(/\s+/g,' ').trim() + ' ' + m[2];
-    m = text.match(/[\/\\]\s*(\d{3,4})\b/);
-    if(m) return m[1];
-    return '';
-  }
-
+  /* ============ تطبيق ============ */
   function matchCourseInDB(row){
     var DB = window.COURSES_DB || {};
     var code = toEnDigits(row.code).replace(/\D/g,'').replace(/^0+/, '');
@@ -804,9 +784,11 @@
       var finalName = matchedName || row.name;
       if(!finalName || finalName.length < 2){ skipped++; return; }
 
-      var time = parseTimeRange(row.details);
-      var days = extractDays(row.details);
-      var room = extractRoom(row.details);
+      /* ✅ أعد تحليل الوقت والأيام والقاعة من النص النهائي */
+      var parsed = parseAndRebuildDetails(row.details);
+      var time = parsed.time || parseTimeRange(row.details);
+      var days = parsed.days.length ? parsed.days : extractDays(row.details);
+      var room = parsed.room || extractRoom(row.details);
       var hours = parseInt(toEnDigits(row.hours).replace(/\D/g,''), 10) || 3;
       var code = toEnDigits(row.code).replace(/\D/g,'');
 
@@ -870,16 +852,17 @@
     newZone.addEventListener('keydown', function(e){
       if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openModal(); }
     });
-    console.log('📸 ocr-grid v3: bound');
+    console.log('📸 ocr-grid v4: bound');
     return true;
   }
+  function install(){ if(bindToUploadZone()) return; setTimeout(install, 400); }
 
-  function install(){
-    if(bindToUploadZone()) return;
-    setTimeout(install, 400);
-  }
-
-  window.ocrGrid = { open: openModal, close: closeModal, parseTimeRange: parseTimeRange };
+  window.ocrGrid = {
+    open: openModal,
+    close: closeModal,
+    parseTimeRange: parseTimeRange,
+    parseAndRebuildDetails: parseAndRebuildDetails
+  };
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 300); });
@@ -887,5 +870,5 @@
   setTimeout(install, 1200);
   setTimeout(install, 2500);
 
-  console.log('📸 ocr-grid.js v3 loaded');
+  console.log('📸 ocr-grid.js v4 loaded');
 })();
