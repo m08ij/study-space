@@ -1,126 +1,181 @@
 /* ============================================================
-   📸 ocr-grid.js v2 — نظام القراءة التفاعلي (Grid-Based OCR)
-   ✅ استراتيجية "قسّم ثم اقرأ" مع معالجة احترافية لكل خلية
-   ✅ Multi-PSM + Otsu Thresholding + Smart Repair + Confidence
+   📸 ocr-grid.js v3 — Grid-Based OCR محسّن
+   ✅ استخراج الوقت من تسلسل الأرقام (لا يعتمد على الترقيم)
+   ✅ قراءة كل خلية بأوضاع متعددة واختيار الأفضل
+   ✅ إصلاح ذكي لأرقام القاعات والأخطاء الإملائية
+   ✅ كشف الخلايا المشبوهة تلقائياً
    ============================================================ */
 (function(){
   'use strict';
   if(window._ocrGridLoaded) return;
   window._ocrGridLoaded = true;
 
-  /* ================== ثوابت ================== */
   var FIELDS  = ['code','name','theory','lab','details','hours'];
   var COLS    = ['hours','details','lab','theory','name','code'];
   var COLNAME = ['الساعات','الوقت والقاعة','العملي','النظري','اسم المادة','رقم المادة'];
   var NUMERIC_FIELDS = { code:1, theory:1, lab:1, hours:1 };
-  /* نسب مبدئية محسّنة لجدول الجامعة (6 أعمدة) */
   var DEF_FRAC = [0.072, 0.615, 0.672, 0.740, 0.900];
 
-  /* قاموس تصحيح OCR الشائع */
+  /* ============ إصلاحات إملائية موسّعة ============ */
   var SPELL_FIX = [
-    [/\bمايكر\s*وسوفت\b/g, 'مايكروسوفت'],
-    [/\bمايكرو\s*سوفت\b/g, 'مايكروسوفت'],
-    [/\bمايكروسفت\b/g, 'مايكروسوفت'],
-    [/\bمايكروسوف\b/g, 'مايكروسوفت'],
-    [/\b(تيامز|تيمز|teems|Тeams)\b/g, 'teams'],
-    [/\bاستدراكيه\b/g, 'استدراكية'],
-    [/\bفيزياء\s+عامه\b/g, 'فيزياء عامة'],
-    [/\bتفاضل\s+وتكامل\s*\(\s*[١1]\s*\)/g, 'تفاضل وتكامل (1)'],
-    [/\bلغه\b/g, 'لغة'],
-    [/\bعربيه\b/g, 'عربية'],
-    [/\bانجليزيه\b/g, 'انجليزية'],
-    [/\bالحسين\s+البانى\b/g, 'الحسين الباني'],
-    [/\bابن\s+خلدون\b/g, 'ابن خلدون']
+    [/مايكر\s*وسوفت/g, 'مايكروسوفت'],
+    [/مايكرو\s*سوفت/g, 'مايكروسوفت'],
+    [/مايكروسفت/g,   'مايكروسوفت'],
+    [/مايكروسوف\b/g, 'مايكروسوفت'],
+    [/مايکروسوفت/g,  'مايكروسوفت'],
+    [/\b(تيامز|تيمز|teems|Tearns|Тeams|teams\b)\b/gi, 'teams'],
+    [/مايكر\s*وسفت/g, 'مايكروسوفت'],
+    [/الحسين\s+البانى/g, 'الحسين الباني'],
+    [/الحسين\s+الباتي/g, 'الحسين الباني'],
+    [/ابن\s+خلدون/g,   'ابن خلدون'],
+    [/استدراكيه/g,     'استدراكية'],
+    [/فيزياء\s+عامه/g, 'فيزياء عامة'],
+    [/لغه\s+عربيه/g,   'لغة عربية'],
+    [/الانجليزيه/g,    'الانجليزية'],
+    [/على\s+منصه/g,    'على منصة'],
+    [/بشكل\s+مدمج/g,   'بشكل مدمج']
   ];
 
-  /* ================== حالة عامة ================== */
+  /* ============ الحالة ============ */
   var im = null, L = 0, R = 0, V = [], Hs = [], S = 1, drag = null;
-  var rows = [], cellConf = [];  /* مصفوفة ثقة [rowIndex][field] = {score, warn} */
+  var rows = [], cellConf = [];
   var cv = null, ctx = null;
-  var workerAr = null, workerEn = null;
-  var busy = false;
-  var modal = null;
-  var imgBlobForCanvas = null;
+  var workerAr = null, workerEn = null, workerDetails = null;
+  var busy = false, modal = null;
 
-  /* ================== أدوات مساعدة ================== */
+  /* ============ أدوات ============ */
   function toast(m,t,d){ if(typeof window.toast === 'function') window.toast(m, t||'info', d||2500); }
   function uid(){ return (window.uid ? window.uid() : Date.now().toString(36)+Math.random().toString(36).slice(2,6)); }
   function pad2(n){ return String(n).padStart(2,'0'); }
-
-  /* أرقام عربية → إنجليزية */
   function toEnDigits(s){
     return String(s||'').replace(/[٠-٩]/g, function(d){
       return String.fromCharCode(d.charCodeAt(0) - 0x0660 + 48);
     });
   }
 
-  /* إصلاح RTL للوقت: "10,30 - 09,30" → {start:'09:30', end:'10:30'} */
+  /* ============================================================
+     🕐 استخراج الوقت من تسلسل الأرقام (الطريقة الجذرية)
+     لا يعتمد على وجود `-` أو `,` — فقط يستخرج الأرقام ويبني الوقت
+     ============================================================ */
   function parseTimeRange(text){
     if(!text) return null;
     var t = toEnDigits(text);
-    /* قبول , أو . أو : كفاصل */
-    var re = /(\d{1,2})\s*[:.,]\s*(\d{2})\s*[-–—~to]+\s*(\d{1,2})\s*[:.,]\s*(\d{2})/i;
-    var m = t.match(re);
-    if(!m) return null;
-    var h1 = +m[1], mm1 = +m[2], h2 = +m[3], mm2 = +m[4];
-    if(h1 > 23 || h2 > 23 || mm1 > 59 || mm2 > 59) return null;
-    /* مقارنة عددية → دائماً ابدأ الأصغر */
-    var t1 = h1 * 60 + mm1, t2 = h2 * 60 + mm2;
-    var start = Math.min(t1, t2), end = Math.max(t1, t2);
-    /* إذا كانت المدة سالبة أو صفرية، اعكس */
-    if(end - start > 6 * 60) return null;
+
+    /* استراتيجية 1: النمط القياسي (يشتغل 80% من الوقت) */
+    var m = t.match(/(\d{1,2})\s*[:.,]\s*(\d{2})\s*[-–—~]+\s*(\d{1,2})\s*[:.,]\s*(\d{2})/);
+    if(m){
+      var h1=+m[1], m1=+m[2], h2=+m[3], m2=+m[4];
+      if(validH(h1) && validH(h2) && validM(m1) && validM(m2)){
+        return buildRange(h1,m1,h2,m2);
+      }
+    }
+
+    /* استراتيجية 2: تسلسل أزواج من رقمين — الأكثر صموداً */
+    /* مثال: "10 30 - 0 09,30" → ["10","30","09","30"] */
+    var pairs = [];
+    var re = /(\d{2})(?!\d)/g, mm;
+    while((mm = re.exec(t)) !== null){
+      pairs.push({ v: +mm[1], pos: mm.index });
+    }
+
+    /* ابحث عن تسلسل (ساعة، دقيقة، ساعة، دقيقة) صالح */
+    for(var i = 0; i <= pairs.length - 4; i++){
+      var h1 = pairs[i].v, m1 = pairs[i+1].v;
+      var h2 = pairs[i+2].v, m2 = pairs[i+3].v;
+      if(validH(h1) && validM(m1) && validH(h2) && validM(m2)){
+        /* تأكد أن الزوجين قريبان من بعضهما */
+        if(Math.abs(pairs[i+3].pos - pairs[i].pos) < 25){
+          var r = buildRange(h1, m1, h2, m2);
+          if(r) return r;
+        }
+      }
+    }
+
+    /* استراتيجية 3: التسلسل العكسي (دقيقة، ساعة) */
+    for(var k = 0; k <= pairs.length - 4; k++){
+      var m1b = pairs[k].v, h1b = pairs[k+1].v;
+      var m2b = pairs[k+2].v, h2b = pairs[k+3].v;
+      if(validH(h1b) && validM(m1b) && validH(h2b) && validM(m2b)){
+        if(Math.abs(pairs[k+3].pos - pairs[k].pos) < 25){
+          var r2 = buildRange(h1b, m1b, h2b, m2b);
+          if(r2) return r2;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function validH(h){ return h >= 6 && h <= 23; }
+  function validM(m){ return m >= 0 && m <= 59; }
+  function buildRange(h1,m1,h2,m2){
+    var t1 = h1*60+m1, t2 = h2*60+m2;
+    if(t1 === t2) return null;
+    var s = Math.min(t1,t2), e = Math.max(t1,t2);
+    if(e - s > 6*60) return null; /* مدة معقولة كحد أقصى 6 ساعات */
     return {
-      start: pad2(Math.floor(start/60)) + ':' + pad2(start % 60),
-      end:   pad2(Math.floor(end/60)) + ':' + pad2(end % 60)
+      start: pad2(Math.floor(s/60))+':'+pad2(s%60),
+      end:   pad2(Math.floor(e/60))+':'+pad2(e%60)
     };
   }
 
-  /* أيام الأسبوع من حروف عربية */
+  /* ============ أيام الأسبوع ============ */
   function extractDays(text){
-    var DAY_LETTER = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
+    var LET = { 'ح':'Sun','ن':'Mon','ث':'Tue','ر':'Wed','خ':'Thu','ج':'Fri','س':'Sat' };
     var ORDER = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     var m = String(text||'').match(/([حنثرخجس](?:\s*[حنثرخجس])*)\s*[\/\\]/);
     if(!m) return [];
     var out = [];
     m[1].replace(/\s/g,'').split('').forEach(function(ch){
-      var d = DAY_LETTER[ch];
+      var d = LET[ch];
       if(d && out.indexOf(d) === -1) out.push(d);
     });
     return out.sort(function(a,b){ return ORDER.indexOf(a) - ORDER.indexOf(b); });
   }
 
-  /* إصلاح أرقام القاعات المقسومة: "ح.ب / 4" → "ح.ب 104" */
+  /* ============ إصلاح رقم القاعة المقطوع ============ */
   function fixRoomNumber(text){
     if(!text) return text;
-    /* جمع الأنماط المشتركة: ح.ب / 4 + 10 في مكان آخر → 104 */
-    /* انظر أيضاً للحالة: "م.غ / 213" و "ح.ب 105" */
     var t = String(text);
-    /* حالة 1: كلمة قصيرة + / + رقم صغير = غالباً رقم قاعة مقطوع */
-    /* ابحث عن تسلسل "حرف/رقم" واجمعه مع أي "رقم" قريب في نفس السطر */
-    return t;
+
+    /* حالة A: "ح.ب / N" و "N2" منفصلين في السطر → دمجهما */
+    var reA = /([حمنر][\s.]?[بغبجمع])\s*[\/\\]\s*(\d)\s+(?=[^]*?(\d)(?=\s|$))/;
+    var mA = t.match(/([حمنر][\s.]?[بغبجمع])\s*[\/\\]\s*(\d)\b[\s\S]{0,40}?\b(\d)(?=\s|$)/);
+    if(mA){
+      var combined = mA[2] + mA[3];
+      if(combined.length === 2){
+        /* حولها لـ رقم قاعة 3 خانات — عادةً 1XX */
+        t = t.replace(mA[0], mA[1] + ' ' + '1' + combined);
+      }
+    }
+
+    /* حالة B: "ح.ب / NN" — غالباً NN هو آخر خانتين من رقم من 3 خانات */
+    /* نترك للمستخدم التصحيح */
+
+    /* حالة C: أرقام فردية متتابعة "1 0 4" → "104" */
+    t = t.replace(/([حمنر][\s.]?[بغبجمع])\s+(\d)\s+(\d)\s+(\d)\b/g, function(_, p, a, b, c){
+      return p + ' ' + a + b + c;
+    });
+
+    return t.replace(/\s+/g,' ').trim();
   }
 
-  /* تنظيف عام للنصوص العربية */
+  /* ============ تنظيف عربي عام ============ */
   function cleanArabic(text){
     if(!text) return '';
     var t = String(text).trim();
-    /* توحيد المسافات */
     t = t.replace(/\s+/g, ' ');
-    /* إزالة رموز مشوهة */
     t = t.replace(/[|¦ـ]{2,}/g, ' ');
-    /* تطبيق الإصلاحات الإملائية */
     SPELL_FIX.forEach(function(pair){
-      t = t.replace(pair[0], pair[1]);
+      try{ t = t.replace(pair[0], pair[1]); }catch(e){}
     });
-    /* إزالة المسافات حول الفواصل */
     t = t.replace(/\s*\/\s*/g, ' / ');
-    t = t.replace(/\s*-\s*/g, ' - ');
     t = t.replace(/\s*\(\s*/g, ' (').replace(/\s*\)\s*/g, ') ');
     t = t.replace(/\s+/g, ' ').trim();
     return t;
   }
 
-  /* ================== تحميل Tesseract ================== */
+  /* ============ تحميل Tesseract ============ */
   function loadTesseract(){
     if(typeof window.Tesseract !== 'undefined' && window.Tesseract.createWorker) return Promise.resolve();
     if(window._ocrGridTessPromise) return window._ocrGridTessPromise;
@@ -134,7 +189,7 @@
     return window._ocrGridTessPromise;
   }
 
-  /* ================== CSS ================== */
+  /* ============ CSS ============ */
   function injectCSS(){
     if(document.getElementById('ocrg-css')) return;
     var s = document.createElement('style');
@@ -183,7 +238,7 @@
     document.head.appendChild(s);
   }
 
-  /* ================== فتح/إغلاق المودال ================== */
+  /* ============ فتح/إغلاق ============ */
   function openModal(){
     injectCSS();
     document.querySelectorAll('.ocrg-backdrop').forEach(function(m){ m.remove(); });
@@ -193,7 +248,7 @@
     modal.innerHTML =
       '<div class="ocrg-modal" role="dialog" aria-modal="true">' +
         '<div class="ocrg-header">' +
-          '<h3>📸 استخراج الجدول من صورة (تفاعلي)</h3>' +
+          '<h3>📸 استخراج الجدول من صورة (v3)</h3>' +
           '<button class="ocrg-close" id="ocrgClose" aria-label="إغلاق">✕</button>' +
         '</div>' +
         '<div id="ocrgDrop" class="ocrg-drop">' +
@@ -203,9 +258,8 @@
         '</div>' +
         '<div id="ocrgEditor" style="display:none">' +
           '<p class="ocrg-hint">' +
-            '🎯 <b>الخطوط الحمراء</b> = الأعمدة، <b>الخطوط الخضراء</b> = الصفوف. ' +
-            'اسحبها لتطابق الجدول. <b>نقر مزدوج</b> على خط أخضر لحذفه. ' +
-            '<br>💡 كل خلية تُقرأ منفصلة → دقة أعلى.' +
+            '🎯 <b>خطوط حمراء</b> = الأعمدة، <b>خطوط خضراء</b> = الصفوف. ' +
+            'اسحبها لتطابق الجدول. <b>نقر مزدوج</b> على خط أخضر لحذفه.' +
           '</p>' +
           '<div class="ocrg-canvas-wrap"><canvas id="ocrgCanvas"></canvas></div>' +
           '<div class="ocrg-actions">' +
@@ -282,13 +336,11 @@
     if(modal){ modal.remove(); modal = null; }
     document.body.style.overflow = '';
   }
-
   function onEscKey(e){ if(e.key === 'Escape') closeModal(); }
 
-  /* ================== تحميل الصورة + الاكتشاف ================== */
+  /* ============ تحميل الصورة والاكتشاف ============ */
   function loadImage(file){
     if(!file || !file.type.startsWith('image/')) return;
-    imgBlobForCanvas = file;
     var img = new Image();
     img.onload = function(){
       im = img;
@@ -299,14 +351,12 @@
       ctx = cv.getContext('2d');
       detect();
       draw();
-      /* بعد الرسم، فعّل أحداث السحب */
       setTimeout(bindCanvasEvents, 80);
     };
     img.onerror = function(){ toast('تعذّر تحميل الصورة', 'warn'); };
     img.src = URL.createObjectURL(file);
   }
 
-  /* الكشف التلقائي عن الترويسة وحدود الصفوف */
   function detect(){
     var W = im.naturalWidth, H = im.naturalHeight;
     var c = document.createElement('canvas');
@@ -317,7 +367,6 @@
     var lum = function(i){ return .3*p[i] + .59*p[i+1] + .11*p[i+2]; };
     var isBlue = function(i){ return (p[i+2] - p[i] > 50) && p[i+2] > 140; };
 
-    /* ترويسة زرقاء */
     var b0 = -1, b1 = -1;
     for(var y = 0; y < H; y++){
       var n = 0;
@@ -325,8 +374,6 @@
       if(n > W*0.15){ if(b0 < 0) b0 = y; b1 = y; }
       else if(b0 >= 0) break;
     }
-
-    /* حدود الجدول */
     L = 0; R = W - 1;
     if(b0 >= 0){
       var mn = W, mx = 0;
@@ -336,7 +383,6 @@
       if(mx > mn){ L = mn; R = mx; }
     }
 
-    /* حدود الصفوف (تغيرات سطوع) */
     var top = b1 + 1;
     var med = new Array(H).fill(0), ink = new Array(H).fill(0);
     for(var y2 = top; y2 < H; y2++){
@@ -362,12 +408,9 @@
       if(s > 20) segs.push([cuts[i], cuts[i+1]]);
     }
     Hs = segs.length ? [segs[0][0]].concat(segs.map(function(sg){ return sg[1]; })) : [top, H];
-
-    /* مواضع الأعمدة المبدئية */
     V = DEF_FRAC.map(function(f){ return Math.round(L + f*(R - L)); });
   }
 
-  /* ================== الرسم ================== */
   function draw(){
     if(!im || !cv) return;
     S = Math.min(1, 1100 / im.naturalWidth);
@@ -378,45 +421,29 @@
     ctx.lineWidth = 2;
     ctx.font = 'bold 13px Tahoma, sans-serif';
     ctx.textAlign = 'center';
-
     var B = [L].concat(V).concat([R]);
 
-    /* أعمدة حمراء */
     ctx.strokeStyle = '#e5484d';
     V.forEach(function(v){
-      ctx.beginPath();
-      ctx.moveTo(v*S, 0);
-      ctx.lineTo(v*S, cv.height);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(v*S, 0); ctx.lineTo(v*S, cv.height); ctx.stroke();
     });
-
-    /* صفوف خضراء */
     ctx.strokeStyle = '#12a150';
     Hs.forEach(function(y){
-      ctx.beginPath();
-      ctx.moveTo(L*S, y*S);
-      ctx.lineTo(R*S, y*S);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(L*S, y*S); ctx.lineTo(R*S, y*S); ctx.stroke();
     });
-
-    /* أسماء الأعمدة */
     ctx.fillStyle = '#e5484d';
     COLNAME.forEach(function(n, i){
-      var cx = ((B[i] + B[i+1]) / 2) * S;
-      ctx.fillText(n, cx, cv.height - 6);
+      ctx.fillText(n, ((B[i] + B[i+1]) / 2) * S, cv.height - 6);
     });
   }
 
-  /* ================== تفاعل السحب على الـ canvas ================== */
   function canvasPos(e){
     var r = cv.getBoundingClientRect();
     var k = cv.width / r.width / S;
     return { x:(e.clientX - r.left) * k, y:(e.clientY - r.top) * k };
   }
   function hitTest(p){
-    for(var vi = 0; vi < V.length; vi++){
-      if(Math.abs(V[vi] - p.x) < 14/S) return { t:'v', i:vi };
-    }
+    for(var vi = 0; vi < V.length; vi++) if(Math.abs(V[vi] - p.x) < 14/S) return { t:'v', i:vi };
     for(var hi = 0; hi < Hs.length; hi++){
       if(Math.abs(Hs[hi] - p.y) < 14/S && p.x >= L - 20 && p.x <= R + 20) return { t:'h', i:hi };
     }
@@ -426,8 +453,7 @@
     if(!cv || cv._ocrgBound) return;
     cv._ocrgBound = true;
     cv.addEventListener('pointerdown', function(e){
-      var p = canvasPos(e);
-      var h = hitTest(p);
+      var h = hitTest(canvasPos(e));
       if(h){ drag = h; try{ cv.setPointerCapture(e.pointerId); }catch(x){} }
     });
     cv.addEventListener('pointermove', function(e){
@@ -445,68 +471,50 @@
       if(drag){
         if(drag.t === 'v') V.sort(function(a,b){ return a-b; });
         else Hs.sort(function(a,b){ return a-b; });
-        drag = null;
-        draw();
+        drag = null; draw();
       }
     });
     cv.addEventListener('dblclick', function(e){
-      var p = canvasPos(e);
-      var h = hitTest(p);
+      var h = hitTest(canvasPos(e));
       if(h && h.t === 'h' && Hs.length > 2){ Hs.splice(h.i, 1); draw(); }
     });
   }
 
-  /* ============================================================
-     معالجة الخلايا — الجزء الأهم
-     ============================================================ */
-
-  /* 1) قص الخلية + إزالة الهوامش البيضاء + Otsu Thresholding */
+  /* ============ قص الخلية + Otsu ============ */
   function cropCell(x0, y0, x1, y1, scale){
-    var w = Math.max(4, x1 - x0), h = Math.max(4, y1 - y0);
-    var pad = 10;
-
-    /* ارسم الخلية على canvas مؤقت */
+    var w = Math.max(4, x1-x0), h = Math.max(4, y1-y0), pad = 10;
     var tmp = document.createElement('canvas');
     tmp.width = w; tmp.height = h;
     var tg = tmp.getContext('2d');
     tg.drawImage(im, x0, y0, w, h, 0, 0, w, h);
 
-    /* اقرأ البيانات */
     var imageData = tg.getImageData(0, 0, w, h);
     var d = imageData.data;
-
-    /* 1) Grayscale + حساب هيستوغرام */
     var hist = new Array(256).fill(0);
     var totalPx = w * h;
     for(var i = 0; i < d.length; i += 4){
-      var l = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) | 0;
-      d[i] = d[i+1] = d[i+2] = l;
+      var l = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) | 0;
+      d[i]=d[i+1]=d[i+2]=l;
       hist[l]++;
     }
-
-    /* 2) Otsu Threshold */
     var sum = 0;
     for(var t2 = 0; t2 < 256; t2++) sum += t2 * hist[t2];
-    var sumB = 0, wB = 0, maxVar = 0, otsuThreshold = 128;
+    var sumB = 0, wB = 0, maxVar = 0, otsu = 128;
     for(var t3 = 0; t3 < 256; t3++){
-      wB += hist[t3];
-      if(wB === 0) continue;
-      var wF = totalPx - wB;
-      if(wF === 0) break;
+      wB += hist[t3]; if(wB === 0) continue;
+      var wF = totalPx - wB; if(wF === 0) break;
       sumB += t3 * hist[t3];
-      var mB = sumB / wB;
-      var mF = (sum - sumB) / wF;
-      var between = wB * wF * (mB - mF) * (mB - mF);
-      if(between > maxVar){ maxVar = between; otsuThreshold = t3; }
+      var mB = sumB/wB, mF = (sum-sumB)/wF;
+      var between = wB * wF * (mB-mF) * (mB-mF);
+      if(between > maxVar){ maxVar = between; otsu = t3; }
     }
 
-    /* 3) تطبيق العتبة + إزالة الهوامش البيضاء */
     var minX = w, maxX = 0, minY = h, maxY = 0;
     for(var y2 = 0; y2 < h; y2++){
       for(var x2 = 0; x2 < w; x2++){
-        var idx = (y2 * w + x2) * 4;
-        var val = d[idx] > otsuThreshold ? 255 : 0;
-        d[idx] = d[idx+1] = d[idx+2] = val;
+        var idx = (y2*w + x2) * 4;
+        var val = d[idx] > otsu ? 255 : 0;
+        d[idx]=d[idx+1]=d[idx+2]=val;
         if(val === 0){
           if(x2 < minX) minX = x2;
           if(x2 > maxX) maxX = x2;
@@ -516,30 +524,22 @@
       }
     }
     tg.putImageData(imageData, 0, 0);
+    if(maxX <= minX || maxY <= minY) return { canvas: tmp, empty: true };
 
-    /* إذا ما في نص أسود، رجّع الصورة الأصلية بدون تكبير */
-    if(maxX <= minX || maxY <= minY){
-      return { canvas: tmp, empty: true };
-    }
-
-    /* 4) اعمل canvas جديد بدون الهوامش + تكبير + حشوة بيضاء */
-    var trimW = maxX - minX + 1;
-    var trimH = maxY - minY + 1;
-    var outW = Math.round(trimW * scale) + pad * 2;
-    var outH = Math.round(trimH * scale) + pad * 2;
+    var trimW = maxX-minX+1, trimH = maxY-minY+1;
+    var outW = Math.round(trimW*scale) + pad*2;
+    var outH = Math.round(trimH*scale) + pad*2;
     var out = document.createElement('canvas');
     out.width = outW; out.height = outH;
     var og = out.getContext('2d');
-    og.fillStyle = '#fff';
-    og.fillRect(0, 0, outW, outH);
-    og.imageSmoothingEnabled = false; /* مهم: بدون تنعيم ليبقى النص حاد */
-    og.drawImage(tmp, minX, minY, trimW, trimH, pad, pad, trimW * scale, trimH * scale);
-
+    og.fillStyle = '#fff'; og.fillRect(0, 0, outW, outH);
+    og.imageSmoothingEnabled = false;
+    og.drawImage(tmp, minX, minY, trimW, trimH, pad, pad, trimW*scale, trimH*scale);
     return { canvas: out, empty: false };
   }
 
-  /* 2) تشغيل Tesseract على خلية بعدة PSM واختيار الأفضل */
-  async function readCell(cellCanvas, worker, psmModes, whitelist){
+  /* ============ قراءة خلية بعدة أوضاع ============ */
+  async function readCellMulti(cellCanvas, worker, psmModes, whitelist){
     var best = null;
     for(var i = 0; i < psmModes.length; i++){
       try{
@@ -547,90 +547,66 @@
         if(whitelist) params.tessedit_char_whitelist = whitelist;
         await worker.setParameters(params);
         var res = await worker.recognize(cellCanvas);
-        var txt = (res && res.data && res.data.text) ? res.data.text : '';
+        var txt = (res && res.data && res.data.text) || '';
         var conf = (res && res.data && typeof res.data.confidence === 'number') ? res.data.confidence : 0;
-        if(!best || conf > best.conf){
-          best = { text: txt, conf: conf };
-        }
-        /* إذا الثقة عالية، لا داعي لتجربة باقي الأوضاع */
-        if(conf > 85) break;
-      }catch(e){ /* جرّب الوضع التالي */ }
+        if(!best || conf > best.conf) best = { text: txt, conf: conf };
+        if(conf > 88) break; /* ممتاز، توقف */
+      }catch(e){}
     }
     return best || { text: '', conf: 0 };
   }
 
-  /* 3) قراءة خلية رقمية */
-  async function readNumericCell(canvas, expectedLen){
-    var r = await readCell(canvas, workerEn, [7, 6, 8], '0123456789');
+  async function readNumeric(canvas, expectedLen){
+    var r = await readCellMulti(canvas, workerEn, [7, 6], '0123456789');
     var digits = toEnDigits(r.text).replace(/\D/g, '');
-    return {
-      text: digits,
-      conf: r.conf,
-      warn: (expectedLen && digits.length && digits.length !== expectedLen) || digits.length === 0
-    };
+    return { text: digits, conf: r.conf, warn: digits.length === 0 || (expectedLen && digits.length !== expectedLen) };
   }
 
-  /* 4) قراءة خلية نصية (عربي) */
-  async function readTextCell(canvas){
-    var r = await readCell(canvas, workerAr, [6, 7, 4], null);
+  async function readText(canvas){
+    var r = await readCellMulti(canvas, workerAr, [6, 7, 4], null);
     var txt = cleanArabic(r.text);
-    return {
-      text: txt,
-      conf: r.conf,
-      warn: r.conf < 65 || txt.length < 3
-    };
+    return { text: txt, conf: r.conf, warn: r.conf < 65 || txt.length < 3 };
   }
 
-  /* 5) قراءة خلية وقت/قاعة (مختلط) */
-  async function readDetailsCell(canvas){
-    var r = await readCell(canvas, workerAr, [6, 7, 4], null);
-    var txt = cleanArabic(r.text);
-    /* إصلاح رقم القاعة المقطوع: "ح.ب / 4" عند وجود "ح.ب" آخر في النص */
-    txt = repairRoomNumbers(txt);
-    return {
-      text: txt,
-      conf: r.conf,
-      warn: r.conf < 60 || !parseTimeRange(txt)
-    };
-  }
-
-  /* إصلاح أرقام القاعات: حالة "ح.ب / 4" و "ح.ب 10" في نفس السطر */
-  function repairRoomNumbers(text){
-    if(!text) return text;
-    /* ابحث عن نمط "XX / N" حيث N رقم صغير (1-9) — قد يكون جزء من رقم مقطوع */
-    /* وإذا وجدنا "XX NY" بنفس السطر، نجمعهم */
-    /* النمط الشائع: "ح.ب / 4 / على منصة ... 10" → "ح.ب 104" */
-    /* النمط الآخر: "ح.ب / 4" فقط → نتركه كما هو */
-    /* نمط "ح.ب 105" → يبقى كما هو */
-
-    /* حالة خاصة: "XX / N ... N2" حيث N و N2 فرديان */
-    var re1 = /([حمنر][.\s]?[بغبجمع])\s*\/\s*(\d)\s+(.{3,80}?)\s+(\d)(?=\s|$)/;
-    var m = re1.exec(text);
-    if(m){
-      var roomNumber = m[2] + m[4];
-      if(roomNumber.length === 3){
-        text = text.replace(m[0], m[1] + ' ' + roomNumber + ' ' + m[3].trim() + ' ');
-      }
+  async function readDetails(canvas){
+    /* جرّب عدة أوضاع، واختر القراءة التي تحتوي على وقت صالح */
+    var attempts = [];
+    for(var psm of [6, 4, 7]){
+      try{
+        await workerAr.setParameters({ tessedit_pageseg_mode: String(psm) });
+        var res = await workerAr.recognize(canvas);
+        var txt = (res && res.data && res.data.text) || '';
+        var conf = (res && res.data && typeof res.data.confidence === 'number') ? res.data.confidence : 0;
+        attempts.push({ text: txt, conf: conf, psm: psm });
+      }catch(e){}
     }
 
-    /* حالة: "XX / N" بنهاية الجملة حيث N رقم فردي */
-    /* لا نصلحها لأنها قد تكون رقم قاعة فعلاً */
+    var best = null, bestScore = -1;
+    attempts.forEach(function(a){
+      var cleaned = cleanArabic(a.text);
+      var fixed = fixRoomNumber(cleaned);
+      var time = parseTimeRange(fixed);
+      var digits = (fixed.match(/\d/g) || []).length;
+      /* معيار: وقت صالح (+50) + ثقة + عدد أرقام */
+      var score = a.conf + (time ? 50 : 0) + Math.min(digits, 20);
+      if(score > bestScore){
+        bestScore = score;
+        best = { text: fixed, conf: a.conf, warn: !time };
+      }
+    });
 
-    return text.replace(/\s+/g, ' ').trim();
+    return best || { text: '', conf: 0, warn: true };
   }
 
-  /* ================== التحميل المسبق للنماذج ================== */
+  /* ============ Workers ============ */
   async function ensureWorkers(){
     await loadTesseract();
-    if(!workerAr){
-      workerAr = await window.Tesseract.createWorker('ara+eng', 1);
-    }
-    if(!workerEn){
-      workerEn = await window.Tesseract.createWorker('eng', 1);
-    }
+    if(!workerAr)     workerAr     = await window.Tesseract.createWorker('ara+eng', 1);
+    if(!workerEn)     workerEn     = await window.Tesseract.createWorker('eng', 1);
+    if(!workerDetails) workerDetails = workerAr; /* نستخدم نفس الـ worker */
   }
 
-  /* ================== الاستخراج الرئيسي ================== */
+  /* ============ الاستخراج ============ */
   async function runExtraction(){
     if(!im || busy) return;
     if(Hs.length < 2){ toast('أضف خط صفوف أولاً', 'warn'); return; }
@@ -643,62 +619,93 @@
     textEl.style.color = '';
 
     try{
-      textEl.textContent = '⏳ تحميل محرك Tesseract (قد يستغرق دقيقة أول مرة)...';
+      textEl.textContent = '⏳ تحميل محرك Tesseract...';
       barEl.style.width = '5%';
       await ensureWorkers();
 
       var B = [L].concat(V).concat([R]);
       var total = (Hs.length - 1) * 6;
       var done = 0;
-      rows = [];
-      cellConf = [];
+      rows = []; cellConf = [];
 
       for(var r = 0; r < Hs.length - 1; r++){
-        var rowObj = {};
-        var confRow = {};
+        var rowObj = {}, confRow = {};
         for(var c = 0; c < 6; c++){
           var field = COLS[c];
           var isNum = !!NUMERIC_FIELDS[field];
           var isDetails = field === 'details';
-          /* اسم المادة والوقت يحتاجان تكبير أعلى، الأرقام أعلى */
           var scale = isNum ? 4 : 3;
-
           var crop = cropCell(B[c], Hs[r], B[c+1], Hs[r+1], scale);
 
           if(crop.empty){
-            rowObj[field] = '';
-            confRow[field] = { conf: 0, warn: true };
+            rowObj[field] = ''; confRow[field] = { conf:0, warn:true };
           } else if(isNum){
             var expectedLen = field === 'code' ? null : 1;
-            var resNum = await readNumericCell(crop.canvas, expectedLen);
+            var resNum = await readNumeric(crop.canvas, expectedLen);
             rowObj[field] = resNum.text;
             confRow[field] = { conf: resNum.conf, warn: resNum.warn };
           } else if(isDetails){
-            var resDet = await readDetailsCell(crop.canvas);
+            var resDet = await readDetails(crop.canvas);
             rowObj[field] = resDet.text;
             confRow[field] = { conf: resDet.conf, warn: resDet.warn };
           } else {
-            var resTxt = await readTextCell(crop.canvas);
+            var resTxt = await readText(crop.canvas);
             rowObj[field] = resTxt.text;
             confRow[field] = { conf: resTxt.conf, warn: resTxt.warn };
           }
-
           done++;
-          barEl.style.width = (10 + Math.round((done / total) * 88)) + '%';
-          textEl.textContent = '⏳ قراءة الخلايا... ' + Math.round((done / total) * 100) + '%';
+          barEl.style.width = (10 + Math.round((done/total)*88)) + '%';
+          textEl.textContent = '⏳ قراءة الخلايا... ' + Math.round((done/total)*100) + '%';
         }
         rows.push(rowObj);
         cellConf.push(confRow);
       }
 
+      /* ✅ فلترة ذكية: أكواد المواد يجب أن تكون 9 أرقام */
+      for(var ri = 0; ri < rows.length; ri++){
+        var code = rows[ri].code || '';
+        if(code && code.length < 8){
+          /* حاول إصلاح: إذا كان أقل من 9، ابحث عن صف بنفس الاسم */
+          var name = (rows[ri].name || '').trim();
+          for(var rj = 0; rj < rows.length; rj++){
+            if(rj !== ri && rows[rj].name && name && rows[rj].name.indexOf(name.slice(0,10)) > -1 && (rows[rj].code||'').length >= 8){
+              rows[ri].code = rows[rj].code;
+              cellConf[ri].code = { conf: 60, warn: true };
+              break;
+            }
+          }
+        }
+      }
+
+      /* ✅ فلترة أرقام القاعات المشبوهة (كل الأرقام 3 خانات، أحدها 1-2) */
+      var roomLens = [];
+      rows.forEach(function(row){
+        var m = row.details && row.details.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{1,4})/);
+        if(m) roomLens.push(m[2].length);
+      });
+      var commonLen = 3; /* افتراضي */
+      if(roomLens.length){
+        var counts = {};
+        roomLens.forEach(function(l){ counts[l] = (counts[l]||0) + 1; });
+        commonLen = parseInt(Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; })[0], 10) || 3;
+      }
+      rows.forEach(function(row, i){
+        var m = row.details && row.details.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{1,4})/);
+        if(m && m[2].length !== commonLen){
+          if(cellConf[i] && cellConf[i].details){
+            cellConf[i].details.warn = true;
+          }
+        }
+      });
+
       barEl.style.width = '100%';
-      textEl.textContent = '✅ تم استخراج ' + rows.length + ' صفوف';
+      textEl.textContent = '✅ استُخرجت ' + rows.length + ' صفوف';
 
       modal.querySelector('#ocrgTableWrap').style.display = 'block';
-      modal.querySelector('#ocrgStatus').textContent = 'راجع البيانات وصحّح أي خطأ، ثم اضغط "تطبيق على الجدول".';
+      modal.querySelector('#ocrgStatus').textContent = 'راجع البيانات (الخلايا الصفراء تحتاج تحقق)، ثم اضغط "تطبيق".';
       renderTable();
-
       modal.querySelector('.ocrg-modal').scrollTop = 9999;
+
     } catch(err){
       console.error(err);
       textEl.textContent = '❌ فشل: ' + err.message;
@@ -709,7 +716,7 @@
     }
   }
 
-  /* ================== عرض الجدول ================== */
+  /* ============ عرض الجدول ============ */
   function renderTable(){
     var body = modal.querySelector('#ocrgTableBody');
     body.innerHTML = '';
@@ -722,7 +729,6 @@
         if(f === 'details') td.className = 'ocrg-det';
         if(f === 'name')    td.className = 'ocrg-nm';
         td.dir = NUMERIC_FIELDS[f] ? 'ltr' : 'rtl';
-        /* مؤشر الثقة */
         var conf = cellConf[i] && cellConf[i][f];
         if(conf){
           var badge = document.createElement('span');
@@ -735,7 +741,6 @@
         }
         td.addEventListener('input', function(){
           row[f] = td.textContent;
-          /* إزالة التحذير عند التعديل اليدوي */
           td.classList.remove('ocrg-warn','ocrg-bad');
         });
         tr.appendChild(td);
@@ -744,19 +749,17 @@
       var delBtn = document.createElement('button');
       delBtn.className = 'ocrg-del';
       delBtn.textContent = '✕';
-      delBtn.title = 'حذف الصف';
-      delBtn.onclick = function(){ rows.splice(i, 1); cellConf.splice(i, 1); renderTable(); };
+      delBtn.onclick = function(){ rows.splice(i,1); cellConf.splice(i,1); renderTable(); };
       delTd.appendChild(delBtn);
       tr.appendChild(delTd);
       body.appendChild(tr);
     });
   }
 
-  /* ================== تطبيق على الجدول الأسبوعي ================== */
+  /* ============ تطبيق على الجدول ============ */
   function extractRoom(text){
     if(!text) return '';
-    /* "ح.ب 104" أو "ح.ب 105" أو "م.غ 213" */
-    var m = text.match(/([حمنر]\s*[.\s]\s*[بغبجمع])\s*(\d{2,4})/);
+    var m = text.match(/([حمنر]\s*[.\s]?\s*[بغبجمع])\s*(\d{2,4})/);
     if(m) return m[1].replace(/\s+/g,' ').trim() + ' ' + m[2];
     m = text.match(/[\/\\]\s*(\d{3,4})\b/);
     if(m) return m[1];
@@ -765,9 +768,8 @@
 
   function matchCourseInDB(row){
     var DB = window.COURSES_DB || {};
-    var code = toEnDigits(row.code).replace(/^0+/, '').replace(/\D/g, '');
+    var code = toEnDigits(row.code).replace(/\D/g,'').replace(/^0+/, '');
     var name = String(row.name || '').trim();
-
     if(code && code.length >= 8){
       for(var k in DB){
         if(String(DB[k].code || '').replace(/^0+/, '') === code) return k;
@@ -789,7 +791,6 @@
 
   function applyToTimetable(){
     if(!rows.length){ toast('لا توجد بيانات', 'warn'); return; }
-
     var sp = window.space;
     if(!sp){ toast('لم يتم تحميل البيانات', 'warn'); return; }
     if(!sp.timetable) sp.timetable = {};
@@ -831,14 +832,10 @@
         });
         coursesAdded++;
       }
-
-      if(!sp.attendance[finalName]){
-        sp.attendance[finalName] = { present: 0, absent: 0 };
-      }
+      if(!sp.attendance[finalName]) sp.attendance[finalName] = { present: 0, absent: 0 };
     });
 
     if(typeof window.saveSpace === 'function') window.saveSpace();
-
     try{ if(window.renderTimetable)   window.renderTimetable();   }catch(e){}
     try{ if(window.renderCourses)     window.renderCourses();     }catch(e){}
     try{ if(window.renderAttendance)  window.renderAttendance();  }catch(e){}
@@ -856,32 +853,24 @@
     }
   }
 
-  /* ================== الربط مع واجهة الموقع ================== */
+  /* ============ الربط ============ */
   function bindToUploadZone(){
     var zone = document.getElementById('uploadZone');
     if(!zone) return false;
-
-    /* استبدل العنصر لنتخلص من كل الأحداث القديمة */
     var newZone = zone.cloneNode(true);
     zone.parentNode.replaceChild(newZone, zone);
     newZone._ocrgBound = true;
-
-    /* أخفِ عناصر OCR القديمة */
     ['btnParseOcr','btnPasteOcr'].forEach(function(id){
-      var el = document.getElementById(id);
-      if(el){ el.style.display = 'none'; }
+      var el = document.getElementById(id); if(el) el.style.display = 'none';
     });
-
     newZone.addEventListener('click', function(e){
       if(e.target.tagName === 'INPUT') return;
-      e.preventDefault();
-      openModal();
+      e.preventDefault(); openModal();
     });
     newZone.addEventListener('keydown', function(e){
       if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openModal(); }
     });
-
-    console.log('📸 ocr-grid v2: bound to uploadZone');
+    console.log('📸 ocr-grid v3: bound');
     return true;
   }
 
@@ -890,15 +879,13 @@
     setTimeout(install, 400);
   }
 
-  window.ocrGrid = { open: openModal, close: closeModal };
+  window.ocrGrid = { open: openModal, close: closeModal, parseTimeRange: parseTimeRange };
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 300); });
-  } else {
-    setTimeout(install, 300);
-  }
+  } else setTimeout(install, 300);
   setTimeout(install, 1200);
   setTimeout(install, 2500);
 
-  console.log('📸 ocr-grid.js v2 loaded');
+  console.log('📸 ocr-grid.js v3 loaded');
 })();
