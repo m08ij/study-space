@@ -20,10 +20,7 @@ var URLS_TO_CACHE = [
   './custom-dashboard.js',
   './mindmap.js',
   './timetable-importer.js',
-  './ocr-table-parser.js',
-  './column-classifier.js',
-  './timetable-learner.js',
-  './ocr-advanced.js',
+  './ocr-grid.js',            /* ← الملف الجديد */
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
