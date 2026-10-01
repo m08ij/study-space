@@ -1,18 +1,14 @@
 /* ============================================================
-   AI v3 patch - fixes for ai-v3.js
-   - Clears CTX when topic changes to an independent intent
-   - Smart splitMulti that preserves compound Arabic questions
-   NOTE: All console strings are ASCII-only to avoid RTL/emoji
-   encoding issues when uploaded to GitHub Pages.
+   AI v3 patch v2 - fixes for ai-v3.js
+   - Clears CTX when topic changes
+   - Smart splitMulti preserving compound Arabic questions
+   - All Arabic literals as Unicode escapes (safe for GitHub Pages)
    ============================================================ */
 (function(){
   'use strict';
 
   if(!window._aiV3){
-    setTimeout(function(){
-      if(!window._aiV3) return;
-      installPatch();
-    }, 500);
+    setTimeout(function(){ if(window._aiV3) installPatch(); }, 500);
   } else {
     installPatch();
   }
@@ -30,11 +26,9 @@
     }
 
     function clearCtx(){
-      try{ sessionStorage.removeItem(CTX_KEY); }
-      catch(e){}
+      try{ sessionStorage.removeItem(CTX_KEY); }catch(e){}
     }
 
-    /* Intents that should reset context when the user switches to them */
     var INDEPENDENT_INTENTS = {
       'myTasks': true, 'countTasks': true,
       'myExams': true, 'countExams': true,
@@ -62,17 +56,21 @@
         }
       }
 
-      var response = origProcess ? origProcess.apply(this, arguments) : '';
-      return response;
+      return origProcess ? origProcess.apply(this, arguments) : '';
     };
 
-    /*
-      Smart splitMulti:
-      Do not split compound Arabic questions like:
-        "shu 3ndi alyom wmta emt7ani"
-      But DO split truly independent queries like:
-        "shu mwadi wkm m3dli"
-    */
+    // Arabic starters (shu, km, mta, kif, wen, lesh, hal)
+    // \u0634\u0648 = شو  |  \u0643\u0645 = كم  |  \u0645\u062A\u0649 = متى
+    // \u0643\u064A\u0641 = كيف  |  \u0648\u064A\u0646 = وين  |  \u0644\u064A\u0634 = ليش  |  \u0647\u0644 = هل
+    var STARTERS_RE = /^(\u0634\u0648|\u0643\u0645|\u0645\u062A\u0649|\u0643\u064A\u0641|\u0648\u064A\u0646|\u0644\u064A\u0634|\u0647\u0644)\s/;
+
+    // Second starter adds: a3red, iftah, rooh
+    // \u0627\u0639\u0631\u0636 = اعرض  |  \u0627\u0641\u062A\u062D = افتح  |  \u0631\u0648\u062D = روح
+    var SECOND_STARTER_RE = /^(\u0634\u0648|\u0643\u0645|\u0645\u062A\u0649|\u0643\u064A\u0641|\u0648\u064A\u0646|\u0644\u064A\u0634|\u0647\u0644|\u0627\u0639\u0631\u0636|\u0627\u0641\u062A\u062D|\u0631\u0648\u062D)\s/;
+
+    // Arabic "waw" (و = \u0648) and "thumma" (ثم = \u062B\u0645) separators
+    var SEP_RE = /\s+(?:\u0648|\u062B\u0645)\s+/;
+
     function shouldSplit(text){
       var raw = String(text || '').trim();
       var words = raw.split(/\s+/).length;
@@ -81,14 +79,12 @@
       var q = (raw.match(/[\u061F?]/g) || []).length;
       if(q > 1) return false;
 
-      var starters = /^(شو|كم|متى|كيف|وين|ليش|هل)\s/;
-      if(starters.test(raw)){
-        var parts = raw.split(/\s+(?:و|ثم)\s+/);
+      if(STARTERS_RE.test(raw)){
+        var parts = raw.split(SEP_RE);
         if(parts.length === 2){
           var first = parts[0].trim();
           var second = parts[1].trim();
-          var secondStarter = /^(شو|كم|متى|كيف|وين|ليش|هل|اعرض|افتح|روح)\s/;
-          if(secondStarter.test(second) && first.split(/\s+/).length >= 2){
+          if(SECOND_STARTER_RE.test(second) && first.split(/\s+/).length >= 2){
             return true;
           }
         }
@@ -108,6 +104,6 @@
       };
     }
 
-    console.log('[AI v3 patch] Context clearing + smart splitMulti installed');
+    console.log('[AI v3 patch v2] Context clearing + smart splitMulti installed');
   }
 })();

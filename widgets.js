@@ -15,7 +15,7 @@
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
   function getS(){ return window.S || {get:function(k,d){return d;}}; }
   function getDaysAr(){ return window.DAYS_AR || ['\u0627\u0644\u0623\u062D\u062F','\u0627\u0644\u0627\u062B\u0646\u064A\u0646','\u0627\u0644\u062B\u0644\u0627\u062B\u0627\u0621','\u0627\u0644\u0623\u0631\u0628\u0639\u0627\u0621','\u0627\u0644\u062E\u0645\u064A\u0633','\u0627\u0644\u062C\u0645\u0639\u0629','\u0627\u0644\u0633\u0628\u062A']; }
-  function getDaysEn(){ return window.DAYS_EN || ['Sun','Mon','Tue','Wed','Thu']; }
+  function getDaysEn(){ return window.DAYS_EN || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; }
 
   /* Intervals tracking */
   var _intervals = [];

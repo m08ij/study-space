@@ -1,7 +1,10 @@
 /* ============================================================
-   sw.js v39 — Cache محدّث
+   sw.js v40 - Cache updated
+   - All files current
+   - Network-first for HTML
+   - Cache-first for assets
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v39';
+var CACHE_NAME = 'ss-cache-v40';
 var URLS_TO_CACHE = [
   './',
   './index.html',

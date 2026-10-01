@@ -1052,8 +1052,6 @@ var currentBudgetCat = 'all';
 var currentCdYear = 'all';
 var timerMode = 'focus';
 var historyInitialized = false;
-var ocrImageDataURL = '';
-var tesseractLoading = null;
 var backupTimer = null;
 var lastW = window.innerWidth;
 var NOTIF_ASKED_KEY = 'ss_notif_asked';
@@ -1733,7 +1731,8 @@ function switchSubTab(sectionId, subKey){
 function initHistoryNavigation(){
   if(historyInitialized) return;
   historyInitialized = true;
-  var currentTab = S.get('activeTab', 'dashboard');
+  var currentTab = 'dashboard';
+  try{ var v = localStorage.getItem('activeTab'); if(v) currentTab = JSON.parse(v); }catch(e){}
   try{ history.replaceState({tab: currentTab, appInit: true}, '', '#' + currentTab); }catch(e){}
   window.addEventListener('popstate', function(e){
     var tab = (e.state && e.state.tab) || (location.hash ? location.hash.slice(1) : 'dashboard');
@@ -1759,7 +1758,7 @@ function switchTab(tab, pushHistory){
     s.classList.remove('tab-play');
   });
   nav.classList.add('active'); sec.classList.add('active');
-  S.set('activeTab', tab);
+  try{ localStorage.setItem('activeTab', JSON.stringify(tab)); }catch(e){}
   if(pushHistory){ try{ history.pushState({tab:tab}, '', '#' + tab); }catch(e){} }
   else{ try{ history.replaceState({tab:tab}, '', '#' + tab); }catch(e){} }
   closeSidebar(); closeSettingsMenu(); window.scrollTo({top:0, behavior:'smooth'});
@@ -2294,67 +2293,6 @@ function loadExampleTimetable(){
   toast('🎯 تم تحميل المثال', 'success', 3000);
 }
 function printTimetable(){ exportPDF(); }
-
-/* ==================== OCR ==================== */
-function loadTesseract(){
-  if(typeof Tesseract !== 'undefined') return Promise.resolve();
-  if(tesseractLoading) return tesseractLoading;
-  tesseractLoading = new Promise(function(resolve, reject){
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-    s.onload = resolve; s.onerror = function(){ reject(new Error('فشل')); };
-    document.head.appendChild(s);
-  });
-  return tesseractLoading;
-}
-function initOcrBindings(){
-  // ✅ ربط احتياطي — يشتغل لو ocr-advanced.js ما اتربط
-  var zone = document.getElementById('uploadZone');
-  var inp = document.getElementById('ocrFile');
-  if(!zone || !inp) return;
-  if(zone._v6Bound) return; // ocr-advanced تكفّل
-  zone._v6Bound = true;
-  console.log('🔧 OCR: manual binding (fallback)');
-  zone.addEventListener('click', function(e){
-    if(e.target.tagName !== 'INPUT') inp.click();
-  });
-  inp.addEventListener('change', function(e){
-    var f = e.target.files[0];
-    if(f && window.ocrAdvanced && window.ocrAdvanced.analyze) window.ocrAdvanced.analyze(f);
-    inp.value = '';
-  });
-}
-async function handleOcrFile(file){
-  // ⚠️ معطّلة — ocr-puter.js يتولى
-  console.log('ℹ️ Tesseract handleOcrFile disabled');
-}
-async function runOcr(imageDataURL){
-  var progress = document.getElementById('ocrProgress'); var bar = document.getElementById('ocrBar'); var text = document.getElementById('ocrText');
-  if(!progress) return;
-  progress.style.display = 'block'; bar.style.width = '0%'; text.textContent = 'جاري التحميل...';
-  try{
-    await loadTesseract();
-    var result = await Tesseract.recognize(imageDataURL, 'eng+ara', {
-      logger: function(m){ if(m.status === 'recognizing text'){ var pct = Math.round(m.progress * 100); bar.style.width = pct + '%'; text.textContent = 'جاري التحليل... ' + pct + '%'; } }
-    });
-    var extracted = (result.data.text || '').trim();
-    var resultEl = document.getElementById('ocrResult'); var ta = document.getElementById('ocrTextarea');
-    if(resultEl) resultEl.style.display = 'block'; if(ta) ta.value = extracted;
-    bar.style.width = '100%'; text.textContent = '✓ تم الاستخراج';
-    toast('تم الاستخراج ✓', 'success', 2500);
-  }catch(err){ text.textContent = 'حدث خطأ'; toast('فشل', 'warn'); }
-}
-function clearOcr(){
-  ['ocrProgress','ocrPreview','ocrResult'].forEach(function(id){ var el = document.getElementById(id); if(el) el.style.display = 'none'; });
-  var ta = document.getElementById('ocrTextarea'); if(ta) ta.value = '';
-  var bar = document.getElementById('ocrBar'); if(bar) bar.style.width = '0%';
-}
-function pasteOcrExample(){
-  var resultEl = document.getElementById('ocrResult'); var ta = document.getElementById('ocrTextarea');
-  if(resultEl) resultEl.style.display = 'block';
-  if(ta) ta.value = 'Sunday 08:00-09:00 Calculus 1 Room 101\nSunday 10:00-11:00 Programming Room Lab1\nMonday 09:00-10:00 Physics Room A\nTuesday 08:00-09:00 Programming Room 302';
-  toast('تم التحميل', 'info', 2500);
-}
 
 /* ==================== COURSES ==================== */
 function renderCourses(){
@@ -3542,10 +3480,8 @@ function bindAllEvents(){
   bind('btnAddClass', function(){ addClassSlot(); });
   bind('btnClearTt', clearTimetable);
   bind('btnLoadExample', loadExampleTimetable);
-  bind('btnPasteOcr', pasteOcrExample);
   bind('btnAutoFill', autoFillTimetable);
   bind('btnPrintTt', printTimetable);
-  bind('btnClearOcr', clearOcr);
   bind('btnAddCourse', addMyCourse);
   bind('btnImportPlan', importFromPlan);
   bind('btnAddTask', addTask);
@@ -3724,7 +3660,6 @@ async function boot(){
 
   safeRun('History', initHistoryNavigation);
   safeRun('Bind events', bindAllEvents);
-  safeRun('OCR bindings', initOcrBindings);
   safeRun('Notif button', updateNotifBtn);
   safeRun('Smooth interactions', initSmoothInteractions);
 
