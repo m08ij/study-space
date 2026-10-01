@@ -1,13 +1,15 @@
 /* ============================================================
-   ⚙️ sw.js — Service Worker v37
+   sw.js v39 — Cache محدّث
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v37';
+var CACHE_NAME = 'ss-cache-v39';
 var URLS_TO_CACHE = [
   './',
   './index.html',
   './core-utils.js',
   './courses-data.js',
+  './courses-data-patch.js',
   './ai-v3.js',
+  './ai-v3-patch.js',
   './plan-simulator.js',
   './plan-enhance.js',
   './calendar-sync.js',
@@ -19,8 +21,8 @@ var URLS_TO_CACHE = [
   './calendar-view.js',
   './custom-dashboard.js',
   './mindmap.js',
-  './timetable-importer.js',
-  './ocr-grid.js',            /* ← الملف الجديد */
+  './smart-timetable-entry.js',
+  './timetable-ui.js',
   './widgets.js',
   './supabase-config.js',
   './supabase-client.js',
@@ -31,9 +33,13 @@ var URLS_TO_CACHE = [
 self.addEventListener('install', function(e){
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(URLS_TO_CACHE).catch(function(err){
-        console.warn('SW cache addAll warning:', err);
-      });
+      return Promise.all(
+        URLS_TO_CACHE.map(function(url){
+          return cache.add(url).catch(function(err){
+            console.warn('SW skip:', url, err && err.message);
+          });
+        })
+      );
     }).then(function(){ return self.skipWaiting(); })
   );
 });
@@ -50,6 +56,7 @@ self.addEventListener('activate', function(e){
 
 self.addEventListener('fetch', function(e){
   var url = e.request.url;
+
   if(url.indexOf('supabase.co') > -1) return;
   if(url.indexOf('cdn.jsdelivr.net') > -1) return;
   if(url.indexOf('translate.google.com') > -1) return;
@@ -58,18 +65,40 @@ self.addEventListener('fetch', function(e){
   if(url.indexOf('aladhan.com') > -1) return;
   if(e.request.method !== 'GET') return;
 
-  e.respondWith(
-    caches.match(e.request).then(function(cached){
-      var fetchPromise = fetch(e.request).then(function(response){
-        if(response && response.status === 200){
-          var clone = response.clone();
+  var isHTML = e.request.mode === 'navigate' ||
+    (e.request.headers.get('accept') || '').indexOf('text/html') > -1;
+
+  if(isHTML){
+    e.respondWith(
+      fetch(e.request).then(function(res){
+        if(res && res.status === 200){
+          var clone = res.clone();
           caches.open(CACHE_NAME).then(function(cache){
             cache.put(e.request, clone).catch(function(){});
           });
         }
-        return response;
-      }).catch(function(){ return cached; });
-      return cached || fetchPromise;
+        return res;
+      }).catch(function(){
+        return caches.match(e.request).then(function(cached){
+          return cached || caches.match('./index.html');
+        });
+      })
+    );
+    return;
+  }
+
+  e.respondWith(
+    caches.match(e.request).then(function(cached){
+      if(cached) return cached;
+      return fetch(e.request).then(function(res){
+        if(res && res.status === 200){
+          var clone = res.clone();
+          caches.open(CACHE_NAME).then(function(cache){
+            cache.put(e.request, clone).catch(function(){});
+          });
+        }
+        return res;
+      });
     })
   );
 });
@@ -82,9 +111,9 @@ self.addEventListener('notificationclick', function(e){
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list){
       for(var i = 0; i < list.length; i++){
         var c = list[i];
-        if(c.url.indexOf('index.html') > -1 || c.url.indexOf(location.origin) === 0){
+        if(c.url.indexOf('index.html') > -1 || c.url.indexOf(self.location.origin) === 0){
           c.focus();
-          c.postMessage({type:'navigate', tab: tab});
+          c.postMessage({ type: 'navigate', tab: tab });
           return;
         }
       }

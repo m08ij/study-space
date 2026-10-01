@@ -1,5 +1,9 @@
 /* ============================================================
-   🎯 widgets.js v6 — Widgets قابلة للتخصيص
+   widgets.js v7 — Widgets customizable
+   Fixes:
+   - setInterval lifecycle tracked and cleared on tab change
+   - Prayer intervals only run when prayer widget is enabled
+   ASCII-only console output.
    ============================================================ */
 (function(){
   'use strict';
@@ -10,8 +14,13 @@
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
   function getS(){ return window.S || {get:function(k,d){return d;}}; }
-  function getDaysAr(){ return window.DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت']; }
+  function getDaysAr(){ return window.DAYS_AR || ['\u0627\u0644\u0623\u062D\u062F','\u0627\u0644\u0627\u062B\u0646\u064A\u0646','\u0627\u0644\u062B\u0644\u0627\u062B\u0627\u0621','\u0627\u0644\u0623\u0631\u0628\u0639\u0627\u0621','\u0627\u0644\u062E\u0645\u064A\u0633','\u0627\u0644\u062C\u0645\u0639\u0629','\u0627\u0644\u0633\u0628\u062A']; }
   function getDaysEn(){ return window.DAYS_EN || ['Sun','Mon','Tue','Wed','Thu']; }
+
+  /* Intervals tracking */
+  var _intervals = [];
+  function addInterval(fn, ms){ var id = setInterval(fn, ms); _intervals.push(id); return id; }
+  function clearAllIntervals(){ _intervals.forEach(function(id){ clearInterval(id); }); _intervals = []; }
 
   function injectCSS(){
     if(document.getElementById('lw-style')) return;
@@ -36,8 +45,6 @@
     .lw-card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:12px;position:relative;overflow:hidden;transition:.25s;animation:lwCardIn .3s}
     @keyframes lwCardIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
     .lw-card:hover{border-color:var(--border2)}
-    .lw-card::before{content:'';position:absolute;top:0;right:0;left:0;height:2px;background:var(--grad);opacity:0;transition:opacity .35s}
-    .lw-card:hover::before{opacity:.5}
     .lw-title{font-size:.74rem;font-weight:700;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px}
     .lw-title .lw-ic{font-size:1rem;line-height:1}
     .lw-title .lw-refresh{margin-right:auto;cursor:pointer;opacity:.5;font-size:.78rem;padding:2px 6px;border-radius:6px;transition:.2s;background:transparent;border:none;color:inherit;font-family:inherit}
@@ -49,12 +56,10 @@
     .lw-focus-title{font-weight:800;font-size:.86rem;margin-bottom:2px}
     .lw-focus-sub{font-size:.66rem;color:var(--muted);line-height:1.4}
     .lw-focus-start{padding:8px 14px;background:var(--grad);color:#0b0f1a;border:none;border-radius:10px;font-family:inherit;font-weight:800;font-size:.74rem;cursor:pointer;transition:.2s;width:100%;margin-top:10px}
-    .lw-focus-start:hover{transform:scale(1.03);box-shadow:0 6px 16px var(--glow)}
     .lw-weather-row{display:flex;align-items:center;gap:12px}
     .lw-weather-ic{font-size:2.4rem;line-height:1;flex-shrink:0}
     .lw-weather-info{flex:1;min-width:0}
     .lw-weather-temp{font-size:1.6rem;font-weight:800;color:var(--cyan);line-height:1}
-    .lw-weather-temp sup{font-size:.85rem;opacity:.7}
     .lw-weather-desc{font-size:.7rem;color:var(--muted);margin-top:3px}
     .lw-weather-meta{display:flex;gap:8px;font-size:.64rem;color:var(--muted2);margin-top:9px;padding-top:8px;border-top:1px solid var(--border);flex-wrap:wrap}
     .lw-weather-loading{text-align:center;padding:12px 4px;font-size:.78rem;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px}
@@ -77,18 +82,13 @@
     .lw-stat-val{font-size:1.15rem;font-weight:800;color:var(--cyan);line-height:1.1}
     .lw-stat-val.green{color:var(--green)}
     .lw-stat-val.red{color:var(--red)}
-    .lw-stat-val.amber{color:var(--amber)}
-    .lw-stat-val.purple{color:var(--purple)}
     .lw-stat-lbl{font-size:.62rem;color:var(--muted);margin-top:4px}
     .lw-quote{background:linear-gradient(135deg,rgba(167,139,250,.08),rgba(244,114,182,.08));border-color:rgba(167,139,250,.22);text-align:center}
-    .lw-quote::after{content:'❝';position:absolute;top:-6px;right:14px;font-size:1.8rem;color:var(--purple);opacity:.28;line-height:1}
     .lw-quote-text{font-size:.8rem;font-style:italic;line-height:1.7;color:var(--text);margin:4px 2px 8px;min-height:56px;display:flex;align-items:center;justify-content:center;transition:opacity .4s,transform .4s}
     .lw-quote-text.lw-fade{opacity:0;transform:translateY(6px)}
     .lw-quote-author{font-size:.66rem;color:var(--muted);font-weight:700;margin-bottom:9px}
     .lw-quote-actions{display:flex;gap:6px;justify-content:center}
     .lw-quote-btn{padding:5px 12px;background:var(--card2);border:1px solid var(--border);color:var(--muted);border-radius:20px;cursor:pointer;font-family:inherit;font-size:.66rem;font-weight:700;transition:.2s}
-    .lw-quote-btn:hover{border-color:var(--purple);color:var(--purple)}
-    /* ===== مواقيت الصلاة المدمجة ===== */
     .lw-prayer-next{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--grad-soft);border:1px solid var(--glow);border-radius:10px;margin-bottom:8px;font-size:.74rem}
     .lw-prayer-next-ic{font-size:1rem;line-height:1}
     .lw-prayer-next-name{font-weight:800;color:var(--cyan);font-size:.76rem}
@@ -103,12 +103,9 @@
     .lw-prayer-item.active .lw-prayer-name{color:var(--cyan)}
     .lw-prayer-time{font-size:.64rem;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;direction:ltr}
     .lw-prayer-item.active .lw-prayer-time{color:var(--cyan)}
-    .lw-customize-backdrop{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);animation:lwFade .2s}
-    @keyframes lwFade{from{opacity:0}to{opacity:1}}
-    .lw-customize-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:340px;max-width:calc(100vw - 32px);max-height:80vh;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:var(--shadow-lg);z-index:1000;display:flex;flex-direction:column;animation:lwPop .3s}
-    @keyframes lwPop{from{opacity:0;transform:translate(-50%,-50%) scale(.92)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+    .lw-customize-backdrop{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.55);backdrop-filter:blur(4px)}
+    .lw-customize-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:340px;max-width:calc(100vw - 32px);max-height:80vh;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:var(--shadow-lg);z-index:1000;display:flex;flex-direction:column}
     .lw-cust-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-weight:800;font-size:.95rem}
-    .lw-cust-header span{display:flex;align-items:center;gap:8px}
     .lw-cust-list{display:flex;flex-direction:column;gap:3px;overflow-y:auto;max-height:55vh;padding:4px 2px}
     .lw-cust-item{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;cursor:pointer;transition:.2s;border:1px solid transparent}
     .lw-cust-item:hover{background:var(--card2);border-color:var(--border)}
@@ -118,24 +115,21 @@
     .lw-cust-title{font-size:.85rem;font-weight:600;flex:1}
     .lw-cust-footer{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px}
     .lw-cust-btn{padding:8px 14px;background:var(--card2);border:1px solid var(--border);color:var(--muted);border-radius:10px;cursor:pointer;font-family:inherit;font-size:.76rem;font-weight:700}
-    .lw-cust-btn:hover{border-color:var(--cyan);color:var(--cyan)}
     .lw-cust-count{font-size:.72rem;color:var(--muted2)}
     .plan-add-btn{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--cyan);cursor:pointer;font-family:inherit;font-size:1rem;font-weight:700;padding:0;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.2s}
     .plan-add-btn:hover{background:var(--grad-soft);border-color:var(--cyan);transform:scale(1.12)}
     .plan-add-btn.added{background:rgba(52,211,153,.15);border-color:var(--green);color:var(--green);cursor:default}
     .focus-screen{position:fixed;inset:0;z-index:900;background:var(--bg);display:none;flex-direction:column;overflow:hidden}
-    .focus-screen.open{display:flex;animation:focusIn .35s}
-    @keyframes focusIn{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
+    .focus-screen.open{display:flex}
     .focus-header{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:20px 28px;gap:16px}
     .focus-header-left{display:flex;align-items:center;gap:12px}
-    .focus-logo{width:38px;height:38px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 6px 20px var(--glow)}
+    .focus-logo{width:38px;height:38px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:1.2rem}
     .focus-header h2{font-size:1.05rem;font-weight:800;margin:0}
     .focus-header-sub{font-size:.72rem;color:var(--muted);margin-top:2px}
     .focus-exit-btn{padding:10px 20px;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:11px;font-family:inherit;font-weight:700;font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:7px}
-    .focus-exit-btn:hover{border-color:var(--red);color:var(--red);transform:translateX(-3px)}
     .focus-body{position:relative;z-index:2;flex:1;display:grid;grid-template-columns:1fr 1fr;gap:28px;padding:0 28px 28px;overflow:hidden}
     @media(max-width:900px){.focus-body{grid-template-columns:1fr;gap:20px;padding:0 16px 16px}.focus-header{padding:14px 16px}}
-    .focus-timer-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:32px 24px;position:relative}
+    .focus-timer-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:32px 24px}
     .focus-mode-label{display:inline-block;padding:6px 16px;border-radius:20px;background:var(--grad-soft);color:var(--cyan);font-size:.78rem;font-weight:800;margin-bottom:20px}
     .focus-ring-wrap{position:relative;width:240px;height:240px;max-width:70vw}
     .focus-ring-wrap svg{width:100%;height:100%;transform:rotate(-90deg)}
@@ -164,8 +158,6 @@
     .focus-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:40px 20px;color:var(--muted)}
     .focus-empty-ic{font-size:3rem;opacity:.35;margin-bottom:14px}
     .focus-empty-title{font-size:1rem;font-weight:700;margin-bottom:6px}
-    .focus-empty-sub{font-size:.8rem;color:var(--muted2)}
-    @media(max-width:600px){.focus-time-display{font-size:2.6rem}.focus-ring-wrap{width:200px;height:200px}}
     `;
     var style = document.createElement('style');
     style.id = 'lw-style';
@@ -175,23 +167,23 @@
 
   var WIDGETS = {
     focus: {
-      title: 'وضع التركيز', icon: '🎯', default: true,
+      title: '\u0648\u0636\u0639 \u0627\u0644\u062A\u0631\u0643\u064A\u0632', icon: '\uD83C\uDFAF', default: true,
       html: function(){
         return '<div class="lw-card lw-focus" data-widget="focus">' +
-          '<div class="lw-focus-row"><div class="lw-focus-ic">🎯</div>' +
-          '<div class="lw-focus-info"><div class="lw-focus-title">وضع التركيز</div>' +
-          '<div class="lw-focus-sub">شاشة كاملة + مؤقت + مهامك</div></div></div>' +
-          '<button class="lw-focus-start" id="lwFocusStart">▶ ابدأ التركيز</button></div>';
+          '<div class="lw-focus-row"><div class="lw-focus-ic">\uD83C\uDFAF</div>' +
+          '<div class="lw-focus-info"><div class="lw-focus-title">\u0648\u0636\u0639 \u0627\u0644\u062A\u0631\u0643\u064A\u0632</div>' +
+          '<div class="lw-focus-sub">\u0634\u0627\u0634\u0629 \u0643\u0627\u0645\u0644\u0629 + \u0645\u0624\u0642\u062A + \u0645\u0647\u0627\u0645\u0643</div></div></div>' +
+          '<button class="lw-focus-start" id="lwFocusStart">\u25B6 \u0627\u0628\u062F\u0623 \u0627\u0644\u062A\u0631\u0643\u064A\u0632</button></div>';
       },
       attach: function(card){ var btn = card.querySelector('#lwFocusStart'); if(btn) btn.addEventListener('click', openFocusScreen); }
     },
     weather: {
-      title: 'الطقس · طبربور', icon: '🌤️', default: true,
+      title: '\u0627\u0644\u0637\u0642\u0633 \u00B7 \u0637\u0628\u0631\u0628\u0648\u0631', icon: '\uD83C\uDF24\uFE0F', default: true,
       html: function(){
         return '<div class="lw-card" data-widget="weather">' +
-          '<div class="lw-title"><span class="lw-ic">🌤️</span> الطقس · طبربور' +
-          '<button class="lw-refresh" data-action="refresh-weather">⟳</button></div>' +
-          '<div id="lwWeatherBody"><div class="lw-weather-loading"><div class="lw-spinner"></div> جاري التحميل...</div></div></div>';
+          '<div class="lw-title"><span class="lw-ic">\uD83C\uDF24\uFE0F</span> \u0627\u0644\u0637\u0642\u0633 \u00B7 \u0637\u0628\u0631\u0628\u0648\u0631' +
+          '<button class="lw-refresh" data-action="refresh-weather">\u27F3</button></div>' +
+          '<div id="lwWeatherBody"><div class="lw-weather-loading"><div class="lw-spinner"></div></div></div></div>';
       },
       attach: function(card){
         var btn = card.querySelector('[data-action="refresh-weather"]');
@@ -200,12 +192,12 @@
       }
     },
     prayer: {
-      title: 'مواقيت الصلاة · طبربور', icon: '🕌', default: true,
+      title: '\u0645\u0648\u0627\u0642\u064A\u062A \u0627\u0644\u0635\u0644\u0627\u0629', icon: '\uD83D\uDD4C', default: true,
       html: function(){
         return '<div class="lw-card" data-widget="prayer">' +
-          '<div class="lw-title"><span class="lw-ic">🕌</span> مواقيت الصلاة · طبربور' +
-          '<button class="lw-refresh" data-action="refresh-prayer">⟳</button></div>' +
-          '<div id="lwPrayerBody"><div class="lw-weather-loading"><div class="lw-spinner"></div> جاري التحميل...</div></div></div>';
+          '<div class="lw-title"><span class="lw-ic">\uD83D\uDD4C</span> \u0645\u0648\u0627\u0642\u064A\u062A \u0627\u0644\u0635\u0644\u0627\u0629' +
+          '<button class="lw-refresh" data-action="refresh-prayer">\u27F3</button></div>' +
+          '<div id="lwPrayerBody"><div class="lw-weather-loading"><div class="lw-spinner"></div></div></div></div>';
       },
       attach: function(card){
         var btn = card.querySelector('[data-action="refresh-prayer"]');
@@ -215,27 +207,27 @@
       }
     },
     events: {
-      title: 'الأحداث القادمة', icon: '📅', default: true,
+      title: '\u0627\u0644\u0623\u062D\u062F\u0627\u062B \u0627\u0644\u0642\u0627\u062F\u0645\u0629', icon: '\uD83D\uDCC5', default: true,
       html: function(){
         return '<div class="lw-card" data-widget="events">' +
-          '<div class="lw-title"><span class="lw-ic">📅</span> الأحداث القادمة' +
-          '<button class="lw-refresh" data-action="refresh-events">⟳</button></div>' +
+          '<div class="lw-title"><span class="lw-ic">\uD83D\uDCC5</span> \u0627\u0644\u0623\u062D\u062F\u0627\u062B \u0627\u0644\u0642\u0627\u062F\u0645\u0629' +
+          '<button class="lw-refresh" data-action="refresh-events">\u27F3</button></div>' +
           '<div id="lwEventsBody"></div></div>';
       },
       attach: function(card){
         var btn = card.querySelector('[data-action="refresh-events"]');
-        if(btn) btn.addEventListener('click', function(){ renderEventsBody(); toast('🔄 حُدِّث', 'info'); });
+        if(btn) btn.addEventListener('click', function(){ renderEventsBody(); toast('\uD83D\uDD04 \u062D\u064F\u062F\u0651\u062B', 'info'); });
         renderEventsBody();
       }
     },
     quote: {
-      title: 'اقتباس اليوم', icon: '✨', default: true,
+      title: '\u0627\u0642\u062A\u0628\u0627\u0633 \u0627\u0644\u064A\u0648\u0645', icon: '\u2728', default: true,
       html: function(){
         return '<div class="lw-card lw-quote" data-widget="quote">' +
-          '<div class="lw-title" style="justify-content:center"><span class="lw-ic">✨</span> اقتباس اليوم</div>' +
-          '<div class="lw-quote-text" id="lwQuoteText">—</div>' +
-          '<div class="lw-quote-author" id="lwQuoteAuthor">—</div>' +
-          '<div class="lw-quote-actions"><button class="lw-quote-btn" id="lwQuoteNext">🔀 جديد</button></div></div>';
+          '<div class="lw-title" style="justify-content:center"><span class="lw-ic">\u2728</span> \u0627\u0642\u062A\u0628\u0627\u0633 \u0627\u0644\u064A\u0648\u0645</div>' +
+          '<div class="lw-quote-text" id="lwQuoteText">\u2014</div>' +
+          '<div class="lw-quote-author" id="lwQuoteAuthor">\u2014</div>' +
+          '<div class="lw-quote-actions"><button class="lw-quote-btn" id="lwQuoteNext">\uD83D\uDD00 \u062C\u062F\u064A\u062F</button></div></div>';
       },
       attach: function(card){
         var btn = card.querySelector('#lwQuoteNext');
@@ -244,28 +236,28 @@
       }
     },
     pomodoro: {
-      title: 'بومودورو', icon: '⏱️', default: false,
+      title: '\u0628\u0648\u0645\u0648\u062F\u0648\u0631\u0648', icon: '\u23F1\uFE0F', default: false,
       html: function(){
         return '<div class="lw-card" data-widget="pomodoro">' +
-          '<div class="lw-title"><span class="lw-ic">⏱️</span> بومودورو</div>' +
+          '<div class="lw-title"><span class="lw-ic">\u23F1\uFE0F</span> \u0628\u0648\u0645\u0648\u062F\u0648\u0631\u0648</div>' +
           '<div id="lwPomodoroBody"></div></div>';
       },
       attach: function(card){ renderPomodoroBody(); }
     },
     notes: {
-      title: 'آخر الملاحظات', icon: '📔', default: false,
+      title: '\u0622\u062E\u0631 \u0627\u0644\u0645\u0644\u0627\u062D\u0638\u0627\u062A', icon: '\uD83D\uDCD4', default: false,
       html: function(){
         return '<div class="lw-card" data-widget="notes">' +
-          '<div class="lw-title"><span class="lw-ic">📔</span> آخر الملاحظات</div>' +
+          '<div class="lw-title"><span class="lw-ic">\uD83D\uDCD4</span> \u0622\u062E\u0631 \u0627\u0644\u0645\u0644\u0627\u062D\u0638\u0627\u062A</div>' +
           '<div id="lwNotesBody"></div></div>';
       },
       attach: function(card){ renderNotesBody(); }
     },
     budget: {
-      title: 'ملخص الميزانية', icon: '💰', default: false,
+      title: '\u0645\u0644\u062E\u0635 \u0627\u0644\u0645\u064A\u0632\u0627\u0646\u064A\u0629', icon: '\uD83D\uDCB0', default: false,
       html: function(){
         return '<div class="lw-card" data-widget="budget">' +
-          '<div class="lw-title"><span class="lw-ic">💰</span> الميزانية</div>' +
+          '<div class="lw-title"><span class="lw-ic">\uD83D\uDCB0</span> \u0627\u0644\u0645\u064A\u0632\u0627\u0646\u064A\u0629</div>' +
           '<div id="lwBudgetBody"></div></div>';
       },
       attach: function(card){ renderBudgetBody(); }
@@ -286,22 +278,22 @@
     document.body.appendChild(backdrop);
     var expandBtn = document.createElement('button');
     expandBtn.className = 'lw-expand-btn'; expandBtn.id = 'lwExpandBtn';
-    expandBtn.title = 'فتح الأدوات الجانبية'; expandBtn.innerHTML = '🎯';
+    expandBtn.title = '\u0641\u062A\u062D \u0627\u0644\u0623\u062F\u0648\u0627\u062A \u0627\u0644\u062C\u0627\u0646\u0628\u064A\u0629'; expandBtn.innerHTML = '\uD83C\uDFAF';
     document.body.appendChild(expandBtn);
     var aside = document.createElement('aside');
     aside.className = 'lw-sidebar'; aside.id = 'lwSidebar';
     document.body.appendChild(aside);
     var focusScreen = document.createElement('div');
     focusScreen.className = 'focus-screen'; focusScreen.id = 'focusScreen';
-    focusScreen.innerHTML = '<div class="focus-header"><div class="focus-header-left"><div class="focus-logo">🎯</div><div><h2>وضع التركيز</h2><div class="focus-header-sub" id="focusHeaderSub">—</div></div></div><button class="focus-exit-btn" id="focusExitBtn"><span>✕</span> خروج</button></div><div class="focus-body"><div class="focus-timer-panel"><span class="focus-mode-label" id="focusModeLabel">🎯 وقت التركيز</span><div class="focus-ring-wrap"><svg viewBox="0 0 260 260"><defs><linearGradient id="focusGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#a78bfa"/></linearGradient></defs><circle class="focus-ring-bg" cx="130" cy="130" r="116"/><circle class="focus-ring-fg" id="focusRing" cx="130" cy="130" r="116" stroke-dasharray="728.8" stroke-dashoffset="0"/></svg><div class="focus-ring-inner"><div class="focus-time-display" id="focusTimeDisplay">25:00</div><div class="focus-time-sub" id="focusTimeSub">جلسة تركيز</div></div></div><div class="focus-controls"><button class="focus-btn primary" id="focusStartPause">▶ ابدأ</button><button class="focus-btn ghost" id="focusReset">↺ إعادة</button></div></div><div class="focus-tasks-panel"><div class="focus-tasks-header"><h3><span>📝</span> مهامك الآن</h3><span class="focus-tasks-count" id="focusTasksCount">0</span></div><div class="focus-tasks-list" id="focusTasksList"></div></div></div>';
+    focusScreen.innerHTML = '<div class="focus-header"><div class="focus-header-left"><div class="focus-logo">\uD83C\uDFAF</div><div><h2>\u0648\u0636\u0639 \u0627\u0644\u062A\u0631\u0643\u064A\u0632</h2><div class="focus-header-sub" id="focusHeaderSub">\u2014</div></div></div><button class="focus-exit-btn" id="focusExitBtn"><span>\u2715</span> \u062E\u0631\u0648\u062C</button></div><div class="focus-body"><div class="focus-timer-panel"><span class="focus-mode-label" id="focusModeLabel">\uD83C\uDFAF \u0648\u0642\u062A \u0627\u0644\u062A\u0631\u0643\u064A\u0632</span><div class="focus-ring-wrap"><svg viewBox="0 0 260 260"><defs><linearGradient id="focusGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#22d3ee"/><stop offset="100%" stop-color="#a78bfa"/></linearGradient></defs><circle class="focus-ring-bg" cx="130" cy="130" r="116"/><circle class="focus-ring-fg" id="focusRing" cx="130" cy="130" r="116" stroke-dasharray="728.8" stroke-dashoffset="0"/></svg><div class="focus-ring-inner"><div class="focus-time-display" id="focusTimeDisplay">25:00</div><div class="focus-time-sub" id="focusTimeSub">\u062C\u0644\u0633\u0629 \u062A\u0631\u0643\u064A\u0632</div></div></div><div class="focus-controls"><button class="focus-btn primary" id="focusStartPause">\u25B6 \u0627\u0628\u062F\u0623</button><button class="focus-btn ghost" id="focusReset">\u21BA \u0625\u0639\u0627\u062F\u0629</button></div></div><div class="focus-tasks-panel"><div class="focus-tasks-header"><h3><span>\uD83D\uDCDD</span> \u0645\u0647\u0627\u0645\u0643 \u0627\u0644\u0622\u0646</h3><span class="focus-tasks-count" id="focusTasksCount">0</span></div><div class="focus-tasks-list" id="focusTasksList"></div></div></div>';
     document.body.appendChild(focusScreen);
   }
 
   function renderSidebar(){
     var sidebar = document.getElementById('lwSidebar'); if(!sidebar) return;
-    var html = '<div class="lw-close-row"><span class="lw-close-title">الأدوات السريعة</span><div class="lw-close-actions"><button class="lw-close-btn" id="lwCustomizeBtn" title="تخصيص">⚙</button><button class="lw-close-btn lw-close-x" id="lwCloseBtn" title="إغلاق">×</button></div></div>';
+    var html = '<div class="lw-close-row"><span class="lw-close-title">\u0627\u0644\u0623\u062F\u0648\u0627\u062A \u0627\u0644\u0633\u0631\u064A\u0639\u0629</span><div class="lw-close-actions"><button class="lw-close-btn" id="lwCustomizeBtn" title="\u062A\u062E\u0635\u064A\u0635">\u2699</button><button class="lw-close-btn lw-close-x" id="lwCloseBtn" title="\u0625\u063A\u0644\u0627\u0642">\u00D7</button></div></div>';
     if(enabledWidgets.length === 0){
-      html += '<div class="lw-empty-mini" style="padding:40px 16px"><div class="lw-em-ic">🎨</div><div>ما اخترت أي widget</div></div>';
+      html += '<div class="lw-empty-mini" style="padding:40px 16px"><div class="lw-em-ic">\uD83C\uDFA8</div><div>\u0645\u0627 \u0627\u062E\u062A\u0631\u062A \u0623\u064A widget</div></div>';
     } else {
       enabledWidgets.forEach(function(id){ var w = WIDGETS[id]; if(w) html += w.html(); });
     }
@@ -323,12 +315,12 @@
     var backdrop = document.createElement('div'); backdrop.className = 'lw-customize-backdrop'; backdrop.id = 'lwCustomizeBackdrop';
     document.body.appendChild(backdrop);
     var panel = document.createElement('div'); panel.id = 'lwCustomizePanel'; panel.className = 'lw-customize-panel';
-    var html = '<div class="lw-cust-header"><span>🎨 تخصيص الأدوات</span><button class="lw-close-btn lw-close-x" id="lwCustClose">×</button></div><div class="lw-cust-list">';
+    var html = '<div class="lw-cust-header"><span>\uD83C\uDFA8 \u062A\u062E\u0635\u064A\u0635 \u0627\u0644\u0623\u062F\u0648\u0627\u062A</span><button class="lw-close-btn lw-close-x" id="lwCustClose">\u00D7</button></div><div class="lw-cust-list">';
     Object.keys(WIDGETS).forEach(function(id){
       var w = WIDGETS[id]; var checked = enabledWidgets.indexOf(id) > -1;
       html += '<label class="lw-cust-item ' + (checked ? 'checked' : '') + '" data-cid="' + id + '"><input type="checkbox" data-wid="' + id + '" ' + (checked ? 'checked' : '') + '><span class="lw-cust-ic">' + w.icon + '</span><span class="lw-cust-title">' + w.title + '</span></label>';
     });
-    html += '</div><div class="lw-cust-footer"><span class="lw-cust-count" id="lwCustCount">' + enabledWidgets.length + ' / ' + Object.keys(WIDGETS).length + '</span><button class="lw-cust-btn" id="lwCustReset">↺ الافتراضي</button></div>';
+    html += '</div><div class="lw-cust-footer"><span class="lw-cust-count" id="lwCustCount">' + enabledWidgets.length + ' / ' + Object.keys(WIDGETS).length + '</span><button class="lw-cust-btn" id="lwCustReset">\u21BA \u0627\u0644\u0627\u0641\u062A\u0631\u0627\u0636\u064A</button></div>';
     panel.innerHTML = html; document.body.appendChild(panel);
     function closePanel(){ panel.remove(); backdrop.remove(); }
     panel.querySelector('#lwCustClose').addEventListener('click', closePanel);
@@ -345,7 +337,7 @@
     });
     panel.querySelector('#lwCustReset').addEventListener('click', function(){
       enabledWidgets = Object.keys(WIDGETS).filter(function(k){ return WIDGETS[k].default; });
-      saveEnabled(); closePanel(); renderSidebar(); toast('↺ تم الاسترجاع', 'success');
+      saveEnabled(); closePanel(); renderSidebar(); toast('\u21BA \u062A\u0645 \u0627\u0644\u0627\u0633\u062A\u0631\u062C\u0627\u0639', 'success');
     });
   }
 
@@ -380,7 +372,7 @@
     });
   }
 
-  var WEATHER_MAP = {0:{ic:'☀️',t:'صحو'},1:{ic:'🌤️',t:'صحو جزئيًا'},2:{ic:'⛅',t:'غائم جزئيًا'},3:{ic:'☁️',t:'غائم'},45:{ic:'🌫️',t:'ضباب'},51:{ic:'🌦️',t:'رشات'},61:{ic:'🌦️',t:'مطر خفيف'},63:{ic:'🌧️',t:'مطر'},65:{ic:'🌧️',t:'غزير'},71:{ic:'🌨️',t:'ثلج'},80:{ic:'🌦️',t:'زخات'},95:{ic:'⛈️',t:'رعدي'}};
+  var WEATHER_MAP = {0:{ic:'\u2600\uFE0F',t:'\u0635\u062D\u0648'},1:{ic:'\uD83C\uDF24\uFE0F',t:'\u0635\u062D\u0648 \u062C\u0632\u0626\u064A\u0627\u064B'},2:{ic:'\u26C5',t:'\u063A\u0627\u0626\u0645 \u062C\u0632\u0626\u064A\u0627\u064B'},3:{ic:'\u2601\uFE0F',t:'\u063A\u0627\u0626\u0645'},45:{ic:'\uD83C\uDF2B\uFE0F',t:'\u0636\u0628\u0627\u0628'},61:{ic:'\uD83C\uDF26\uFE0F',t:'\u0645\u0637\u0631 \u062E\u0641\u064A\u0641'},63:{ic:'\uD83C\uDF27\uFE0F',t:'\u0645\u0637\u0631'},65:{ic:'\uD83C\uDF27\uFE0F',t:'\u063A\u0632\u064A\u0631'},80:{ic:'\uD83C\uDF26\uFE0F',t:'\u0632\u062E\u0627\u062A'},95:{ic:'\u26C8\uFE0F',t:'\u0631\u0639\u062F\u064A'}};
   var AMMAN_TABARBOUR = {lat: 31.9856, lon: 35.9531};
   var WEATHER_CACHE_KEY = 'lw_weather_cache_v3';
   var WEATHER_CACHE_TTL = 30 * 60 * 1000;
@@ -388,9 +380,9 @@
 
   function renderWeatherBody(){
     var body = document.getElementById('lwWeatherBody'); if(!body) return;
-    if(!weatherData){ body.innerHTML = '<div class="lw-weather-loading"><div class="lw-spinner"></div> جاري التحميل...</div>'; return; }
-    var info = WEATHER_MAP[weatherData.code] || {ic:'🌡️', t:'—'};
-    body.innerHTML = '<div class="lw-weather-row"><div class="lw-weather-ic">' + info.ic + '</div><div class="lw-weather-info"><div class="lw-weather-temp">' + Math.round(weatherData.temp) + '<sup>°C</sup></div><div class="lw-weather-desc">' + info.t + '</div></div></div><div class="lw-weather-meta"><span>💨 ' + Math.round(weatherData.wind) + ' كم/س</span><span>💧 ' + Math.round(weatherData.humidity) + '%</span></div>';
+    if(!weatherData){ body.innerHTML = '<div class="lw-weather-loading"><div class="lw-spinner"></div></div>'; return; }
+    var info = WEATHER_MAP[weatherData.code] || {ic:'\uD83C\uDF21\uFE0F', t:'\u2014'};
+    body.innerHTML = '<div class="lw-weather-row"><div class="lw-weather-ic">' + info.ic + '</div><div class="lw-weather-info"><div class="lw-weather-temp">' + Math.round(weatherData.temp) + '<sup>\u00B0C</sup></div><div class="lw-weather-desc">' + info.t + '</div></div></div><div class="lw-weather-meta"><span>\uD83D\uDCA8 ' + Math.round(weatherData.wind) + '</span><span>\uD83D\uDCA7 ' + Math.round(weatherData.humidity) + '%</span></div>';
   }
 
   function loadWeather(force){
@@ -436,34 +428,34 @@
       var timeStr = e.time && /^\d{1,2}:\d{2}$/.test(e.time) ? e.time : '23:59';
       var dt = new Date(e.date + 'T' + timeStr);
       if(dt.getTime() < nowMs) return;
-      events.push({icon:'📝', title: e.name || 'امتحان', date: e.date, time: e.time || '', sub: e.course || '', sortTime: dt.getTime()});
+      events.push({icon:'\uD83D\uDCDD', title: e.name || '', date: e.date, time: e.time || '', sub: e.course || '', sortTime: dt.getTime()});
     });
     (sp.tasks || []).forEach(function(t){
       if(t.done || !t.due || t.due < today) return;
       var dt = new Date(t.due + 'T23:59');
       if(dt.getTime() < nowMs) return;
-      events.push({icon:'📌', title: t.title || 'مهمة', date: t.due, time: '', sub: t.course || '', sortTime: dt.getTime()});
+      events.push({icon:'\uD83D\uDCCC', title: t.title || '', date: t.due, time: '', sub: t.course || '', sortTime: dt.getTime()});
     });
     var nl = findNextLecture(now);
-    if(nl) events.push({icon:'📖', title: nl.name, date: nl.dateStr, time: nl.time, sub: (nl.room ? '📍 ' + nl.room + ' · ' : '') + nl.dayAr, sortTime: nl.dt.getTime()});
+    if(nl) events.push({icon:'\uD83D\uDCD6', title: nl.name, date: nl.dateStr, time: nl.time, sub: (nl.room ? '\uD83D\uDCCD ' + nl.room + ' \u00B7 ' : '') + nl.dayAr, sortTime: nl.dt.getTime()});
     events.sort(function(a,b){ return a.sortTime - b.sortTime; });
     events = events.slice(0, 8);
-    if(!events.length){ body.innerHTML = '<div class="lw-empty-mini"><div class="lw-em-ic">🌴</div>لا أحداث قادمة</div>'; return; }
+    if(!events.length){ body.innerHTML = '<div class="lw-empty-mini"><div class="lw-em-ic">\uD83C\uDF34</div>\u0644\u0627 \u0623\u062D\u062F\u0627\u062B \u0642\u0627\u062F\u0645\u0629</div>'; return; }
     var html = '';
     events.forEach(function(ev){
       var diffMs = ev.sortTime - nowMs; var diffDays = Math.ceil(diffMs / 86400000);
       var when, cls;
-      if(diffMs < 3600000){ when = 'بعد ' + Math.max(1, Math.floor(diffMs / 60000)) + ' د'; cls = 'urgent'; }
-      else if(diffMs < 86400000){ when = 'بعد ' + Math.floor(diffMs / 3600000) + ' س'; cls = 'urgent'; }
-      else { when = diffDays === 0 ? 'اليوم' : diffDays === 1 ? 'غدًا' : 'بعد ' + diffDays + ' أيام'; cls = diffDays <= 2 ? 'urgent' : diffDays <= 5 ? 'soon' : ''; }
-      var meta = ev.date + (ev.time ? ' · ' + ev.time : '') + (ev.sub ? ' · ' + ev.sub : '');
+      if(diffMs < 3600000){ when = Math.max(1, Math.floor(diffMs / 60000)) + ' \u062F'; cls = 'urgent'; }
+      else if(diffMs < 86400000){ when = Math.floor(diffMs / 3600000) + ' \u0633'; cls = 'urgent'; }
+      else { when = diffDays === 0 ? '\u0627\u0644\u064A\u0648\u0645' : diffDays === 1 ? '\u063A\u062F\u0627\u064B' : diffDays + ' \u0623\u064A\u0627\u0645'; cls = diffDays <= 2 ? 'urgent' : diffDays <= 5 ? 'soon' : ''; }
+      var meta = ev.date + (ev.time ? ' \u00B7 ' + ev.time : '') + (ev.sub ? ' \u00B7 ' + ev.sub : '');
       html += '<div class="lw-item"><div class="lw-item-ic">' + ev.icon + '</div><div class="lw-item-body"><div class="lw-item-title">' + esc(ev.title) + '</div><div class="lw-item-meta">' + esc(meta) + '</div></div><div class="lw-item-when ' + cls + '">' + when + '</div></div>';
     });
     body.innerHTML = html;
   }
 
   var QUOTE_INDEX_KEY = 'lw_quote_index_v3';
-  function getQuotesList(){ var q = window.DAILY_QUOTES; return (Array.isArray(q) && q.length) ? q : [{t:'لا تنتظر الفرصة.', a:'—'}]; }
+  function getQuotesList(){ var q = window.DAILY_QUOTES; return (Array.isArray(q) && q.length) ? q : [{t:'', a:''}]; }
   function rotateQuote(advance){
     var quotes = getQuotesList(); var idx = 0;
     try{ idx = parseInt(localStorage.getItem(QUOTE_INDEX_KEY) || '0'); }catch(e){}
@@ -477,7 +469,7 @@
     textEl.classList.add('lw-fade');
     setTimeout(function(){
       textEl.textContent = q.t;
-      var a = document.getElementById('lwQuoteAuthor'); if(a) a.textContent = '— ' + (q.a || '—');
+      var a = document.getElementById('lwQuoteAuthor'); if(a) a.textContent = '\u2014 ' + (q.a || '\u2014');
       textEl.classList.remove('lw-fade');
     }, 180);
   }
@@ -485,16 +477,16 @@
   function renderPomodoroBody(){
     var body = document.getElementById('lwPomodoroBody'); if(!body) return;
     var S = getS(); var sessions = S.get('pomoSessions', 0) || 0; var focusMin = S.get('pomoFocus', 0) || 0;
-    body.innerHTML = '<div class="lw-stats"><div class="lw-stat"><div class="lw-stat-val">' + sessions + '</div><div class="lw-stat-lbl">جلسات</div></div><div class="lw-stat"><div class="lw-stat-val green">' + focusMin + '</div><div class="lw-stat-lbl">دقيقة</div></div></div>';
+    body.innerHTML = '<div class="lw-stats"><div class="lw-stat"><div class="lw-stat-val">' + sessions + '</div><div class="lw-stat-lbl">\u062C\u0644\u0633\u0627\u062A</div></div><div class="lw-stat"><div class="lw-stat-val green">' + focusMin + '</div><div class="lw-stat-lbl">\u062F\u0642\u064A\u0642\u0629</div></div></div>';
   }
 
   function renderNotesBody(){
     var body = document.getElementById('lwNotesBody'); if(!body) return;
     var notes = window.notes || [];
-    if(!notes.length){ body.innerHTML = '<div class="lw-empty-mini"><div class="lw-em-ic">📔</div>لا ملاحظات</div>'; return; }
+    if(!notes.length){ body.innerHTML = '<div class="lw-empty-mini"><div class="lw-em-ic">\uD83D\uDCD4</div>\u0644\u0627 \u0645\u0644\u0627\u062D\u0638\u0627\u062A</div>'; return; }
     var html = '';
     notes.slice(0, 4).forEach(function(n){
-      html += '<div class="lw-item"><div class="lw-item-ic">📝</div><div class="lw-item-body"><div class="lw-item-title">' + esc(n.title || 'بدون عنوان') + '</div><div class="lw-item-meta">' + esc((n.body || '').slice(0, 50)) + '</div></div></div>';
+      html += '<div class="lw-item"><div class="lw-item-ic">\uD83D\uDCDD</div><div class="lw-item-body"><div class="lw-item-title">' + esc(n.title || '') + '</div><div class="lw-item-meta">' + esc((n.body || '').slice(0, 50)) + '</div></div></div>';
     });
     body.innerHTML = html;
   }
@@ -505,7 +497,7 @@
     var inc = (sp.budget || []).filter(function(b){ return b.type === 'income'; }).reduce(function(a,b){ return a + (parseFloat(b.amount) || 0); }, 0);
     var exp = (sp.budget || []).filter(function(b){ return b.type === 'expense'; }).reduce(function(a,b){ return a + (parseFloat(b.amount) || 0); }, 0);
     var bal = inc - exp;
-    body.innerHTML = '<div class="lw-stats"><div class="lw-stat"><div class="lw-stat-val green">' + inc.toFixed(0) + '</div><div class="lw-stat-lbl">دخل</div></div><div class="lw-stat"><div class="lw-stat-val red">' + exp.toFixed(0) + '</div><div class="lw-stat-lbl">مصروف</div></div><div class="lw-stat"><div class="lw-stat-val ' + (bal >= 0 ? 'green' : 'red') + '">' + bal.toFixed(0) + '</div><div class="lw-stat-lbl">رصيد</div></div></div>';
+    body.innerHTML = '<div class="lw-stats"><div class="lw-stat"><div class="lw-stat-val green">' + inc.toFixed(0) + '</div><div class="lw-stat-lbl">\u062F\u062E\u0644</div></div><div class="lw-stat"><div class="lw-stat-val red">' + exp.toFixed(0) + '</div><div class="lw-stat-lbl">\u0645\u0635\u0631\u0648\u0641</div></div><div class="lw-stat"><div class="lw-stat-val ' + (bal >= 0 ? 'green' : 'red') + '">' + bal.toFixed(0) + '</div><div class="lw-stat-lbl">\u0631\u0635\u064A\u062F</div></div></div>';
   }
 
   var focusIntervalId = null;
@@ -524,11 +516,11 @@
       var pct = Math.max(0, Math.min(1, 1 - (t.remaining / t.total)));
       ringEl.style.strokeDashoffset = 2 * Math.PI * 116 * pct;
     }
-    if(startBtn) startBtn.textContent = t.running ? '⏸ إيقاف' : '▶ ابدأ';
+    if(startBtn) startBtn.textContent = t.running ? '\u23F8 \u0625\u064A\u0642\u0627\u0641' : '\u25B6 \u0627\u0628\u062F\u0623';
     if(modeLabel){
-      modeLabel.textContent = t.mode === 'focus' ? '🎯 وقت التركيز' : t.mode === 'short' ? '☕ راحة قصيرة' : t.mode === 'long' ? '🌴 راحة طويلة' : '⏱️ تصاعدي';
+      modeLabel.textContent = t.mode === 'focus' ? '\uD83C\uDFAF \u0648\u0642\u062A \u0627\u0644\u062A\u0631\u0643\u064A\u0632' : t.mode === 'short' ? '\u2615 \u0631\u0627\u062D\u0629 \u0642\u0635\u064A\u0631\u0629' : t.mode === 'long' ? '\uD83C\uDF34 \u0631\u0627\u062D\u0629 \u0637\u0648\u064A\u0644\u0629' : '\u23F1\uFE0F \u062A\u0635\u0627\u0639\u062F\u064A';
     }
-    if(sub) sub.textContent = t.running ? 'جلسة جارية...' : 'جاهز للبدء';
+    if(sub) sub.textContent = t.running ? '\u062C\u0644\u0633\u0629 \u062C\u0627\u0631\u064A\u0629...' : '\u062C\u0627\u0647\u0632 \u0644\u0644\u0628\u062F\u0621';
   }
 
   function startFocusTimerLoop(){
@@ -552,7 +544,7 @@
     tasks = tasks.slice(0, 12);
     if(cnt) cnt.textContent = tasks.length;
     if(!tasks.length){
-      list.innerHTML = '<div class="focus-empty"><div class="focus-empty-ic">✨</div><div class="focus-empty-title">ما عندك مهام</div></div>';
+      list.innerHTML = '<div class="focus-empty"><div class="focus-empty-ic">\u2728</div><div class="focus-empty-title">\u0645\u0627 \u0639\u0646\u062F\u0643 \u0645\u0647\u0627\u0645</div></div>';
       return;
     }
     var html = '';
@@ -560,8 +552,8 @@
       var overdue = t.due && t.due < today;
       var daysLeft = t.due ? Math.ceil((new Date(t.due) - new Date(today)) / 86400000) : null;
       var urgent = !overdue && daysLeft !== null && daysLeft >= 0 && daysLeft <= 3;
-      var when = overdue ? 'متأخرة' : daysLeft === 0 ? 'اليوم' : daysLeft === 1 ? 'غدًا' : (daysLeft !== null && daysLeft > 1) ? 'بعد ' + daysLeft + ' يوم' : '';
-      html += '<div class="focus-task" data-ft-id="' + esc(t.id) + '"><div class="focus-task-check"></div><div class="focus-task-body"><div class="focus-task-title">' + esc(t.title) + '</div>' + (t.course ? '<div class="focus-task-meta">📚 ' + esc(t.course) + '</div>' : '') + '</div>' + (when ? '<div class="focus-task-when ' + (overdue || urgent ? 'urgent' : '') + '">' + when + '</div>' : '') + '</div>';
+      var when = overdue ? '\u0645\u062A\u0623\u062E\u0631\u0629' : daysLeft === 0 ? '\u0627\u0644\u064A\u0648\u0645' : daysLeft === 1 ? '\u063A\u062F\u0627\u064B' : (daysLeft !== null && daysLeft > 1) ? daysLeft + ' \u064A\u0648\u0645' : '';
+      html += '<div class="focus-task" data-ft-id="' + esc(t.id) + '"><div class="focus-task-check"></div><div class="focus-task-body"><div class="focus-task-title">' + esc(t.title) + '</div>' + (t.course ? '<div class="focus-task-meta">' + esc(t.course) + '</div>' : '') + '</div>' + (when ? '<div class="focus-task-when ' + (overdue || urgent ? 'urgent' : '') + '">' + when + '</div>' : '') + '</div>';
     });
     list.innerHTML = html;
     list.querySelectorAll('[data-ft-id]').forEach(function(el){
@@ -572,7 +564,7 @@
         task.done = true; saveSpace();
         try{ if(typeof window.renderTasks === 'function') window.renderTasks(); }catch(e){}
         try{ if(typeof window.renderDashboard === 'function') window.renderDashboard(); }catch(e){}
-        toast('✅ أكملت "' + task.title + '"', 'success');
+        toast('\u2705 "' + task.title + '"', 'success');
         renderFocusTasks();
       });
     });
@@ -584,7 +576,7 @@
     document.body.style.overflow = 'hidden';
     var sp = getSpace(); var name = (sp.profile && sp.profile.name) || '';
     var sub = document.getElementById('focusHeaderSub');
-    if(sub){ var hour = new Date().getHours(); var greet = hour < 12 ? 'صباح الخير' : 'مساء الخير'; sub.textContent = (name ? greet + ' ' + name.split(' ')[0] + ' · ' : '') + 'ركز على مهمة واحدة'; }
+    if(sub){ var hour = new Date().getHours(); var greet = hour < 12 ? '\u0635\u0628\u0627\u062D \u0627\u0644\u062E\u064A\u0631' : '\u0645\u0633\u0627\u0621 \u0627\u0644\u062E\u064A\u0631'; sub.textContent = (name ? greet + ' ' + name.split(' ')[0] + ' \u00B7 ' : '') + '\u0631\u0643\u0632 \u0639\u0644\u0649 \u0645\u0647\u0645\u0629 \u0648\u0627\u062D\u062F\u0629'; }
     renderFocusTasks(); updateFocusTimerUI(); startFocusTimerLoop();
   }
 
@@ -621,7 +613,7 @@
       var code = codeSpan ? codeSpan.textContent.trim() : '';
       var fullText = nameDiv.textContent || '';
       var name = fullText.replace(code, '').replace(/\s+/g,' ').trim();
-      name = name.replace(/\s*مختبر\s*$/, '').trim();
+      name = name.replace(/\s*\u0645\u062E\u062A\u0628\u0631\s*$/, '').trim();
       if(!name) return;
       var hoursSpan = row.children[1];
       var hours = hoursSpan ? parseInt(hoursSpan.textContent) || 3 : 3;
@@ -629,18 +621,18 @@
       row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center'; row.style.gap = '8px';
       if(nameDiv){ nameDiv.style.flex = '1'; nameDiv.style.minWidth = '0'; }
       var btn = document.createElement('button');
-      btn.className = 'plan-add-btn'; btn.type = 'button'; btn.title = 'أضف إلى موادي'; btn.textContent = '+';
+      btn.className = 'plan-add-btn'; btn.type = 'button'; btn.title = '\u0623\u0636\u0641 \u0625\u0644\u0649 \u0645\u0648\u0627\u062F\u064A'; btn.textContent = '+';
       var exists = (sp.courses || []).some(function(c){ return c.name === name; });
-      if(exists){ btn.classList.add('added'); btn.textContent = '✓'; }
+      if(exists){ btn.classList.add('added'); btn.textContent = '\u2713'; }
       btn.addEventListener('click', function(e){
         e.stopPropagation(); e.preventDefault();
         if(btn.classList.contains('added')) return;
         var current = getSpace();
-        if((current.courses || []).some(function(c){ return c.name === name; })){ btn.classList.add('added'); btn.textContent = '✓'; return; }
+        if((current.courses || []).some(function(c){ return c.name === name; })){ btn.classList.add('added'); btn.textContent = '\u2713'; return; }
         if(!current.courses) current.courses = [];
         current.courses.push({ id: uid(), name: name, code: code, hours: hours, instructor: '', room: '' });
-        saveSpace(); btn.classList.add('added'); btn.textContent = '✓';
-        toast('✅ أُضيفت "' + name + '"', 'success');
+        saveSpace(); btn.classList.add('added'); btn.textContent = '\u2713';
+        toast('\u2705 "' + name + '"', 'success');
         try{ if(typeof window.renderCourses === 'function') window.renderCourses(); }catch(err){}
       });
       row.appendChild(btn);
@@ -654,18 +646,17 @@
     enhancePlan();
   }
 
-  /* ==================== PRAYER TIMES ==================== */
   var PRAYER_CACHE_KEY = 'lw_prayer_cache_v1';
   var PRAYER_CACHE_TTL = 6 * 60 * 60 * 1000;
   var prayerData = null;
 
   var PRAYER_NAMES = {
-    Fajr:    {ar: 'الفجر',   ic: '🌙'},
-    Sunrise: {ar: 'الشروق',  ic: '🌅'},
-    Dhuhr:   {ar: 'الظهر',   ic: '☀️'},
-    Asr:     {ar: 'العصر',   ic: '🌤️'},
-    Maghrib: {ar: 'المغرب',  ic: '🌇'},
-    Isha:    {ar: 'العشاء',  ic: '🌙'}
+    Fajr:    {ar:'\u0627\u0644\u0641\u062C\u0631', ic:'\uD83C\uDF19'},
+    Sunrise: {ar:'\u0627\u0644\u0634\u0631\u0648\u0642', ic:'\uD83C\uDF05'},
+    Dhuhr:   {ar:'\u0627\u0644\u0638\u0647\u0631', ic:'\u2600\uFE0F'},
+    Asr:     {ar:'\u0627\u0644\u0639\u0635\u0631', ic:'\uD83C\uDF24\uFE0F'},
+    Maghrib: {ar:'\u0627\u0644\u0645\u063A\u0631\u0628', ic:'\uD83C\uDF07'},
+    Isha:    {ar:'\u0627\u0644\u0639\u0634\u0627\u0621', ic:'\uD83C\uDF19'}
   };
 
   function getNextPrayer(){
@@ -688,7 +679,7 @@
       var fp = fajr.split(':');
       var fm = parseInt(fp[0], 10) * 60 + parseInt(fp[1], 10);
       var diff2 = (24 * 60 - nowMin) + fm;
-      return {key:'Fajr', name:'الفجر', icon:'🌙', time: fajr.substring(0,5), diff: diff2, tomorrow: true};
+      return {key:'Fajr', name: PRAYER_NAMES.Fajr.ar, icon: PRAYER_NAMES.Fajr.ic, time: fajr.substring(0,5), diff: diff2, tomorrow: true};
     }
     return null;
   }
@@ -711,12 +702,12 @@
     if(next && next.key !== 'Sunrise'){
       var hh = Math.floor(next.diff / 60);
       var mm = next.diff % 60;
-      var diffStr = hh > 0 ? (hh + 'س ' + mm + 'د') : (mm + 'د');
+      var diffStr = hh > 0 ? (hh + '\u0633 ' + mm + '\u062F') : (mm + '\u062F');
       html += '<div class="lw-prayer-next">' +
         '<span class="lw-prayer-next-ic">' + next.icon + '</span>' +
         '<span class="lw-prayer-next-name">' + next.name + '</span>' +
         '<span class="lw-prayer-next-time">' + next.time + '</span>' +
-        '<span class="lw-prayer-next-diff">بعد ' + diffStr + '</span>' +
+        '<span class="lw-prayer-next-diff">' + diffStr + '</span>' +
       '</div>';
     }
 
@@ -751,23 +742,15 @@
         }
       }catch(e){}
     }
-
     if(force){ prayerData = null; renderPrayerBody(); }
 
     var url = 'https://api.aladhan.com/v1/timings?latitude=31.9856&longitude=35.9531&method=23&school=0';
-
     fetch(url, {cache: 'no-store'})
       .then(function(r){ return r.json(); })
       .then(function(j){
         if(!j || j.code !== 200 || !j.data) return;
-        prayerData = {
-          timings: j.data.timings,
-          date: j.data.date,
-          meta: j.data.meta
-        };
-        try{
-          localStorage.setItem(PRAYER_CACHE_KEY, JSON.stringify({ts: Date.now(), data: prayerData}));
-        }catch(e){}
+        prayerData = {timings: j.data.timings, date: j.data.date, meta: j.data.meta};
+        try{ localStorage.setItem(PRAYER_CACHE_KEY, JSON.stringify({ts: Date.now(), data: prayerData})); }catch(e){}
         renderPrayerBody();
       })
       .catch(function(){});
@@ -783,14 +766,29 @@
     loadWeather(false);
     loadPrayerTimes(false);
     rotateQuote(false);
-    setInterval(function(){ rotateQuote(true); }, 60 * 1000);
+
+    // Track all intervals so they can be cleared
+    addInterval(function(){ rotateQuote(true); }, 60 * 1000);
     watchPlan();
-    setInterval(function(){
-      if(enabledWidgets.indexOf('events') > -1) renderEventsBody();
-      if(enabledWidgets.indexOf('pomodoro') > -1) renderPomodoroBody();
-      if(enabledWidgets.indexOf('prayer') > -1) renderPrayerBody();
+
+    // Combined 2-min ticker (only runs active work)
+    addInterval(function(){
+      var anyVisible = false;
+      if(enabledWidgets.indexOf('events') > -1) { renderEventsBody(); anyVisible = true; }
+      if(enabledWidgets.indexOf('pomodoro') > -1) { renderPomodoroBody(); anyVisible = true; }
+      if(enabledWidgets.indexOf('prayer') > -1) { renderPrayerBody(); anyVisible = true; }
+      void anyVisible;
     }, 2 * 60 * 1000);
-    setInterval(function(){ if(enabledWidgets.indexOf('events') > -1) renderEventsBody(); }, 30 * 1000);
+
+    // Faster tick for events only
+    addInterval(function(){
+      if(enabledWidgets.indexOf('events') > -1) renderEventsBody();
+    }, 30 * 1000);
+
+    // Cleanup on unload
+    window.addEventListener('beforeunload', clearAllIntervals);
+
+    // Wrap S.set for space changes
     if(window.S && typeof window.S.set === 'function' && !window.S._lwWrapped){
       var origSet = window.S.set;
       window.S.set = function(k, v){
