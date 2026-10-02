@@ -2078,73 +2078,632 @@ function renderCourseDescriptions(){
   else list.innerHTML = '<div style="color:var(--muted);font-size:.82rem;margin-bottom:12px">عدد المواد: ' + count + '</div>' + html;
 }
 
-/* ==================== TIMETABLE ==================== */
+/* ==================== TIMETABLE (v2 - Smart Compact) ==================== */
+function injectTimetableStyles(){
+  if(document.getElementById('tt-styles-v2')) return;
+  var style = document.createElement('style');
+  style.id = 'tt-styles-v2';
+  style.textContent = `
+    /* ==== Timetable Wrapper ==== */
+    .timetable-wrap{overflow-x:auto;background:var(--card);border-radius:14px;border:1px solid var(--border);padding:10px;position:relative}
+
+    /* ==== Table ==== */
+    .timetable{width:100%;border-collapse:separate;border-spacing:4px;min-width:620px}
+
+    /* ==== Day Headers ==== */
+    .timetable th{
+      background:var(--card2);
+      padding:12px 8px;
+      border-radius:8px;
+      font-size:.8rem;
+      color:var(--muted);
+      font-weight:700;
+      text-align:center;
+      position:sticky;
+      top:0;
+      z-index:5;
+      backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px)
+    }
+    .timetable th.today-header{
+      background:var(--grad);
+      color:#0b0f1a;
+      box-shadow:0 4px 14px var(--glow);
+      font-weight:900;
+      transform:scale(1.02)
+    }
+    .timetable th.today-header::after{
+      content:'';
+      display:block;
+      height:2px;
+      margin-top:4px;
+      background:rgba(0,0,0,.25);
+      border-radius:2px
+    }
+
+    /* ==== Time Column ==== */
+    .time-col{
+      background:var(--card2)!important;
+      font-weight:700;
+      font-size:.74rem;
+      color:var(--muted);
+      text-align:center;
+      vertical-align:middle;
+      width:64px;
+      min-width:64px!important;
+      border-radius:8px;
+      letter-spacing:.5px;
+      font-variant-numeric:tabular-nums
+    }
+
+    /* ==== Cells ==== */
+    .timetable td{
+      background:var(--bg2);
+      padding:4px;
+      border-radius:8px;
+      vertical-align:top;
+      min-width:100px;
+      height:60px;
+      font-size:.76rem;
+      transition:background .2s ease
+    }
+    .timetable td.today-col{
+      background:linear-gradient(180deg,rgba(34,211,238,.06),rgba(34,211,238,.02));
+      border:1px dashed rgba(34,211,238,.25);
+      border-radius:8px
+    }
+
+    /* ==== Class Block ==== */
+    .class-block{
+      background:var(--grad-soft);
+      border:1.5px solid var(--glow);
+      border-radius:8px;
+      padding:8px 10px;
+      cursor:pointer;
+      height:100%;
+      transition:all .2s ease;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:3px;
+      position:relative;
+      overflow:hidden
+    }
+    .class-block::before{
+      content:'';
+      position:absolute;
+      right:0;top:0;bottom:0;
+      width:3px;
+      background:var(--grad);
+      opacity:.9
+    }
+    .class-block:hover{
+      transform:translateY(-2px);
+      border-color:var(--cyan);
+      box-shadow:0 6px 18px var(--glow)
+    }
+    .class-block .name{
+      font-weight:700;
+      color:var(--cyan);
+      font-size:.76rem;
+      line-height:1.35;
+      padding-right:4px
+    }
+    .class-block .room{
+      color:var(--muted);
+      font-size:.66rem;
+      margin-top:2px;
+      padding-right:4px
+    }
+
+    /* ==== Empty Cell ==== */
+    .cell-empty{
+      cursor:pointer;
+      height:100%;
+      border-radius:6px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted2);
+      opacity:0;
+      transition:.2s;
+      font-size:1.1rem
+    }
+    .timetable td:hover .cell-empty{
+      opacity:1;
+      background:var(--card2)
+    }
+
+    /* ==== Gap Row (فجوة) ==== */
+    .tt-gap-row td{
+      background:transparent!important;
+      padding:0!important;
+      height:auto!important
+    }
+    .tt-gap-inner{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:6px 12px;
+      font-size:.7rem;
+      color:var(--muted2);
+      font-weight:700;
+      direction:rtl
+    }
+    .tt-gap-inner::before,
+    .tt-gap-inner::after{
+      content:'';
+      flex:1;
+      height:1px;
+      background:repeating-linear-gradient(90deg,var(--border) 0 6px,transparent 6px 12px)
+    }
+    .tt-gap-inner .arrow{
+      font-size:.85rem;
+      color:var(--cyan);
+      opacity:.7
+    }
+
+    /* ==== Current Time Indicator ==== */
+    .tt-now-row td{
+      position:relative
+    }
+    .tt-now-row td::before{
+      content:'';
+      position:absolute;
+      right:0;left:0;top:50%;
+      height:1.5px;
+      background:linear-gradient(90deg,transparent,var(--red),transparent);
+      pointer-events:none;
+      z-index:1
+    }
+    .tt-now-row .time-col{
+      color:var(--red)!important;
+      position:relative
+    }
+    .tt-now-row .time-col::after{
+      content:'•';
+      position:absolute;
+      right:-4px;
+      top:50%;
+      transform:translateY(-50%);
+      color:var(--red);
+      font-size:1.2rem;
+      animation:tt-pulse 1.5s infinite
+    }
+    @keyframes tt-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+    /* ==== Empty Timetable Notice ==== */
+    .tt-empty-notice{
+      padding:28px 20px;
+      text-align:center;
+      color:var(--muted);
+      font-size:.85rem
+    }
+  `;
+  document.head.appendChild(style);
+}
+/* ==================== TIMETABLE v3 — Smart Compact + Animations ==================== */
+function injectTimetableStyles(){
+  if(document.getElementById('tt-styles-v3')) return;
+  var style = document.createElement('style');
+  style.id = 'tt-styles-v3';
+  style.textContent = `
+    /* ==== Wrapper ==== */
+    .timetable-wrap{
+      overflow-x:auto;
+      background:var(--card);
+      border-radius:16px;
+      border:1px solid var(--border);
+      padding:12px;
+      position:relative;
+      box-shadow:0 4px 20px rgba(0,0,0,.15)
+    }
+
+    /* ==== Table Base ==== */
+    .timetable{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:5px;
+      min-width:680px;
+      animation:ttFadeIn .4s ease
+    }
+    @keyframes ttFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ==== Day Headers ==== */
+    .timetable th{
+      background:var(--card2);
+      padding:14px 8px 12px;
+      border-radius:10px;
+      font-size:.82rem;
+      color:var(--muted);
+      font-weight:700;
+      text-align:center;
+      position:sticky;
+      top:0;
+      z-index:5;
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+      transition:all .3s ease;
+      line-height:1.3
+    }
+    .timetable th.today-header{
+      background:var(--grad);
+      color:#0b0f1a;
+      box-shadow:0 6px 20px var(--glow);
+      font-weight:900;
+      animation:todayPulse 3s ease-in-out infinite
+    }
+    @keyframes todayPulse{
+      0%,100%{box-shadow:0 6px 20px var(--glow)}
+      50%{box-shadow:0 8px 28px var(--glow),0 0 0 4px rgba(34,211,238,.1)}
+    }
+    .timetable th .today-label{
+      display:inline-block;
+      font-size:.62rem;
+      font-weight:800;
+      background:rgba(0,0,0,.22);
+      padding:1px 8px;
+      border-radius:8px;
+      margin-top:4px;
+      letter-spacing:.5px
+    }
+
+    /* ==== Time Column ==== */
+    .time-col{
+      background:var(--card2)!important;
+      font-weight:800;
+      font-size:.76rem;
+      color:var(--muted);
+      text-align:center;
+      vertical-align:middle;
+      width:68px;
+      min-width:68px!important;
+      border-radius:10px;
+      letter-spacing:.5px;
+      font-variant-numeric:tabular-nums;
+      position:relative
+    }
+    .time-col.now{
+      color:var(--red)!important;
+      background:linear-gradient(135deg,rgba(248,113,113,.15),rgba(248,113,113,.05))!important
+    }
+
+    /* ==== Cells ==== */
+    .timetable td{
+      background:var(--bg2);
+      padding:5px;
+      border-radius:10px;
+      vertical-align:top;
+      min-width:105px;
+      height:64px;
+      font-size:.76rem;
+      transition:background .25s ease;
+      position:relative
+    }
+    .timetable td.today-col{
+      background:linear-gradient(180deg,rgba(34,211,238,.08),rgba(34,211,238,.02));
+      box-shadow:inset 0 0 0 1px rgba(34,211,238,.15)
+    }
+    .timetable td.now-row::before{
+      content:'';
+      position:absolute;
+      top:50%;
+      right:-5px;
+      left:-5px;
+      height:2px;
+      background:linear-gradient(90deg,transparent,var(--red),transparent);
+      pointer-events:none;
+      z-index:2;
+      animation:nowLinePulse 2s ease-in-out infinite
+    }
+    @keyframes nowLinePulse{
+      0%,100%{opacity:1}
+      50%{opacity:.4}
+    }
+
+    /* ==== Class Block ==== */
+    .class-block{
+      background:var(--grad-soft);
+      border:1.5px solid var(--glow);
+      border-radius:9px;
+      padding:9px 11px;
+      cursor:pointer;
+      height:100%;
+      transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:4px;
+      position:relative;
+      overflow:hidden;
+      animation:cellIn .35s cubic-bezier(.2,0,0,1) backwards
+    }
+    @keyframes cellIn{
+      from{opacity:0;transform:scale(.9)}
+      to{opacity:1;transform:scale(1)}
+    }
+    .class-block::before{
+      content:'';
+      position:absolute;
+      right:0;top:0;bottom:0;
+      width:3px;
+      background:var(--grad);
+      opacity:.9;
+      transition:width .2s ease
+    }
+    .class-block:hover{
+      transform:translateY(-2px) scale(1.02);
+      border-color:var(--cyan);
+      box-shadow:0 8px 22px var(--glow)
+    }
+    .class-block:hover::before{
+      width:5px
+    }
+    .class-block .name{
+      font-weight:700;
+      color:var(--cyan);
+      font-size:.78rem;
+      line-height:1.35;
+      padding-right:5px
+    }
+    .class-block .room{
+      color:var(--muted);
+      font-size:.68rem;
+      margin-top:2px;
+      padding-right:5px;
+      display:flex;
+      align-items:center;
+      gap:3px
+    }
+
+    /* ==== Empty Cell ==== */
+    .cell-empty{
+      cursor:pointer;
+      height:100%;
+      min-height:52px;
+      border-radius:7px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted2);
+      opacity:0;
+      transition:opacity .2s ease, background .2s ease;
+      font-size:1.15rem;
+      font-weight:300
+    }
+    .timetable td:hover .cell-empty{
+      opacity:1;
+      background:var(--card2)
+    }
+
+    /* ==== Gap Row ==== */
+    .tt-gap-row td{
+      background:transparent!important;
+      padding:0!important;
+      height:auto!important;
+      min-height:0!important
+    }
+    .tt-gap-inner{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:8px 16px;
+      font-size:.72rem;
+      color:var(--muted2);
+      font-weight:700;
+      direction:rtl;
+      animation:gapIn .35s ease backwards
+    }
+    @keyframes gapIn{from{opacity:0}to{opacity:1}}
+    .tt-gap-inner::before,
+    .tt-gap-inner::after{
+      content:'';
+      flex:1;
+      height:1px;
+      background:repeating-linear-gradient(90deg,var(--border) 0 8px,transparent 8px 16px)
+    }
+    .tt-gap-inner .gap-icon{
+      color:var(--cyan);
+      opacity:.8;
+      font-size:.9rem
+    }
+    .tt-gap-inner .gap-duration{
+      background:var(--grad-soft);
+      padding:2px 10px;
+      border-radius:10px;
+      color:var(--cyan);
+      font-size:.68rem
+    }
+
+    /* ==== Empty Notice ==== */
+    .tt-empty-notice{
+      padding:32px 20px;
+      text-align:center;
+      color:var(--muted);
+      font-size:.88rem;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:8px
+    }
+    .tt-empty-notice b{color:var(--cyan)}
+
+    /* ==== Legend Bar ==== */
+    .tt-legend{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:16px;
+      margin-top:14px;
+      padding:10px 16px;
+      background:var(--bg2);
+      border-radius:10px;
+      font-size:.72rem;
+      color:var(--muted);
+      flex-wrap:wrap
+    }
+    .tt-legend-item{
+      display:flex;
+      align-items:center;
+      gap:6px
+    }
+    .tt-legend-dot{
+      width:8px;height:8px;border-radius:50%
+    }
+
+    /* ==== Mobile ==== */
+    @media(max-width:600px){
+      .timetable th{font-size:.72rem;padding:10px 4px}
+      .time-col{width:56px;min-width:56px!important;font-size:.7rem}
+      .timetable td{min-width:88px;height:56px}
+      .class-block{padding:7px 8px}
+      .class-block .name{font-size:.72rem}
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function renderTimetable(){
-  var t = document.getElementById('timetableTable'); if(!t) return;
-  var todayIdx = new Date().getDay();
+  var t = document.getElementById('timetableTable');
+  if(!t) return;
+
+  injectTimetableStyles();
+
+  var now = new Date();
+  var todayIdx = now.getDay();
+  var nowHour = now.getHours();
+  var nowMin = now.getMinutes();
+  var nowTotalMin = nowHour * 60 + nowMin;
+
   var weekAr = window.WEEK_DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'];
   var weekEn = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
 
-  /* ✅ اجمع الأوقات الثابتة + أي وقت مخصص أضافه المستخدم */
-  var allTimes = TIME_SLOTS.slice();
+  /* ===== 1) اجمع الأوقات المُستخدمة ===== */
+  var usedTimes = {};
   Object.keys(space.timetable || {}).forEach(function(k){
     var parts = k.split('-');
     var time = parts[1];
-    if(time && allTimes.indexOf(time) === -1) allTimes.push(time);
-  });
-  allTimes.sort();
-
-  /* ✅ اختر الأوقات اللي فيها محاضرات فعلية + عرض الأوقات الثابتة القريبة */
-  var timesToShow = allTimes.filter(function(time, idx){
-    // اعرض الوقت لو:
-    // 1) فيه محاضرة فيه اليوم
-    // 2) أو ضمن نطاق المحاضرات الفعلية (أول وآخر محاضرة)
-    var hasAny = weekEn.some(function(day){
-      return !!space.timetable[day + '-' + time];
-    });
-    return hasAny;
+    if(time) usedTimes[time] = true;
   });
 
-  /* لو ما في محاضرات، اعرض الأوقات الثابتة القياسية */
-  if(!timesToShow.length){
-    timesToShow = TIME_SLOTS.slice(0, 11); // 08:00 → 13:00
+  var times = Object.keys(usedTimes).sort();
+
+  /* ===== 2) لو الجدول فاضي — عرض افتراضي ===== */
+  var isEmpty = !times.length;
+  if(isEmpty){
+    times = ['08:00','09:00','10:00','11:00','12:00'];
   }
 
-  /* ✅ أضف أوقات حشو (padding) قبل وبعد لأجل قابلية الإضافة */
-  var firstIdx = allTimes.indexOf(timesToShow[0]);
-  var lastIdx = allTimes.indexOf(timesToShow[timesToShow.length - 1]);
-  var paddedTimes = allTimes.slice(Math.max(0, firstIdx - 1), Math.min(allTimes.length, lastIdx + 2));
+  /* ===== 3) احذف أوقات قبل أول محاضرة وبعد آخر واحدة ===== */
+  /* كل المحاضرات موجودة بالكامل — لا حاجة لحذف */
 
+  /* ===== 4) احسب الفجوات (> 60 دقيقة) ===== */
+  var rows = [];
+  times.forEach(function(time, i){
+    if(i > 0){
+      var prev = times[i-1];
+      var prevParts = prev.split(':');
+      var curParts = time.split(':');
+      var prevMin = parseInt(prevParts[0],10)*60 + parseInt(prevParts[1],10);
+      var curMin = parseInt(curParts[0],10)*60 + parseInt(curParts[1],10);
+      var diff = curMin - prevMin;
+      if(diff > 60){
+        rows.push({type:'gap', from:prev, to:time, minutes:diff});
+      }
+    }
+    rows.push({type:'time', time:time});
+  });
+
+  /* ===== 5) Header ===== */
   var html = '<thead><tr><th></th>';
   weekAr.forEach(function(d, i){
-    var isToday = i === todayIdx;
-    html += '<th style="' + (isToday ? 'background:var(--grad-soft);color:var(--text)' : '') + '">' + d + (isToday ? ' •' : '') + '</th>';
+    var isToday = (i === todayIdx);
+    html += '<th class="' + (isToday ? 'today-header' : '') + '">' +
+      d +
+      (isToday ? '<div class="today-label">اليوم</div>' : '') +
+    '</th>';
   });
   html += '</tr></thead><tbody>';
 
-  paddedTimes.forEach(function(time){
-    html += '<tr><td class="time-col">' + time + '</td>';
-    weekEn.forEach(function(day){
-      var key = day + '-' + time; var cls = space.timetable[key];
+  /* ===== 6) Rows ===== */
+  rows.forEach(function(item){
+    if(item.type === 'gap'){
+      var gapHrs = Math.round((item.minutes / 60) * 10) / 10;
+      html += '<tr class="tt-gap-row"><td colspan="' + (weekEn.length + 1) + '">' +
+        '<div class="tt-gap-inner">' +
+          '<span>' + item.from + '</span>' +
+          '<span class="gap-icon">⬇</span>' +
+          '<span class="gap-duration">فجوة ' + gapHrs + ' ساعة</span>' +
+          '<span>' + item.to + '</span>' +
+        '</div>' +
+      '</td></tr>';
+      return;
+    }
+
+    var time = item.time;
+    var tp = time.split(':');
+    var rowMin = parseInt(tp[0],10)*60 + parseInt(tp[1],10);
+    var isNowRow = (todayIdx < weekEn.length) && (Math.abs(rowMin - nowTotalMin) <= 30);
+
+    html += '<tr>';
+
+    /* ---- Time column ---- */
+    html += '<td class="time-col' + (isNowRow ? ' now' : '') + '">' + time + '</td>';
+
+    /* ---- Day cells ---- */
+    weekEn.forEach(function(day, dayI){
+      var isToday = (dayI === todayIdx);
+      var key = day + '-' + time;
+      var cls = space.timetable[key];
+      var tdClass = isToday ? 'today-col' : '';
+      var nowClass = (isToday && isNowRow) ? 'now-row' : '';
+
       if(cls){
-        html += '<td><div class="class-block" data-edit="' + key + '"><span class="name">' + esc(cls.name) + '</span>' +
-          (cls.room ? '<span class="room">📍 ' + esc(cls.room) + '</span>' : '') + '</div></td>';
+        html += '<td class="' + tdClass + ' ' + nowClass + '">' +
+          '<div class="class-block" data-edit="' + key + '" style="animation-delay:' + (dayI * 0.04) + 's">' +
+            '<span class="name">' + esc(cls.name) + '</span>' +
+            (cls.room ? '<span class="room">📍 ' + esc(cls.room) + '</span>' : '') +
+          '</div>' +
+        '</td>';
       } else {
-        html += '<td><div class="cell-empty" data-add="' + key + '">+</div></td>';
+        html += '<td class="' + tdClass + ' ' + nowClass + '"><div class="cell-empty" data-add="' + key + '">+</div></td>';
       }
     });
+
     html += '</tr>';
   });
 
-  /* ✅ صف "إضافة وقت مخصص" */
-  html += '<tr><td class="time-col" style="cursor:pointer;color:var(--cyan);font-weight:800" id="addCustomSlot" title="إضافة وقت مخصص">+ وقت</td>';
-  weekEn.forEach(function(day){
-    html += '<td style="background:transparent"></td>';
-  });
-  html += '</tr>';
+  html += '</tbody>';
+  t.innerHTML = html;
 
-  t.innerHTML = html + '</tbody>';
+  /* ===== 7) Legend ===== */
+  var wrap = t.parentNode;
+  var oldLegend = wrap.querySelector('.tt-legend');
+  if(oldLegend) oldLegend.remove();
 
+  if(!isEmpty){
+    var legend = document.createElement('div');
+    legend.className = 'tt-legend';
+    legend.innerHTML =
+      '<div class="tt-legend-item"><span class="tt-legend-dot" style="background:var(--cyan)"></span> محاضرة</div>' +
+      '<div class="tt-legend-item"><span class="tt-legend-dot" style="background:var(--red)"></span> الوقت الحالي</div>' +
+      '<div class="tt-legend-item"><span class="tt-legend-dot" style="background:var(--border2)"></span> فجوة</div>';
+    wrap.appendChild(legend);
+  }
+
+  /* ===== 8) Empty Notice ===== */
+  var oldNotice = wrap.querySelector('.tt-empty-notice');
+  if(oldNotice) oldNotice.remove();
+
+  if(isEmpty){
+    var notice = document.createElement('div');
+    notice.className = 'tt-empty-notice';
+    notice.innerHTML = '<div style="font-size:2rem;opacity:.4">📭</div>' +
+      '<div><b>الجدول فاضي</b> — اضغط "✨ إضافة دفعة" عشان تضيف موادك</div>';
+    wrap.appendChild(notice);
+  }
+
+  /* ===== 9) Bind events ===== */
   t.querySelectorAll('[data-edit]').forEach(function(b){
     b.addEventListener('click', function(){ editClassSlot(b.dataset.edit); });
   });
@@ -2152,147 +2711,14 @@ function renderTimetable(){
     b.addEventListener('click', function(){ addClassSlot(b.dataset.add); });
   });
 
-  var addCustom = document.getElementById('addCustomSlot');
-  if(addCustom){
-    addCustom.addEventListener('click', function(){ addClassSlot(); });
-  }
-}
-function addClassSlot(key){
-  var presetDay = '';
-  var presetTime = '';
-  if(key){
-    var parts = key.split('-');
-    presetDay = parts[0];
-    presetTime = parts[1];
-  }
-
-  var weekEn = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
-  var weekAr = window.WEEK_DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'];
-  var dayOpts = weekEn.map(function(d, i){
-    return {v: d, l: weekAr[i]};
-  });
-
-  /* ✅ نولّد قائمة الأوقات المتاحة */
-  var timeOpts = TIME_SLOTS.map(function(t){ return {v: t, l: t}; });
-  var currentTime = presetTime || TIME_SLOTS[2] || '09:00';
-  if(timeOpts.map(function(o){ return o.v; }).indexOf(currentTime) === -1){
-    timeOpts.unshift({v: currentTime, l: currentTime});
-  }
-
-  showModal('إضافة محاضرة', [
-    {key:'name', label:'اسم المادة'},
-    {key:'day', label:'اليوم', type:'select', options: dayOpts},
-    {key:'time', label:'الوقت', type:'select', options: timeOpts},
-    {key:'customTime', label:'أو أدخل وقتاً مخصصاً (مثل 09:15)', type:'time'},
-    {key:'room', label:'القاعة'},
-    {key:'instructor', label:'الدكتور'}
-  ], {name:'', day: presetDay || 'Sun', time: currentTime, customTime: '', room:'', instructor:''}, function(data){
-    if(!data.name) return toast('أدخل اسم المادة', 'warn');
-    var finalTime = data.customTime || data.time;
-    if(!finalTime) return toast('أدخل الوقت', 'warn');
-    var newKey = data.day + '-' + finalTime;
-
-    if(key && key !== newKey) delete space.timetable[key];
-
-    if(space.timetable[newKey] && key !== newKey){
-      if(!confirm('يوجد محاضرة بنفس الوقت. استبدالها؟')) return;
+  /* ===== 10) Auto-refresh every 5 minutes for "now" indicator ===== */
+  clearTimeout(window._ttRefreshTimer);
+  window._ttRefreshTimer = setTimeout(function(){
+    if(document.getElementById('timetable') && document.getElementById('timetable').classList.contains('active')){
+      renderTimetable();
     }
-
-    space.timetable[newKey] = {
-      name: data.name,
-      room: data.room || '',
-      instructor: data.instructor || ''
-    };
-    saveSpace(); renderTimetable(); renderDashboard();
-    toast('✅ تمت الإضافة', 'success', 1500);
-  });
+  }, 5 * 60 * 1000);
 }
-function editClassSlot(key){
-  var cls = space.timetable[key]; if(!cls) return;
-  var parts = key.split('-');
-  var presetDay = parts[0];
-  var presetTime = parts[1];
-
-  var weekEn = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
-  var weekAr = window.WEEK_DAYS_AR || ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'];
-  var dayOpts = weekEn.map(function(d, i){
-    return {v: d, l: weekAr[i]};
-  });
-
-  var timeOpts = TIME_SLOTS.map(function(t){ return {v: t, l: t}; });
-  if(timeOpts.map(function(o){ return o.v; }).indexOf(presetTime) === -1){
-    timeOpts.unshift({v: presetTime, l: presetTime});
-  }
-
-  showModal('تعديل محاضرة', [
-    {key:'name', label:'اسم المادة'},
-    {key:'day', label:'اليوم', type:'select', options: dayOpts},
-    {key:'time', label:'الوقت', type:'select', options: timeOpts},
-    {key:'customTime', label:'أو وقت مخصص', type:'time'},
-    {key:'room', label:'القاعة'},
-    {key:'instructor', label:'الدكتور'}
-  ], {
-    name: cls.name,
-    day: presetDay,
-    time: presetTime,
-    customTime: '',
-    room: cls.room || '',
-    instructor: cls.instructor || ''
-  }, function(data){
-    if(!data.name){ delete space.timetable[key]; saveSpace(); renderTimetable(); renderDashboard(); return; }
-    var finalTime = data.customTime || data.time;
-    if(!finalTime) finalTime = presetTime;
-    var newKey = data.day + '-' + finalTime;
-
-    if(newKey !== key) delete space.timetable[key];
-    space.timetable[newKey] = {
-      name: data.name,
-      room: data.room || '',
-      instructor: data.instructor || ''
-    };
-    saveSpace(); renderTimetable(); renderDashboard();
-    toast('✅ تم التحديث', 'success', 1500);
-  }, function(){
-    delete space.timetable[key];
-    saveSpace(); renderTimetable(); renderDashboard();
-  });
-}
-function clearTimetable(){
-  if(!space.timetable || !Object.keys(space.timetable).length){ toast('الجدول فارغ', 'info'); return; }
-  customConfirm('مسح كل الجدول؟', function(){
-    space.timetable = {}; saveSpace(); renderTimetable(); renderDashboard();
-  });
-}
-function autoFillTimetable(){
-  if(!space.courses.length){ toast('أضف مواد أولًا', 'warn'); return; }
-  var days = window.WEEK_DAYS_EN || ['Sun','Mon','Tue','Wed','Thu'];
-  var times = ['08:00','09:00','10:00','11:00','12:00','13:00'];
-  var di=0, ti=0, added=0;
-  space.courses.forEach(function(c){
-    if(!c.name) return;
-    var key = days[di%5] + '-' + times[ti%6];
-    if(!space.timetable[key]){
-      space.timetable[key] = {name: c.name, room: c.room || '', instructor: c.instructor || ''};
-      added++;
-    }
-    di++; ti++;
-  });
-  saveSpace(); renderTimetable(); renderDashboard();
-  if(added > 0) toast('✓ تم توليد ' + added + ' محاضرة', 'success', 2500);
-}
-function loadExampleTimetable(){
-  space.timetable = {
-    'Sun-08:00':{name:'تفاضل وتكامل (1)', room:'ق101', instructor:'د. محمد'},
-    'Sun-10:00':{name:'برمجة الحاسوب', room:'Lab1', instructor:'د. أحمد'},
-    'Mon-09:00':{name:'فيزياء عامة (1)', room:'A', instructor:'د. سارة'},
-    'Tue-08:00':{name:'برمجة الحاسوب', room:'302', instructor:'د. أحمد'},
-    'Wed-10:00':{name:'تفاضل وتكامل (1)', room:'ق101', instructor:'د. محمد'},
-    'Thu-09:00':{name:'مهارات التواصل بالإنجليزية', room:'401', instructor:'Ms. Emma'}
-  };
-  saveSpace(); renderTimetable(); renderDashboard();
-  toast('🎯 تم تحميل المثال', 'success', 3000);
-}
-function printTimetable(){ exportPDF(); }
 
 /* ==================== COURSES ==================== */
 function renderCourses(){
@@ -3731,5 +4157,197 @@ async function boot(){
 if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }
 else { boot(); }
 </script>
+<style>
+/* ============================================================
+   ✨ Global UI Enhancements v3
+   ============================================================ */
+
+/* === Tab switch animation === */
+.section.tab-play > *{
+  animation: uiChildIn .28s cubic-bezier(.2,0,0,1) backwards !important;
+}
+@keyframes uiChildIn{
+  from{opacity:0;transform:translateY(6px) scale(.98)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* === Page title === */
+.page-title{
+  animation: uiTitleIn .4s cubic-bezier(.22,1,.36,1) !important;
+}
+@keyframes uiTitleIn{
+  from{opacity:0;transform:translateX(14px) scale(.96)}
+  to{opacity:1;transform:translateX(0) scale(1)}
+}
+
+/* === Cards === */
+.card{
+  animation: uiCardIn .35s cubic-bezier(.2,0,0,1) backwards;
+}
+@keyframes uiCardIn{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+/* Stagger effect for grids */
+.grid > .card:nth-child(1){ animation-delay:0s }
+.grid > .card:nth-child(2){ animation-delay:.04s }
+.grid > .card:nth-child(3){ animation-delay:.08s }
+.grid > .card:nth-child(4){ animation-delay:.12s }
+.grid > .card:nth-child(5){ animation-delay:.16s }
+.grid > .card:nth-child(6){ animation-delay:.2s }
+
+/* === Buttons === */
+.btn{
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1),
+              box-shadow .22s ease,
+              background .22s ease !important;
+}
+.btn:hover{
+  transform: translateY(-2px) !important;
+}
+.btn:active{
+  transform: translateY(0) scale(.96) !important;
+  transition-duration: .08s !important;
+}
+
+/* === Chips === */
+.chip{
+  transition: transform .2s ease, background .2s ease, border-color .2s ease !important;
+}
+.chip:hover{
+  transform: translateY(-1px);
+}
+.chip.active{
+  transform: scale(1.03);
+}
+
+/* === Nav items === */
+.nav-item{
+  transition: background .2s ease, color .2s ease, transform .25s cubic-bezier(.34,1.56,.64,1) !important;
+}
+.nav-item:hover{
+  transform: translateX(-4px) !important;
+}
+.nav-item.active{
+  transform: translateX(-2px) !important;
+}
+
+/* === Task items === */
+.task{
+  animation: uiTaskIn .3s cubic-bezier(.2,0,0,1) backwards;
+}
+@keyframes uiTaskIn{
+  from{opacity:0;transform:translateX(-8px)}
+  to{opacity:1;transform:translateX(0)}
+}
+#tasksList .task:nth-child(1){ animation-delay:0s }
+#tasksList .task:nth-child(2){ animation-delay:.03s }
+#tasksList .task:nth-child(3){ animation-delay:.06s }
+#tasksList .task:nth-child(4){ animation-delay:.09s }
+#tasksList .task:nth-child(5){ animation-delay:.12s }
+
+/* === Modals === */
+.modal-backdrop.show .modal{
+  animation: uiModalIn .3s cubic-bezier(.22,1,.36,1) !important;
+}
+@keyframes uiModalIn{
+  from{opacity:0;transform:translateY(20px) scale(.94)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* === Toast (better slide in) === */
+.toast{
+  animation: uiToastIn .4s cubic-bezier(.34,1.56,.64,1) !important;
+}
+@keyframes uiToastIn{
+  from{opacity:0;transform:translateY(30px) scale(.9)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* === FAB pulse === */
+.fab-main{
+  animation: uiFabPulse 4s ease-in-out infinite;
+}
+@keyframes uiFabPulse{
+  0%,100%{box-shadow:0 8px 32px var(--glow)}
+  50%{box-shadow:0 8px 40px var(--glow), 0 0 0 6px rgba(34,211,238,.08)}
+}
+
+/* === Stats bounce === */
+.stat .v{
+  animation: uiNumberPop .5s cubic-bezier(.34,1.56,.64,1) backwards;
+}
+@keyframes uiNumberPop{
+  0%{opacity:0;transform:scale(.5)}
+  60%{opacity:1;transform:scale(1.08)}
+  100%{opacity:1;transform:scale(1)}
+}
+
+/* === Empty state subtle float === */
+.empty .ic{
+  animation: uiFloat 3s ease-in-out infinite;
+}
+@keyframes uiFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-6px)}
+}
+
+/* === Progress bars animated === */
+.sc-progress-fill,
+.att-fill{
+  position: relative;
+  overflow: hidden;
+}
+.sc-progress-fill::after,
+.att-fill::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+  animation: uiShimmer 2s ease-in-out infinite;
+}
+@keyframes uiShimmer{
+  0%{transform:translateX(-100%)}
+  100%{transform:translateX(100%)}
+}
+
+/* === Search results === */
+.search-results.show{
+  animation: uiSearchIn .25s cubic-bezier(.22,1,.36,1) !important;
+}
+@keyframes uiSearchIn{
+  from{opacity:0;transform:translateY(-8px) scale(.98)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* === Welcome card === */
+.welcome-card .welcome-icon{
+  animation: uiWelcomeFloat 2.5s ease-in-out infinite;
+}
+@keyframes uiWelcomeFloat{
+  0%,100%{transform:translateY(0) rotate(-2deg)}
+  50%{transform:translateY(-8px) rotate(2deg)}
+}
+
+/* === Badge pulse === */
+.badge.urgent,
+.task.urgent .badge{
+  animation: uiBadgePulse 1.8s ease-in-out infinite;
+}
+@keyframes uiBadgePulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.06)}
+}
+
+/* === Respect reduced motion === */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+  }
+}
+</style>
 </body>
 </html>

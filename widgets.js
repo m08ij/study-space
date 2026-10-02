@@ -602,50 +602,6 @@
     });
   }
 
-  function enhancePlan(){
-    var sem = document.getElementById('semesters'); if(!sem) return;
-    var rows = sem.querySelectorAll('.sem-body > div');
-    var sp = getSpace();
-    rows.forEach(function(row){
-      if(row.dataset.lwEnhanced) return;
-      var nameDiv = row.children[0]; if(!nameDiv) return;
-      var codeSpan = nameDiv.querySelector('span[style*="monospace"]');
-      var code = codeSpan ? codeSpan.textContent.trim() : '';
-      var fullText = nameDiv.textContent || '';
-      var name = fullText.replace(code, '').replace(/\s+/g,' ').trim();
-      name = name.replace(/\s*\u0645\u062E\u062A\u0628\u0631\s*$/, '').trim();
-      if(!name) return;
-      var hoursSpan = row.children[1];
-      var hours = hoursSpan ? parseInt(hoursSpan.textContent) || 3 : 3;
-      row.dataset.lwEnhanced = '1';
-      row.style.display = 'flex'; row.style.justifyContent = 'space-between'; row.style.alignItems = 'center'; row.style.gap = '8px';
-      if(nameDiv){ nameDiv.style.flex = '1'; nameDiv.style.minWidth = '0'; }
-      var btn = document.createElement('button');
-      btn.className = 'plan-add-btn'; btn.type = 'button'; btn.title = '\u0623\u0636\u0641 \u0625\u0644\u0649 \u0645\u0648\u0627\u062F\u064A'; btn.textContent = '+';
-      var exists = (sp.courses || []).some(function(c){ return c.name === name; });
-      if(exists){ btn.classList.add('added'); btn.textContent = '\u2713'; }
-      btn.addEventListener('click', function(e){
-        e.stopPropagation(); e.preventDefault();
-        if(btn.classList.contains('added')) return;
-        var current = getSpace();
-        if((current.courses || []).some(function(c){ return c.name === name; })){ btn.classList.add('added'); btn.textContent = '\u2713'; return; }
-        if(!current.courses) current.courses = [];
-        current.courses.push({ id: uid(), name: name, code: code, hours: hours, instructor: '', room: '' });
-        saveSpace(); btn.classList.add('added'); btn.textContent = '\u2713';
-        toast('\u2705 "' + name + '"', 'success');
-        try{ if(typeof window.renderCourses === 'function') window.renderCourses(); }catch(err){}
-      });
-      row.appendChild(btn);
-    });
-  }
-  function watchPlan(){
-    var sem = document.getElementById('semesters');
-    if(!sem){ setTimeout(watchPlan, 800); return; }
-    var obs = new MutationObserver(function(){ enhancePlan(); });
-    obs.observe(sem, {childList:true, subtree:true});
-    enhancePlan();
-  }
-
   var PRAYER_CACHE_KEY = 'lw_prayer_cache_v1';
   var PRAYER_CACHE_TTL = 6 * 60 * 60 * 1000;
   var prayerData = null;
@@ -769,7 +725,6 @@
 
     // Track all intervals so they can be cleared
     addInterval(function(){ rotateQuote(true); }, 60 * 1000);
-    watchPlan();
 
     // Combined 2-min ticker (only runs active work)
     addInterval(function(){
