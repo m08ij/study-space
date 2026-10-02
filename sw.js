@@ -1,7 +1,7 @@
 /* ============================================================
-   sw.js v49 — Cache updated (batch 7.5)
+   sw.js v50 — Cache updated (batch 7.6)
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v49';
+var CACHE_NAME = 'ss-cache-v50';
 var URLS_TO_CACHE = [
   './',
   './index.html',
