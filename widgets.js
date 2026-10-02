@@ -728,11 +728,9 @@
 
     // Combined 2-min ticker (only runs active work)
     addInterval(function(){
-      var anyVisible = false;
-      if(enabledWidgets.indexOf('events') > -1) { renderEventsBody(); anyVisible = true; }
-      if(enabledWidgets.indexOf('pomodoro') > -1) { renderPomodoroBody(); anyVisible = true; }
-      if(enabledWidgets.indexOf('prayer') > -1) { renderPrayerBody(); anyVisible = true; }
-      void anyVisible;
+      if(enabledWidgets.indexOf('events') > -1) renderEventsBody();
+      if(enabledWidgets.indexOf('pomodoro') > -1) renderPomodoroBody();
+      if(enabledWidgets.indexOf('prayer') > -1) renderPrayerBody();
     }, 2 * 60 * 1000);
 
     // Faster tick for events only

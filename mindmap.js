@@ -1,35 +1,35 @@
 /* ============================================================
-   🧠 mindmap.js — مولّد الخرائط الذهنية
-   - يحوّل أي ملاحظة/مادة إلى mind map بصري
-   - SVG rendering خفيف
-   - قابل للتصدير PNG
+   🧠 mindmap.js v2 — مولّد الخرائط الذهنية
+   - إزالة فرع else-if غير قابل للوصول في noteToTree
    ============================================================ */
 (function(){
   'use strict';
 
-  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function toast(m, t, d){ if(typeof window.toast === 'function') window.toast(m, t || 'info', d || 2500); }
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function toast(m, t, d){
+    if(typeof window.toast === 'function') window.toast(m, t || 'info', d || 2500);
+  }
 
-  /**
-   * يبني شجرة من نص حر
-   * - كل سطر = نقطة
-   * - indent بـ "  " أو "-" = فرع
-   * - ":" أو "=" = علاقة parent
-   */
+  /* ============ تحويل نص لشجرة ============ */
   function parseTextToTree(text){
     if(!text) return null;
-    var lines = String(text).split(/\r?\n/).map(function(l){ return l.replace(/\t/g, '  '); }).filter(function(l){ return l.trim().length > 0; });
+    var lines = String(text).split(/\r?\n/)
+      .map(function(l){ return l.replace(/\t/g, '  '); })
+      .filter(function(l){ return l.trim().length > 0; });
 
     var root = { label: 'الموضوع', children: [] };
     var stack = [{ node: root, indent: -1 }];
 
     lines.forEach(function(line){
-      // نحدد الـ indent
       var indentMatch = line.match(/^(\s*)/);
       var indent = indentMatch ? indentMatch[1].length : 0;
-      var content = line.trim().replace(/^[-*•]\s*/, '').replace(/^\d+[.)]\s*/, '');
+      var content = line.trim()
+        .replace(/^[-*•]\s*/, '')
+        .replace(/^\d+[.)]\s*/, '');
 
-      // نتأكد إن الـ indent منطقي
       while(stack.length > 1 && stack[stack.length - 1].indent >= indent){
         stack.pop();
       }
@@ -39,37 +39,31 @@
       stack.push({ node: node, indent: indent });
     });
 
-    // لو root فاضي، خذ أول عنصر كـ root
     if(root.children.length === 1 && root.children[0].children.length > 0){
       return root.children[0];
     }
     return root;
   }
 
-  /**
-   * يحوّل ملاحظة (title + body) لشجرة
-   */
+  /* ✅ نسخة مبسّطة بدون الفرع الميت */
   function noteToTree(note){
     var root = { label: note.title || 'ملاحظة', children: [] };
     var body = note.body || '';
     if(!body) return root;
 
     var parsed = parseTextToTree(body);
-    if(parsed && parsed.children) root.children = parsed.children;
-    else if(parsed) root.children.push(parsed);
-
+    if(parsed && parsed.children){
+      root.children = parsed.children;
+    }
     return root;
   }
 
-  /**
-   * Layout للـ mind map (radial)
-   */
+  /* ============ Layout ============ */
   function layoutTree(root){
     var nodes = [];
     var links = [];
     var PADDING = 60;
 
-    // حساب عدد الأوراق
     function countLeaves(node){
       if(!node.children || !node.children.length) return 1;
       return node.children.reduce(function(a, c){ return a + countLeaves(c); }, 0);
@@ -84,11 +78,13 @@
     var depth = maxDepth(root);
     var width = Math.max(700, depth * 180 + 200);
 
-    // نضع root على اليسار
     var rootX = PADDING;
     var rootY = height / 2;
 
-    var rootNode = { id: 'n0', x: rootX, y: rootY, label: root.label, depth: 0, color: '#22d3ee' };
+    var rootNode = {
+      id: 'n0', x: rootX, y: rootY,
+      label: root.label, depth: 0, color: '#22d3ee'
+    };
     nodes.push(rootNode);
 
     var colors = ['#22d3ee', '#a78bfa', '#34d399', '#fbbf24', '#f472b6', '#f87171'];
@@ -116,7 +112,6 @@
         nodes.push(childLayout);
         links.push({ from: parentLayout, to: childLayout });
 
-        // نوزّع الأبناء على المسافة المخصّصة
         var childYStart = yStart + gap * i + 4;
         var childYEnd = yStart + gap * (i + 1) - 4;
         layoutChildren(childLayout, child, currentDepth + 1, childYStart, childYEnd);
@@ -128,28 +123,27 @@
     return { nodes: nodes, links: links, width: width, height: height };
   }
 
-  /**
-   * يرسم SVG
-   */
+  /* ============ SVG ============ */
   function renderSVG(layout){
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + layout.width + ' ' + layout.height + '" style="width:100%;height:auto;max-height:75vh;background:var(--bg2);border-radius:14px">';
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' +
+      layout.width + ' ' + layout.height +
+      '" style="width:100%;height:auto;max-height:75vh;background:var(--bg2);border-radius:14px">';
 
-    // defs
     svg += '<defs>';
-    svg += '<filter id="mmGlow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+    svg += '<filter id="mmGlow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/>' +
+      '<feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
     svg += '</defs>';
 
-    // Links
     layout.links.forEach(function(l){
       var x1 = l.from.x, y1 = l.from.y;
       var x2 = l.to.x, y2 = l.to.y;
       var cx1 = (x1 + x2) / 2, cy1 = y1;
       var cx2 = (x1 + x2) / 2, cy2 = y2;
-      svg += '<path d="M ' + x1 + ' ' + y1 + ' C ' + cx1 + ' ' + cy1 + ', ' + cx2 + ' ' + cy2 + ', ' + x2 + ' ' + y2 + '" ' +
+      svg += '<path d="M ' + x1 + ' ' + y1 + ' C ' + cx1 + ' ' + cy1 + ', ' +
+        cx2 + ' ' + cy2 + ', ' + x2 + ' ' + y2 + '" ' +
         'stroke="' + l.to.color + '" stroke-width="2" fill="none" opacity="0.5" stroke-linecap="round"/>';
     });
 
-    // Nodes
     layout.nodes.forEach(function(n){
       var fontSize = n.depth === 0 ? 14 : (n.depth === 1 ? 12 : 10);
       var rx = 10;
@@ -158,21 +152,16 @@
       var boxH = fontSize * 1.8;
 
       svg += '<g>';
-      // Rect
-      svg += '<rect x="' + (n.x - 4) + '" y="' + (n.y - boxH/2) + '" width="' + approxWidth + '" height="' + boxH + '" ' +
+      svg += '<rect x="' + (n.x - 4) + '" y="' + (n.y - boxH/2) + '" ' +
+        'width="' + approxWidth + '" height="' + boxH + '" ' +
         'rx="' + rx + '" ry="' + rx + '" ' +
-        'fill="var(--card)" ' +
-        'stroke="' + n.color + '" stroke-width="2" ' +
-        (n.depth === 0 ? 'filter="url(#mmGlow)"' : '') +
-        '/>';
-      // Text
+        'fill="var(--card)" stroke="' + n.color + '" stroke-width="2" ' +
+        (n.depth === 0 ? 'filter="url(#mmGlow)"' : '') + '/>';
       svg += '<text x="' + (n.x + approxWidth/2 - 4) + '" y="' + (n.y + fontSize * 0.35) + '" ' +
-        'text-anchor="middle" ' +
-        'font-family="Tahoma, sans-serif" ' +
+        'text-anchor="middle" font-family="Tahoma, sans-serif" ' +
         'font-size="' + fontSize + '" ' +
         'font-weight="' + (n.depth <= 1 ? '700' : '500') + '" ' +
-        'fill="var(--text)" ' +
-        'style="direction:rtl">' +
+        'fill="var(--text)" style="direction:rtl">' +
         esc(n.label.slice(0, 40)) +
         '</text>';
       svg += '</g>';
@@ -182,9 +171,7 @@
     return svg;
   }
 
-  /**
-   * فتح الـ mindmap من نص
-   */
+  /* ============ Open ============ */
   function openMindmap(root, title){
     if(!root){ toast('لا يوجد محتوى', 'warn'); return; }
 
@@ -214,7 +201,6 @@
 
     bd.querySelector('#mmClose').onclick = function(){ bd.remove(); };
     bd.onclick = function(e){ if(e.target === bd) bd.remove(); };
-
     bd.querySelector('#mmDownload').onclick = function(){
       downloadMindmapPNG(svg, title);
     };
@@ -230,7 +216,6 @@
       canvas.width = img.width * scale || 1600;
       canvas.height = img.height * scale || 1000;
       var ctx = canvas.getContext('2d');
-      // خلفية
       ctx.fillStyle = '#0b0f1a';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -247,7 +232,6 @@
       }, 'image/png');
     };
     img.onerror = function(){
-      // فشل التحويل - نحمّل SVG مباشرة
       var a = document.createElement('a');
       a.href = url;
       a.download = 'mindmap-' + (title || 'map') + '.svg';
@@ -258,9 +242,7 @@
     img.src = url;
   }
 
-  /**
-   * فتح من ملاحظة
-   */
+  /* ============ Entry points ============ */
   function openFromNote(idx){
     var notes = window.notes || [];
     if(idx >= notes.length){ toast('ملاحظة غير موجودة', 'warn'); return; }
@@ -269,9 +251,6 @@
     openMindmap(tree, note.title || 'ملاحظة');
   }
 
-  /**
-   * فتح يدوي: يطلب نص
-   */
   function openManual(){
     document.querySelectorAll('.modal-backdrop').forEach(function(m){ m.remove(); });
     var bd = document.createElement('div');
@@ -285,7 +264,9 @@
         '</div>' +
         '<div class="form-group">' +
           '<label>المحتوى (اكتب الأفكار الرئيسية مع تفريعاتها)</label>' +
-          '<textarea id="mmText" rows="12" style="font-family:monospace;direction:rtl;min-height:200px" placeholder="المفاهيم الأساسية\n  - التعريف\n  - مثال\nالتطبيقات\n  - حالة 1\n  - حالة 2"></textarea>' +
+          '<textarea id="mmText" rows="12" ' +
+          'style="font-family:monospace;direction:rtl;min-height:200px" ' +
+          'placeholder="المفاهيم الأساسية&#10;  - التعريف&#10;  - مثال&#10;التطبيقات&#10;  - حالة 1&#10;  - حالة 2"></textarea>' +
         '</div>' +
         '<div class="modal-actions">' +
           '<button class="btn btn-sm btn-ghost" id="mmCancel">إلغاء</button>' +
@@ -293,7 +274,10 @@
         '</div>' +
       '</div>';
     document.body.appendChild(bd);
-    setTimeout(function(){ var t = document.getElementById('mmText'); if(t) t.focus(); }, 150);
+    setTimeout(function(){
+      var t = document.getElementById('mmText');
+      if(t) t.focus();
+    }, 150);
 
     bd.querySelector('#mmCancel').onclick = function(){ bd.remove(); };
     bd.onclick = function(e){ if(e.target === bd) bd.remove(); };
@@ -308,7 +292,7 @@
     };
   }
 
-  /* ============ زر في الإعدادات ============ */
+  /* ============ Buttons ============ */
   function injectButton(){
     var menu = document.getElementById('settingsMenu');
     if(!menu || menu.querySelector('#mmBtn')) return;
@@ -325,9 +309,7 @@
     else menu.appendChild(btn);
   }
 
-  /* ============ زر لكل ملاحظة ============ */
   function enhanceNoteCards(){
-    var notes = window.notes || [];
     document.querySelectorAll('.note-card').forEach(function(card, idx){
       if(card.querySelector('.mm-note-btn')) return;
       var btn = document.createElement('button');
@@ -359,5 +341,5 @@
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
-  console.log('🧠 Mindmap loaded');
+  console.log('🧠 Mindmap v2 loaded');
 })();

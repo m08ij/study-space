@@ -113,10 +113,6 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 .section{display:none}
 .section.active{display:block}
 
-/* دخول محتوى القسم — يعمل بعد الرندر */
-.section{display:none}
-.section.active{display:block}
-
 /* دخول المحتوى — fade + تكبير خفيف في نفس المكان، بدون نزول */
 .section.tab-play > *{
   animation:childIn .22s cubic-bezier(.2,0,0,1) backwards;
@@ -1037,6 +1033,13 @@ main{margin-right:250px;margin-top:82px;padding:24px 28px 120px;max-width:1300px
 <script src="smart-timetable-entry.js"></script>
 <script src="timetable-ui.js"></script>
 <script src="fixes-all.js"></script>
+
+<!-- 🔥 الإصلاحات الحرجة — قبل inline script -->
+<script src="critical-fixes.js"></script>
+<script src="data-logic-fixes.js"></script>
+<script src="perf-fixes.js"></script>
+<script src="ux-fixes.js"></script>
+
 <!-- الاختبارات (آخر شي) -->
 <script src="tests.js"></script>
 <script>
@@ -2078,210 +2081,6 @@ function renderCourseDescriptions(){
   else list.innerHTML = '<div style="color:var(--muted);font-size:.82rem;margin-bottom:12px">عدد المواد: ' + count + '</div>' + html;
 }
 
-/* ==================== TIMETABLE (v2 - Smart Compact) ==================== */
-function injectTimetableStyles(){
-  if(document.getElementById('tt-styles-v2')) return;
-  var style = document.createElement('style');
-  style.id = 'tt-styles-v2';
-  style.textContent = `
-    /* ==== Timetable Wrapper ==== */
-    .timetable-wrap{overflow-x:auto;background:var(--card);border-radius:14px;border:1px solid var(--border);padding:10px;position:relative}
-
-    /* ==== Table ==== */
-    .timetable{width:100%;border-collapse:separate;border-spacing:4px;min-width:620px}
-
-    /* ==== Day Headers ==== */
-    .timetable th{
-      background:var(--card2);
-      padding:12px 8px;
-      border-radius:8px;
-      font-size:.8rem;
-      color:var(--muted);
-      font-weight:700;
-      text-align:center;
-      position:sticky;
-      top:0;
-      z-index:5;
-      backdrop-filter:blur(8px);
-      -webkit-backdrop-filter:blur(8px)
-    }
-    .timetable th.today-header{
-      background:var(--grad);
-      color:#0b0f1a;
-      box-shadow:0 4px 14px var(--glow);
-      font-weight:900;
-      transform:scale(1.02)
-    }
-    .timetable th.today-header::after{
-      content:'';
-      display:block;
-      height:2px;
-      margin-top:4px;
-      background:rgba(0,0,0,.25);
-      border-radius:2px
-    }
-
-    /* ==== Time Column ==== */
-    .time-col{
-      background:var(--card2)!important;
-      font-weight:700;
-      font-size:.74rem;
-      color:var(--muted);
-      text-align:center;
-      vertical-align:middle;
-      width:64px;
-      min-width:64px!important;
-      border-radius:8px;
-      letter-spacing:.5px;
-      font-variant-numeric:tabular-nums
-    }
-
-    /* ==== Cells ==== */
-    .timetable td{
-      background:var(--bg2);
-      padding:4px;
-      border-radius:8px;
-      vertical-align:top;
-      min-width:100px;
-      height:60px;
-      font-size:.76rem;
-      transition:background .2s ease
-    }
-    .timetable td.today-col{
-      background:linear-gradient(180deg,rgba(34,211,238,.06),rgba(34,211,238,.02));
-      border:1px dashed rgba(34,211,238,.25);
-      border-radius:8px
-    }
-
-    /* ==== Class Block ==== */
-    .class-block{
-      background:var(--grad-soft);
-      border:1.5px solid var(--glow);
-      border-radius:8px;
-      padding:8px 10px;
-      cursor:pointer;
-      height:100%;
-      transition:all .2s ease;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-      gap:3px;
-      position:relative;
-      overflow:hidden
-    }
-    .class-block::before{
-      content:'';
-      position:absolute;
-      right:0;top:0;bottom:0;
-      width:3px;
-      background:var(--grad);
-      opacity:.9
-    }
-    .class-block:hover{
-      transform:translateY(-2px);
-      border-color:var(--cyan);
-      box-shadow:0 6px 18px var(--glow)
-    }
-    .class-block .name{
-      font-weight:700;
-      color:var(--cyan);
-      font-size:.76rem;
-      line-height:1.35;
-      padding-right:4px
-    }
-    .class-block .room{
-      color:var(--muted);
-      font-size:.66rem;
-      margin-top:2px;
-      padding-right:4px
-    }
-
-    /* ==== Empty Cell ==== */
-    .cell-empty{
-      cursor:pointer;
-      height:100%;
-      border-radius:6px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color:var(--muted2);
-      opacity:0;
-      transition:.2s;
-      font-size:1.1rem
-    }
-    .timetable td:hover .cell-empty{
-      opacity:1;
-      background:var(--card2)
-    }
-
-    /* ==== Gap Row (فجوة) ==== */
-    .tt-gap-row td{
-      background:transparent!important;
-      padding:0!important;
-      height:auto!important
-    }
-    .tt-gap-inner{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:6px 12px;
-      font-size:.7rem;
-      color:var(--muted2);
-      font-weight:700;
-      direction:rtl
-    }
-    .tt-gap-inner::before,
-    .tt-gap-inner::after{
-      content:'';
-      flex:1;
-      height:1px;
-      background:repeating-linear-gradient(90deg,var(--border) 0 6px,transparent 6px 12px)
-    }
-    .tt-gap-inner .arrow{
-      font-size:.85rem;
-      color:var(--cyan);
-      opacity:.7
-    }
-
-    /* ==== Current Time Indicator ==== */
-    .tt-now-row td{
-      position:relative
-    }
-    .tt-now-row td::before{
-      content:'';
-      position:absolute;
-      right:0;left:0;top:50%;
-      height:1.5px;
-      background:linear-gradient(90deg,transparent,var(--red),transparent);
-      pointer-events:none;
-      z-index:1
-    }
-    .tt-now-row .time-col{
-      color:var(--red)!important;
-      position:relative
-    }
-    .tt-now-row .time-col::after{
-      content:'•';
-      position:absolute;
-      right:-4px;
-      top:50%;
-      transform:translateY(-50%);
-      color:var(--red);
-      font-size:1.2rem;
-      animation:tt-pulse 1.5s infinite
-    }
-    @keyframes tt-pulse{0%,100%{opacity:1}50%{opacity:.3}}
-
-    /* ==== Empty Timetable Notice ==== */
-    .tt-empty-notice{
-      padding:28px 20px;
-      text-align:center;
-      color:var(--muted);
-      font-size:.85rem
-    }
-  `;
-  document.head.appendChild(style);
-}
 /* ==================== TIMETABLE v3 — Smart Compact + Animations ==================== */
 function injectTimetableStyles(){
   if(document.getElementById('tt-styles-v3')) return;
@@ -4154,6 +3953,11 @@ async function boot(){
   });
   console.log('✅ Boot complete');
 }
+/* 🔥 طبّق الإصلاحات الحرجة قبل boot */
+if(window.CriticalFixes && typeof window.CriticalFixes.applyAll === 'function'){
+  window.CriticalFixes.applyAll();
+}
+
 if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); }
 else { boot(); }
 </script>

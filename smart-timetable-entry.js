@@ -1,6 +1,8 @@
 /* ============================================================
-   Smart Timetable Entry v2.2 - FULL WORKING VERSION
-   Multi-row bulk entry with real modal UI
+   Smart Timetable Entry v3 — إظهار التعارضات بوضوح
+   - بعد الحفظ: modal تفصيلي إن وُجدت مشاكل
+   - دعم initialKey (تعبئة تلقائية من خلية)
+   - رسائل نجاح صادقة (لا "✅" إذا كان هناك فشل جزئي)
    ============================================================ */
 (function(){
   'use strict';
@@ -16,23 +18,20 @@
   ];
 
   var MIN_ROWS = 4;
-  var CSS_ID = 'stt-style-v2';
+  var CSS_ID = 'stt-style-v3';
 
   function esc(s){
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-
   function toast(msg, type, dur){
     if(typeof window.toast === 'function') window.toast(msg, type || 'info', dur || 2600);
   }
-
   function uid(){
     return (typeof window.uid === 'function') ? window.uid() :
       Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
-
   function getSpace(){ return window.space || {}; }
   function saveSpace(){ if(typeof window.saveSpace === 'function') window.saveSpace(); }
 
@@ -82,6 +81,7 @@
     return rows;
   }
 
+  /* ============ CSS ============ */
   function injectCSS(){
     if(document.getElementById(CSS_ID)) return;
     var css = `
@@ -124,6 +124,9 @@
       .stt-btn-ghost{background:transparent;color:var(--text);border:1.5px solid var(--border)}
       .stt-btn-ghost:hover{background:var(--card);border-color:var(--cyan);color:var(--cyan)}
       .stt-hint{font-size:.78rem;color:var(--muted);margin:0 auto;text-align:center}
+      .stt-issue-row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:6px}
+      .stt-issue-ic{font-size:1.1rem;flex-shrink:0}
+      .stt-issue-body{flex:1;min-width:0;font-size:.82rem;line-height:1.6}
       @media (max-width: 1200px){.stt-row{grid-template-columns:40px 130px 1fr 190px 105px 105px 130px 40px;gap:6px;padding:10px}}
       @media (max-width: 860px){
         .stt-row{grid-template-columns:36px 1fr 32px;grid-template-areas:"num name del" "code code code" "days days days" "from to room";gap:6px;padding:12px 10px}
@@ -152,6 +155,7 @@
     document.head.appendChild(s);
   }
 
+  /* ============ Modal ============ */
   function openModal(initialRows){
     injectCSS();
     document.querySelectorAll('.stt-backdrop').forEach(function(b){ b.remove(); });
@@ -170,13 +174,18 @@
 
     var header = document.createElement('div');
     header.className = 'stt-header';
-    header.innerHTML = '<h3>\u2728 \u0625\u0636\u0627\u0641\u0629 \u062C\u062F\u0648\u0644 \u2014 \u062F\u0641\u0639\u0629 \u0648\u0627\u062D\u062F\u0629</h3>' +
+    header.innerHTML =
+      '<h3>\u2728 \u0625\u0636\u0627\u0641\u0629 \u062C\u062F\u0648\u0644 \u2014 \u062F\u0641\u0639\u0629 \u0648\u0627\u062D\u062F\u0629</h3>' +
       '<button class="stt-close" title="\u0625\u063A\u0644\u0627\u0642" type="button">\u00D7</button>';
     modal.appendChild(header);
 
     var info = document.createElement('div');
     info.className = 'stt-info';
-    info.innerHTML = '\uD83D\uDCA1 \u0627\u0643\u062A\u0628 <b>\u0631\u0642\u0645 \u0627\u0644\u0645\u0627\u062F\u0629</b> \u0641\u064A\u0639\u0628\u064A \u0627\u0644\u0627\u0633\u0645 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B. \u0627\u062E\u062A\u0631 \u0627\u0644\u0623\u064A\u0627\u0645 \u0628\u0636\u063A\u0637\u0629\u060C \u0648\u062D\u062F\u0651\u062F \u0627\u0644\u0648\u0642\u062A \u0648\u0627\u0644\u0642\u0627\u0639\u0629.';
+    info.innerHTML =
+      '\uD83D\uDCA1 \u0627\u0643\u062A\u0628 <b>\u0631\u0642\u0645 \u0627\u0644\u0645\u0627\u062F\u0629</b> ' +
+      '\u0641\u064A\u0639\u0628\u064A \u0627\u0644\u0627\u0633\u0645 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B. ' +
+      '\u0627\u062E\u062A\u0631 \u0627\u0644\u0623\u064A\u0627\u0645 \u0628\u0636\u063A\u0637\u0629\u060C ' +
+      '\u0648\u062D\u062F\u0651\u062F \u0627\u0644\u0648\u0642\u062A \u0648\u0627\u0644\u0642\u0627\u0639\u0629.';
     modal.appendChild(info);
 
     var rowsWrap = document.createElement('div');
@@ -206,7 +215,7 @@
       if(readyCount === 0){
         saveBtn.disabled = true;
         saveBtn.textContent = '\uD83D\uDCBE \u062D\u0641\u0638 \u0627\u0644\u0643\u0644';
-        hint.textContent = '\u0627\u0645\u0644\u0623 \u0635\u0641 \u0648\u0627\u062D\u062F \u0639\u0644\u0649 \u0627\u0644\u0623\u0642\u0644 (\u0627\u0633\u0645 + \u0623\u064A\u0627\u0645 + \u0648\u0642\u062A \u0628\u062F\u0627\u064A\u0629 \u0648\u0646\u0647\u0627\u064A\u0629)';
+        hint.textContent = '\u0627\u0645\u0644\u0623 \u0635\u0641 \u0648\u0627\u062D\u062F \u0639\u0644\u0649 \u0627\u0644\u0623\u0642\u0644';
       } else {
         saveBtn.disabled = false;
         saveBtn.textContent = '\uD83D\uDCBE \u062D\u0641\u0638 \u0627\u0644\u0643\u0644 (' + readyCount + ')';
@@ -418,6 +427,7 @@
     backdrop.addEventListener('click', function(e){
       if(e.target === backdrop) close();
     });
+
     var escHandler = function(e){ if(e.key === 'Escape') close(); };
     document.addEventListener('keydown', escHandler);
 
@@ -426,25 +436,39 @@
       backdrop.remove();
     }
 
+    /* ============ الحفظ مع تقرير ============ */
     function saveAll(){
       var sp = getSpace();
       if(!sp.timetable) sp.timetable = {};
       if(!sp.courses) sp.courses = [];
       if(!sp.attendance) sp.attendance = {};
 
-      var stats = { courses: 0, classes: 0, attendance: 0, skipped: [], incomplete: [] };
+      var stats = {
+        courses: 0,
+        classes: 0,
+        attendance: 0,
+        skipped: [],
+        incomplete: [],
+        unknownCodes: []
+      };
 
       state.rows.forEach(function(row, idx){
+        /* فحص النقص */
         if(!isRowComplete(row)){
           var missing = [];
-          if(!row.name) missing.push('\u0627\u0644\u0627\u0633\u0645');
-          if(!row.days || !row.days.length) missing.push('\u0627\u0644\u0623\u064A\u0627\u0645');
-          if(!row.timeFrom) missing.push('\u0648\u0642\u062A \u0627\u0644\u0628\u062F\u0627\u064A\u0629');
-          if(!row.timeTo) missing.push('\u0648\u0642\u062A \u0627\u0644\u0646\u0647\u0627\u064A\u0629');
+          if(!row.name) missing.push('الاسم');
+          if(!row.days || !row.days.length) missing.push('الأيام');
+          if(!row.timeFrom) missing.push('وقت البداية');
+          if(!row.timeTo) missing.push('وقت النهاية');
           if(missing.length && (row.code || row.name)){
             stats.incomplete.push({ row: idx + 1, missing: missing.join(' + ') });
           }
           return;
+        }
+
+        /* تحذير كود غير معروف */
+        if(row.code && row.code.length >= 6 && !row.matched){
+          stats.unknownCodes.push({ row: idx + 1, code: row.code, name: row.name });
         }
 
         var finalName = row.matched ? row.matched.name : row.name;
@@ -470,10 +494,20 @@
         row.days.forEach(function(dayKey){
           var key = dayKey + '-' + row.timeFrom;
           if(sp.timetable[key] && sp.timetable[key].name !== finalName){
-            stats.skipped.push({ row: idx + 1, day: dayKey, conflictWith: sp.timetable[key].name });
+            stats.skipped.push({
+              row: idx + 1,
+              day: dayKey,
+              time: row.timeFrom,
+              newName: finalName,
+              conflictWith: sp.timetable[key].name
+            });
             return;
           }
-          sp.timetable[key] = { name: finalName, room: row.room || '', instructor: '' };
+          sp.timetable[key] = {
+            name: finalName,
+            room: row.room || '',
+            instructor: ''
+          };
           stats.classes++;
         });
 
@@ -486,22 +520,20 @@
       saveSpace();
       renderAll();
 
-      var msg = '\u2705 ' + stats.courses + ' \u0645\u0627\u062F\u0629 \u00B7 ' + stats.classes + ' \u0645\u062D\u0627\u0636\u0631\u0629';
-      if(stats.skipped.length) msg += ' \u00B7 ' + stats.skipped.length + ' \u062A\u0639\u0627\u0631\u0636';
-      if(stats.incomplete.length) msg += ' \u00B7 ' + stats.incomplete.length + ' \u0646\u0627\u0642\u0635';
+      var issueCount = stats.skipped.length + stats.incomplete.length + stats.unknownCodes.length;
 
-      toast(msg, 'success', 4500);
-
-      if(stats.incomplete.length){
-        console.warn('[Smart Timetable] Incomplete rows:');
-        stats.incomplete.forEach(function(x){
-          console.warn('  Row ' + x.row + ' missing: ' + x.missing);
-        });
+      if(issueCount === 0){
+        var msg = '✅ ' + stats.courses + ' مادة · ' + stats.classes + ' محاضرة';
+        if(stats.courses === 0 && stats.classes === 0){
+          toast('لم تُضف أي شيء جديد', 'info', 3000);
+        } else {
+          toast(msg, 'success', 4000);
+        }
+        close();
+      } else {
+        close();
+        showSaveResult(stats);
       }
-      if(stats.skipped.length){
-        console.warn('[Smart Timetable] Conflicts:', stats.skipped);
-      }
-      close();
     }
 
     renderRows();
@@ -511,8 +543,144 @@
     }, 200);
   }
 
-  window.openSmartTimetable = function(initialRows){ openModal(initialRows); };
+  /* ============ تقرير الحفظ ============ */
+  function showSaveResult(stats){
+    document.querySelectorAll('.stt-result-backdrop').forEach(function(b){ b.remove(); });
 
+    var backdrop = document.createElement('div');
+    backdrop.className = 'stt-backdrop stt-result-backdrop';
+    document.body.appendChild(backdrop);
+
+    var modal = document.createElement('div');
+    modal.className = 'stt-modal';
+    modal.style.maxWidth = '600px';
+    backdrop.appendChild(modal);
+
+    var hasSuccess = stats.courses > 0 || stats.classes > 0;
+    var header = document.createElement('div');
+    header.className = 'stt-header';
+    header.innerHTML =
+      '<h3>' + (hasSuccess ? '⚠️ تم الحفظ مع ملاحظات' : '⚠️ لم يُحفظ شيء') + '</h3>' +
+      '<button class="stt-close" type="button">×</button>';
+    modal.appendChild(header);
+
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:18px 22px;overflow-y:auto;max-height:65vh';
+
+    var summary = '';
+    if(stats.courses > 0) summary += '✅ ' + stats.courses + ' مادة جديدة\n';
+    if(stats.classes > 0) summary += '✅ ' + stats.classes + ' محاضرة\n';
+    if(stats.skipped.length) summary += '❌ ' + stats.skipped.length + ' تعارض\n';
+    if(stats.incomplete.length) summary += '⚠️ ' + stats.incomplete.length + ' صف ناقص\n';
+    if(stats.unknownCodes.length) summary += '⚠️ ' + stats.unknownCodes.length + ' كود غير معروف\n';
+
+    var html = '<div style="padding:12px;background:var(--bg2);border-radius:10px;font-family:monospace;font-size:.78rem;line-height:1.8;white-space:pre-line;margin-bottom:14px;color:var(--text)">' +
+      esc(summary.trim()) + '</div>';
+
+    /* التعارضات */
+    if(stats.skipped.length){
+      html += '<div style="margin-bottom:14px">' +
+        '<div style="font-size:.85rem;font-weight:800;color:var(--red);margin-bottom:8px">❌ تعارضات (' +
+          stats.skipped.length + ')</div>';
+      stats.skipped.forEach(function(s){
+        html += '<div class="stt-issue-row" style="border-color:rgba(248,113,113,.4)">' +
+          '<div class="stt-issue-ic">🚫</div>' +
+          '<div class="stt-issue-body">' +
+            '<b>الصف ' + s.row + '</b> — ' + esc(s.day) + ' ' + esc(s.time) + '<br>' +
+            'المادة: <b>' + esc(s.newName) + '</b><br>' +
+            'متعارضة مع: <b style="color:var(--red)">' + esc(s.conflictWith) + '</b> ' +
+            '(محاضرة موجودة)' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    /* صفوف ناقصة */
+    if(stats.incomplete.length){
+      html += '<div style="margin-bottom:14px">' +
+        '<div style="font-size:.85rem;font-weight:800;color:var(--amber);margin-bottom:8px">⚠️ صفوف ناقصة (' +
+          stats.incomplete.length + ')</div>';
+      stats.incomplete.forEach(function(s){
+        html += '<div class="stt-issue-row" style="border-color:rgba(251,191,36,.4)">' +
+          '<div class="stt-issue-ic">📝</div>' +
+          '<div class="stt-issue-body">' +
+            '<b>الصف ' + s.row + '</b><br>' +
+            'ينقص: <b>' + esc(s.missing) + '</b>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    /* أكواد غير معروفة */
+    if(stats.unknownCodes.length){
+      html += '<div style="margin-bottom:14px">' +
+        '<div style="font-size:.85rem;font-weight:800;color:var(--amber);margin-bottom:8px">⚠️ أكواد غير معروفة (' +
+          stats.unknownCodes.length + ')</div>';
+      stats.unknownCodes.forEach(function(s){
+        html += '<div class="stt-issue-row" style="border-color:rgba(251,191,36,.4)">' +
+          '<div class="stt-issue-ic">🔍</div>' +
+          '<div class="stt-issue-body">' +
+            '<b>الصف ' + s.row + '</b> — <code style="direction:ltr">' + esc(s.code) + '</code><br>' +
+            'حُفظت باسم: <b>' + esc(s.name) + '</b>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div style="padding:10px;background:var(--grad-soft);border-radius:10px;font-size:.76rem;color:var(--muted);line-height:1.7">' +
+      '💡 <b>ملاحظة:</b> التعارضات لم تُحفظ — المادة الموجودة مسبقاً بقيت. ' +
+      'افتح الجدول يدوياً لحل التعارض، ثم أعد الإضافة.' +
+    '</div>';
+
+    body.innerHTML = html;
+    modal.appendChild(body);
+
+    var footer = document.createElement('div');
+    footer.className = 'stt-footer';
+    footer.style.justifyContent = 'flex-end';
+    footer.innerHTML = '<button class="stt-btn stt-btn-primary" type="button">حسناً</button>';
+    modal.appendChild(footer);
+
+    function closeResult(){ backdrop.remove(); }
+    header.querySelector('.stt-close').addEventListener('click', closeResult);
+    backdrop.addEventListener('click', function(e){
+      if(e.target === backdrop) closeResult();
+    });
+    footer.querySelector('button').addEventListener('click', closeResult);
+  }
+
+  /* ============ Public API ============ */
+  window.openSmartTimetable = function(initialRows){
+    openModal(initialRows);
+  };
+
+  /* فتح مع تعبئة خلية معينة */
+  window.openSmartTimetableAtKey = function(key){
+    if(!key) { openModal(); return; }
+    var parts = key.split('-');
+    var day = parts[0];
+    var time = parts[1];
+    var row = emptyRow();
+    row.days = [day];
+    row.timeFrom = time || '';
+    /* احسب نهاية افتراضية + ساعة */
+    if(time){
+      var tp = time.split(':');
+      var hh = parseInt(tp[0], 10);
+      var mm = parseInt(tp[1], 10) || 0;
+      var endH = (hh + 1) % 24;
+      row.timeTo = String(endH).padStart(2,'0') + ':' + String(mm).padStart(2,'0');
+    }
+    /* املأ بقية الصفوف فارغة */
+    var rows = [row];
+    while(rows.length < MIN_ROWS) rows.push(emptyRow());
+    openModal(rows);
+  };
+
+  /* ============ زر الإضافة الجماعية ============ */
   function injectButton(){
     if(document.getElementById('btnSmartAddClass')) return;
     var existing = document.getElementById('btnAddClass');
@@ -522,7 +690,7 @@
     btn.className = 'btn';
     btn.id = 'btnSmartAddClass';
     btn.type = 'button';
-    btn.innerHTML = '\u2728 \u0625\u0636\u0627\u0641\u0629 \u062F\u0641\u0639\u0629';
+    btn.innerHTML = '✨ إضافة دفعة';
     btn.style.cssText = 'background:var(--grad);color:#0b0f1a;font-weight:800';
     btn.onclick = function(){ openModal(); };
     existing.parentNode.insertBefore(btn, existing.nextSibling);
@@ -537,5 +705,5 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  console.log('[Smart Timetable v2.2] Full working version loaded');
+  console.log('[Smart Timetable v3] Loaded with conflict reporting');
 })();

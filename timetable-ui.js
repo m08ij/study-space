@@ -1,17 +1,14 @@
 /* ============================================================
-   timetable-ui.js v2
-   Replaces the OCR card with a clean "Add Schedule" card.
-   - Hides the "Quick Tools" card entirely
-   - Makes the Add card full-width
-   - Centers a slim, wide button
-   ASCII-only console output.
+   timetable-ui.js v3
+   - يستبدل بطاقة OCR فقط
+   - يبقي "أدوات سريعة" ظاهرة
+   - لا يُخفي أي زر إلا btnPasteOcr (لا معنى له بعد إلغاء OCR)
+   - لا يطوي الـ grid
    ============================================================ */
 (function(){
   'use strict';
 
   var REPLACED_FLAG = 'data-tui-replaced';
-  var HIDDEN_FLAG = 'data-tui-hidden';
-  var GRID_FLAG = 'data-tui-grid';
 
   function log(msg){ try{ console.log('[Timetable UI] ' + msg); }catch(e){} }
   function toast(msg, type, dur){
@@ -19,17 +16,15 @@
   }
 
   /* ============================================================
-     New compact card
+     بناء بطاقة "إضافة جدول"
      ============================================================ */
   function buildCardHtml(){
     return '' +
-      '<div style="text-align:center;padding:36px 20px 32px;max-width:640px;margin:0 auto">' +
+      '<div style="text-align:center;padding:36px 20px 32px">' +
 
         '<div style="font-size:2.6rem;line-height:1;margin-bottom:14px">📅</div>' +
 
-        '<div style="font-size:1.15rem;font-weight:800;margin-bottom:8px">' +
-          'إضافة جدول' +
-        '</div>' +
+        '<div style="font-size:1.15rem;font-weight:800;margin-bottom:8px">إضافة جدول</div>' +
 
         '<div style="font-size:.85rem;color:var(--muted);line-height:1.7;margin-bottom:22px">' +
           'اكتب رقم المادة — نعبّي الاسم والساعات تلقائياً.<br>' +
@@ -61,64 +56,7 @@
   }
 
   /* ============================================================
-     Hide Quick Tools card + collapse grid to single column
-     ============================================================ */
-  function hideQuickToolsCard(){
-    var ref = document.getElementById('btnLoadExample') ||
-              document.getElementById('btnAutoFill') ||
-              document.getElementById('btnPrintTt');
-    if(!ref) return false;
-
-    var card = ref.closest('.card');
-    if(!card) return false;
-
-    if(card.getAttribute(HIDDEN_FLAG) === '1') return true;
-    card.setAttribute(HIDDEN_FLAG, '1');
-    card.style.display = 'none';
-    log('Quick tools card hidden');
-    return true;
-  }
-
-  function collapseParentGrid(){
-    var uploadZone = document.getElementById('uploadZone');
-    if(!uploadZone) return false;
-    var card = uploadZone.closest('.card');
-    if(!card) return false;
-
-    var grid = card.parentNode;
-    if(!grid) return false;
-
-    // Only collapse if the parent is a grid container
-    if(grid.classList && (
-      grid.classList.contains('grid-2') ||
-      grid.classList.contains('grid-3') ||
-      (grid.style && String(grid.style.display).indexOf('grid') > -1) ||
-      (grid.className && String(grid.className).indexOf('grid') > -1)
-    )){
-      if(grid.getAttribute(GRID_FLAG) === '1') return true;
-      grid.setAttribute(GRID_FLAG, '1');
-      grid.style.gridTemplateColumns = '1fr';
-      log('Parent grid collapsed to single column');
-      return true;
-    }
-
-    // Fallback: check computed style
-    try{
-      var cs = window.getComputedStyle(grid);
-      if(cs && cs.display === 'grid'){
-        if(grid.getAttribute(GRID_FLAG) === '1') return true;
-        grid.setAttribute(GRID_FLAG, '1');
-        grid.style.gridTemplateColumns = '1fr';
-        log('Parent grid collapsed (computed)');
-        return true;
-      }
-    }catch(e){}
-
-    return false;
-  }
-
-  /* ============================================================
-     Replace OCR card content
+     استبدال بطاقة OCR
      ============================================================ */
   function replaceOcrCard(){
     var uploadZone = document.getElementById('uploadZone');
@@ -144,7 +82,7 @@
   }
 
   /* ============================================================
-     Open smart entry with retry
+     فتح Smart Timetable مع retry
      ============================================================ */
   function openSmartWithRetry(attempt){
     if(typeof window.openSmartTimetable === 'function'){
@@ -166,8 +104,12 @@
       var s = document.createElement('script');
       s.src = 'smart-timetable-entry.js';
       s.async = true;
-      s.onload = function(){ setTimeout(function(){ openSmartWithRetry(attempt + 1); }, 100); };
-      s.onerror = function(){ toast('فشل تحميل محرر الجدول', 'warn', 3000); };
+      s.onload = function(){
+        setTimeout(function(){ openSmartWithRetry(attempt + 1); }, 100);
+      };
+      s.onerror = function(){
+        toast('فشل تحميل محرر الجدول', 'warn', 3000);
+      };
       document.head.appendChild(s);
       return;
     }
@@ -176,7 +118,7 @@
   }
 
   /* ============================================================
-     Update page subtitle
+     تحديث العنوان الفرعي
      ============================================================ */
   function updatePageSub(){
     var sub = document.querySelector('#timetable .page-sub');
@@ -184,16 +126,22 @@
   }
 
   /* ============================================================
-     Hide leftover OCR + remove unused quick buttons
+     إخفاء عناصر OCR القديمة (داخل البطاقة المُستبدلة عادة)
+     + btnPasteOcr فقط من "أدوات سريعة"
      ============================================================ */
   function hideLeftoverOcrUi(){
-    var ids = ['ocrProgress','ocrPreview','ocrResult','ocrFile','ocrTextarea',
-               'btnParseOcr','btnClearOcr','ocrBar','ocrText','btnPasteOcr'];
+    var ids = [
+      'ocrProgress','ocrPreview','ocrResult','ocrFile','ocrTextarea',
+      'btnParseOcr','btnClearOcr','ocrBar','ocrText',
+      'btnPasteOcr'   /* ← هذا الزر لا معنى له بعد إلغاء OCR */
+    ];
     ids.forEach(function(id){
       var el = document.getElementById(id);
       if(el && el.style) el.style.display = 'none';
     });
   }
+
+  /* ⚠️ لا نستدعي hideQuickToolsCard ولا collapseParentGrid */
 
   /* ============================================================
      Boot
@@ -201,22 +149,20 @@
   function runAll(){
     updatePageSub();
     hideLeftoverOcrUi();
-    hideQuickToolsCard();
-    collapseParentGrid();
     replaceOcrCard();
   }
 
   function init(){
     runAll();
 
-    // Retry multiple times (DOM may render in phases)
+    /* محاولات إضافية لأن الـ DOM قد يُبنى على دفعات */
     setTimeout(runAll, 400);
     setTimeout(runAll, 1200);
     setTimeout(runAll, 2500);
 
-    // Re-run on tab switch
+    /* راقب تبديل التبويب */
     var origSwitch = window.switchTab;
-    if(typeof origSwitch === 'function' && !window._tuiWrapped){
+    if(typeof origSwitch === 'function' && !window._tuiWrappedV3){
       window.switchTab = function(tab){
         var r = origSwitch.apply(this, arguments);
         setTimeout(function(){
@@ -224,10 +170,10 @@
         }, 80);
         return r;
       };
-      window._tuiWrapped = true;
+      window._tuiWrappedV3 = true;
     }
 
-    log('v2 ready');
+    log('v3 ready — Quick Tools preserved');
   }
 
   if(document.readyState === 'loading'){

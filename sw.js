@@ -1,10 +1,7 @@
 /* ============================================================
-   sw.js v40 - Cache updated
-   - All files current
-   - Network-first for HTML
-   - Cache-first for assets
+   sw.js v48 — Cache updated (batch 7)
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v41';
+var CACHE_NAME = 'ss-cache-v48';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -31,8 +28,11 @@ var URLS_TO_CACHE = [
   './supabase-client.js',
   './pwa.js',
   './manifest.json',
-  './fixes-critical.js',
   './fixes-all.js',
+  './critical-fixes.js',
+  './data-logic-fixes.js',
+  './perf-fixes.js',
+  './ux-fixes.js',
 ];
 
 self.addEventListener('install', function(e){
@@ -93,16 +93,22 @@ self.addEventListener('fetch', function(e){
   }
 
   e.respondWith(
-    caches.match(e.request).then(function(cached){
-      if(cached) return cached;
-      return fetch(e.request).then(function(res){
-        if(res && res.status === 200){
-          var clone = res.clone();
-          caches.open(CACHE_NAME).then(function(cache){
-            cache.put(e.request, clone).catch(function(){});
-          });
+    caches.open(CACHE_NAME).then(function(cache){
+      return cache.match(e.request).then(function(cached){
+        var networkPromise = fetch(e.request).then(function(res){
+          if(res && res.status === 200){
+            cache.put(e.request, res.clone()).catch(function(){});
+          }
+          return res;
+        }).catch(function(){
+          return cached || caches.match('./index.html');
+        });
+
+        if(cached){
+          networkPromise.catch(function(){});
+          return cached;
         }
-        return res;
+        return networkPromise;
       });
     })
   );

@@ -1,11 +1,13 @@
 /* ============================================================
-   fixes-all.js — إصلاحات شاملة لكل المشاكل المعروفة
-   ضعه بعد كل السكربتات وقبل tests.js
+   fixes-all.js v3 — إصلاحات شاملة + منع double-binding
+   - يحتوي إصلاحات الدفعة 1 (guarded)
+   - يمنع التكرار في bindAllEvents / safeBindAllEvents
+   - يوسم العناصر المُربَطة مسبقًا
    ============================================================ */
 (function(){
   'use strict';
-  if(window._fixesAllInstalled) return;
-  window._fixesAllInstalled = true;
+  if(window._fixesAllInstalledV3) return;
+  window._fixesAllInstalledV3 = true;
 
   /* ============================================================
      أدوات مساعدة
@@ -33,28 +35,63 @@
       String(d.getMonth()+1).padStart(2,'0') + '-' +
       String(d.getDate()).padStart(2,'0');
   }
-  function arabicDays(n){
-    n = Math.abs(n);
-    if(n === 0) return 'اليوم';
-    if(n === 1) return 'يوم';
-    if(n === 2) return 'يومين';
-    if(n >= 3 && n <= 10) return n + ' أيام';
-    return n + ' يوماً';
+
+  /* ============================================================
+     0) وسم العناصر المُربَطة بواسطة bindAllEvents الأصلي
+     ============================================================ */
+  function markElementsBoundByOriginal(){
+    var selectors = [
+      '.fab-action',
+      '[data-tf]', '[data-bt]', '[data-gc-tab]', '[data-plan-tab]',
+      '.nav-item', '.chip[data-filter]', '[data-cd-year]', '[data-goto]'
+    ];
+    selectors.forEach(function(sel){
+      try{
+        document.querySelectorAll(sel).forEach(function(el){
+          el._boundByOriginal = true;
+        });
+      }catch(e){}
+    });
   }
 
   /* ============================================================
-     1) الدوال الناقصة — نعرّفها بشكل كامل
+     0.1) تغليف bindAllEvents لمنع التكرار
      ============================================================ */
-
-  /* مسح الجدول */
-  window.clearTimetable = function(){
-    if(!window.space){
-      toast('البيانات غير محمّلة', 'warn');
+  function wrapBindAll(){
+    if(window._bindAllWrapped) return;
+    if(typeof window.bindAllEvents !== 'function'){
+      setTimeout(wrapBindAll, 20);
       return;
     }
+    window._bindAllWrapped = true;
+
+    var orig = window.bindAllEvents;
+    window.bindAllEvents = function(){
+      if(window._bindAllRan){
+        /* مُنع التشغيل الثاني */
+        return;
+      }
+      window._bindAllRan = true;
+      try{
+        var r = orig.apply(this, arguments);
+        markElementsBoundByOriginal();
+        window._bindAllSucceeded = true;
+        return r;
+      }catch(e){
+        console.warn('bindAllEvents threw:', e);
+        window._bindAllSucceeded = false;
+      }
+    };
+  }
+
+  /* ============================================================
+     1) الدوال الناقصة
+     ============================================================ */
+
+  window.clearTimetable = function(){
+    if(!window.space){ toast('البيانات غير محمّلة', 'warn'); return; }
     if(!Object.keys(window.space.timetable || {}).length){
-      toast('الجدول فاضي أصلاً', 'info');
-      return;
+      toast('الجدول فاضي أصلاً', 'info'); return;
     }
     var doClear = function(){
       window.space.timetable = {};
@@ -67,7 +104,6 @@
     else if(confirm('مسح كل الجدول؟')) doClear();
   };
 
-  /* تحميل مثال جاهز */
   window.loadExampleTimetable = function(){
     if(!window.space) return;
     window.space.timetable = {
@@ -85,11 +121,9 @@
     toast('✅ تم تحميل جدول تجريبي', 'success', 2500);
   };
 
-  /* توليد من موادي */
   window.autoFillTimetable = function(){
     if(!window.space || !(window.space.courses || []).length){
-      toast('أضف موادي أولاً', 'warn', 2500);
-      return;
+      toast('أضف موادي أولاً', 'warn', 2500); return;
     }
     if(typeof window.openSmartTimetable === 'function'){
       window.openSmartTimetable();
@@ -98,15 +132,11 @@
     }
   };
 
-  /* طباعة الجدول */
   window.printTimetable = function(){
     var tt = document.getElementById('timetableTable');
     if(!tt){ toast('الجدول غير موجود', 'warn'); return; }
     var w = window.open('', '_blank', 'width=1000,height=700');
-    if(!w){
-      toast('امنع المتصفح من حجب النوافذ', 'warn', 3000);
-      return;
-    }
+    if(!w){ toast('امنع المتصفح من حجب النوافذ', 'warn', 3000); return; }
     w.document.write(
       '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8">' +
       '<title>الجدول الأسبوعي</title>' +
@@ -130,7 +160,6 @@
     setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 400);
   };
 
-  /* إضافة محاضرة جديدة */
   window.addClassSlot = function(key){
     if(typeof window.openSmartTimetable === 'function'){
       window.openSmartTimetable();
@@ -147,17 +176,13 @@
     }
   };
 
-  /* تعديل محاضرة موجودة */
   window.editClassSlot = function(key){
     if(!window.space || !window.space.timetable) return;
     var cls = window.space.timetable[key];
     if(!cls) return;
-
     if(typeof window.showModal !== 'function'){
-      toast('لا يمكن فتح المحرر الآن', 'warn');
-      return;
+      toast('لا يمكن فتح المحرر الآن', 'warn'); return;
     }
-
     window.showModal('تعديل محاضرة', [
       { key: 'name', label: 'اسم المادة' },
       { key: 'room', label: 'القاعة' },
@@ -167,7 +192,7 @@
       room: cls.room || '',
       instructor: cls.instructor || ''
     }, function(data){
-      if(!data.name){ toast('أدخل اسم المادة', 'warn'); return; }
+      if(!data.name){ toast('أدخل اسم المادة', 'warn'); return false; }
       window.space.timetable[key] = {
         name: data.name,
         room: data.room || '',
@@ -177,6 +202,7 @@
       if(typeof window.renderTimetable === 'function') window.renderTimetable();
       if(typeof window.renderDashboard === 'function') window.renderDashboard();
       toast('✅ تم التعديل', 'success');
+      return true;
     }, function(){
       var doDel = function(){
         delete window.space.timetable[key];
@@ -191,7 +217,7 @@
   };
 
   /* ============================================================
-     2) إصلاح hProgress — يحسب بأمان لو المفاتيح ناقصة
+     2) patchedProgress
      ============================================================ */
   function patchedProgress(){
     if(typeof window.analyzeGraduationGap !== 'function'){
@@ -222,10 +248,9 @@
   }
 
   /* ============================================================
-     3) إصلاح hCourseInfo — تعامل مع "وصف" بدون اسم
+     3) patchedCourseInfo
      ============================================================ */
   function patchedCourseInfo(lower){
-    /* لو المستخدم كتب "وصف" فقط */
     if(/^(وصف|معلومات|تفاصيل|شرح)\s*$/.test(lower)){
       return '📚 **أي مادة تريد وصفها؟**\n\n' +
         'اكتب مثلاً:\n' +
@@ -234,11 +259,11 @@
         '• "تفاصيل تفاضل وتكامل (1)"\n\n' +
         '💡 أو اكتب "موادي" لعرض قائمتك.';
     }
-    return null; /* يتابع الـ handler الأصلي */
+    return null;
   }
 
   /* ============================================================
-     4) إصلاح hTasks — يستخدم تصريف عربي صحيح
+     4) patchedTasks
      ============================================================ */
   function patchedTasks(){
     var sp = getSpace();
@@ -263,7 +288,7 @@
       msg += '\n🔴 **متأخرة (' + overdue.length + '):**\n';
       overdue.slice(0, 3).forEach(function(t){
         var days = Math.abs(Math.ceil((new Date(t.due) - new Date(today)) / 86400000));
-        msg += '• ' + t.title + ' — منذ ' + arabicDays(days) + '\n';
+        msg += '• ' + t.title + ' — منذ ' + days + ' يوم\n';
       });
     }
     if(dueToday.length){
@@ -274,7 +299,7 @@
       msg += '\n🟢 **هذا الأسبوع:**\n';
       upcoming.slice(0, 4).forEach(function(t){
         var d = Math.ceil((new Date(t.due) - new Date(today)) / 86400000);
-        msg += '• ' + t.title + ' — بعد ' + arabicDays(d) + '\n';
+        msg += '• ' + t.title + ' — بعد ' + d + ' أيام\n';
       });
     }
     if(!overdue.length && !dueToday.length && !upcoming.length){
@@ -284,14 +309,13 @@
   }
 
   /* ============================================================
-     5) إصلاح matchCourse في plan-enhance
+     5) patchedMatchCourse
      ============================================================ */
   function patchedMatchCourse(rowText, DB){
     DB = DB || window.COURSES_DB || {};
     var keys = Object.keys(DB);
     if(!keys.length) return null;
 
-    /* 1) الكود له أولوية مطلقة */
     var codeMatch = rowText.match(/\b(0?\d{6,10})\b/);
     if(codeMatch){
       if(typeof window.findCourseByCode === 'function'){
@@ -304,7 +328,6 @@
       }
     }
 
-    /* 2) تطابق كامل للاسم — الأطول أولاً */
     var best = null, bestLen = 0;
     for(var j = 0; j < keys.length; j++){
       var key = keys[j];
@@ -314,7 +337,6 @@
     }
     if(best) return best;
 
-    /* 3) تطابق جزئي — فقط للأسماء الطويلة (>= 12 حرف) */
     for(var k = 0; k < keys.length; k++){
       var k2 = keys[k];
       if(k2.length < 12) continue;
@@ -327,74 +349,76 @@
   }
 
   /* ============================================================
-     6) إصلاح checkSmartReminders — منع التكرار
+     6) checkSmartReminders — محمي إذا كان critical-fixes مُثبّتًا
      ============================================================ */
-  window.checkSmartReminders = function(){
-    if(!window.space || !window.space.tasks) return;
-    var today = localToday();
-    var hour = new Date().getHours();
-    if(hour < 8 || hour > 23) return;
+  if(!window._criticalFixesApplied){
+    window.checkSmartReminders = function(){
+      if(!window.space || !window.space.tasks) return;
+      var today = localToday();
+      var hour = new Date().getHours();
+      if(hour < 8 || hour > 23) return;
 
-    var firedKey = 'ss_smart_reminders_' + today;
-    var fired = {};
-    try{
-      if(window.S && window.S.get) fired = window.S.get(firedKey, {}) || {};
-    }catch(e){}
+      var firedKey = 'ss_smart_reminders_' + today;
+      var fired = {};
+      try{
+        if(window.S && window.S.get) fired = window.S.get(firedKey, {}) || {};
+      }catch(e){}
 
-    var sp = window.space;
-    var dueToday = (sp.tasks || []).filter(function(t){ return !t.done && t.due === today; });
-    var overdue = (sp.tasks || []).filter(function(t){ return !t.done && t.due && t.due < today; });
-    var upcomingExams = (sp.exams || []).filter(function(e){
-      if(!e.date) return false;
-      var days = Math.ceil((new Date(e.date) - new Date()) / 86400000);
-      return days >= 0 && days <= 3;
-    });
-
-    var reminders = [];
-    if(dueToday.length){
-      reminders.push({
-        tag: 'due-today',
-        t: '📌 ' + dueToday.length + ' مهمة مستحقة اليوم!',
-        b: dueToday.slice(0, 3).map(function(x){ return x.title; }).join(' · ')
+      var sp = window.space;
+      var dueToday = (sp.tasks || []).filter(function(t){ return !t.done && t.due === today; });
+      var overdue = (sp.tasks || []).filter(function(t){ return !t.done && t.due && t.due < today; });
+      var upcomingExams = (sp.exams || []).filter(function(e){
+        if(!e.date) return false;
+        var days = Math.ceil((new Date(e.date) - new Date()) / 86400000);
+        return days >= 0 && days <= 3;
       });
-    }
-    if(overdue.length){
-      reminders.push({
-        tag: 'overdue',
-        t: '⚠️ ' + overdue.length + ' مهمة متأخرة!',
-        b: overdue.slice(0, 3).map(function(x){ return x.title; }).join(' · ')
-      });
-    }
-    upcomingExams.forEach(function(e){
-      var days = Math.ceil((new Date(e.date) - new Date()) / 86400000);
-      var when = days === 0 ? 'اليوم!' : days === 1 ? 'غدًا!' : 'بعد ' + arabicDays(days);
-      reminders.push({
-        tag: 'exam-' + e.date,
-        t: '⏳ امتحان ' + when,
-        b: e.name + (e.time ? ' — الساعة ' + e.time : '')
-      });
-    });
 
-    var anyNew = false;
-    reminders.forEach(function(r, i){
-      if(fired[r.tag]) return;
-      fired[r.tag] = true;
-      anyNew = true;
-      setTimeout(function(){ toast(r.t, 'warn', 5000); }, 1500 + i * 2500);
-      if(typeof window.showNotif === 'function'){
-        setTimeout(function(){
-          window.showNotif(r.t, r.b, { tag: 'ss-' + r.tag + '-' + today });
-        }, 1500 + i * 2500);
+      var reminders = [];
+      if(dueToday.length){
+        reminders.push({
+          tag: 'due-today',
+          t: '📌 ' + dueToday.length + ' مهمة مستحقة اليوم!',
+          b: dueToday.slice(0, 3).map(function(x){ return x.title; }).join(' · ')
+        });
       }
-    });
+      if(overdue.length){
+        reminders.push({
+          tag: 'overdue',
+          t: '⚠️ ' + overdue.length + ' مهمة متأخرة!',
+          b: overdue.slice(0, 3).map(function(x){ return x.title; }).join(' · ')
+        });
+      }
+      upcomingExams.forEach(function(e){
+        var days = Math.ceil((new Date(e.date) - new Date()) / 86400000);
+        var when = days === 0 ? 'اليوم!' : days === 1 ? 'غدًا!' : 'بعد ' + days + ' أيام';
+        reminders.push({
+          tag: 'exam-' + e.date,
+          t: '⏳ امتحان ' + when,
+          b: (e.name || '') + (e.time ? ' — الساعة ' + e.time : '')
+        });
+      });
 
-    if(anyNew && window.S && window.S.set){
-      try{ window.S.set(firedKey, fired); }catch(e){}
-    }
-  };
+      var anyNew = false;
+      reminders.forEach(function(r, i){
+        if(fired[r.tag]) return;
+        fired[r.tag] = true;
+        anyNew = true;
+        setTimeout(function(){ toast(r.t, 'warn', 5000); }, 1500 + i * 2500);
+        if(typeof window.showNotif === 'function'){
+          setTimeout(function(){
+            window.showNotif(r.t, r.b, { tag: 'ss-' + r.tag + '-' + today });
+          }, 1500 + i * 2500);
+        }
+      });
+
+      if(anyNew && window.S && window.S.set){
+        try{ window.S.set(firedKey, fired); }catch(e){}
+      }
+    };
+  }
 
   /* ============================================================
-     7) إصلاح aiRespond — splitMulti ذكي
+     7) installAIFixes
      ============================================================ */
   function smartSplit(text){
     var raw = String(text || '').trim();
@@ -409,14 +433,12 @@
     var parts = raw.split(/\s+(?:و|ثم)\s+/);
     if(parts.length < 2) return [raw];
 
-    // تحقق: كل جزء بعد الأول لازم يبدأ بـ starter
     var valid = true;
     for(var i = 1; i < parts.length; i++){
       if(!starters.test(parts[i].trim())){ valid = false; break; }
     }
     if(!valid) return [raw];
 
-    // كل جزء لازم يكون ≥ 2 كلمة
     for(var j = 0; j < parts.length; j++){
       if(parts[j].trim().split(/\s+/).length < 2){ return [raw]; }
     }
@@ -424,9 +446,11 @@
   }
 
   function installAIFixes(){
-    if(!window._aiV3 || typeof window._aiV3.process !== 'function') return false;
+    if(!window._aiV3 || typeof window.aiRespond !== 'function') return false;
+    if(window._aiFixesApplied) return true;
+    window._aiFixesApplied = true;
 
-    /* patch 1: INTENTS handlers */
+    /* patch intent handlers */
     if(window._aiV3._intents){
       window._aiV3._intents.forEach(function(intent){
         if(intent.id === 'progress') intent.handler = patchedProgress;
@@ -442,7 +466,7 @@
       });
     }
 
-    /* patch 2: smart split في aiRespond */
+    /* patch aiRespond for smart split */
     var origProcess = window.aiRespond;
     window.aiRespond = function(q){
       var raw = String(q || '').trim();
@@ -468,7 +492,7 @@
   }
 
   /* ============================================================
-     8) الخطة حسب نوع المتطلب (بدل السنوات)
+     8) الخطة حسب النوع
      ============================================================ */
   function renderPlanByType(){
     var container = document.getElementById('semesters');
@@ -478,7 +502,6 @@
     var TYPES = window.COURSE_TYPES || {};
     var SEMS = window.SEMESTERS || [];
 
-    /* اجمع المواد مرة واحدة */
     var seen = {};
     var groups = {};
     var typeOrder = ['uni-c', 'uni-e', 'faculty', 'major-c', 'major-e', 'remedial'];
@@ -498,7 +521,6 @@
       });
     });
 
-    /* Header ملخص */
     var grandTotal = 0;
     typeOrder.forEach(function(t){
       (groups[t] || []).forEach(function(c){ grandTotal += c.h; });
@@ -511,7 +533,6 @@
       '</div>' +
     '</div>';
 
-    /* كل نوع كـ card قابل للطي */
     typeOrder.forEach(function(t){
       var list = groups[t];
       if(!list || !list.length) return;
@@ -550,7 +571,6 @@
 
     container.innerHTML = html;
 
-    /* ربط الطي */
     container.querySelectorAll('.plan-type-card').forEach(function(card){
       var head = card.querySelector('.plan-type-head');
       var body = card.querySelector('.plan-type-body');
@@ -567,13 +587,14 @@
       });
     });
 
-    /* استدعِ plan-enhance لإضافة الأزرار والـ badges */
     if(window.planEnhance && typeof window.planEnhance.refreshPlan === 'function'){
       setTimeout(function(){ try{ window.planEnhance.refreshPlan(); }catch(e){} }, 100);
     }
   }
 
-  /* استبدال chips السنوات بـ chips الأنواع */
+  /* ============================================================
+     9) installPlanChips
+     ============================================================ */
   function installPlanChips(){
     var planSection = document.getElementById('plan');
     if(!planSection) return false;
@@ -586,7 +607,6 @@
 
     if(controls.dataset.typeChipsInstalled) return true;
 
-    /* احذف كل chips القديمة */
     controls.querySelectorAll('.chip').forEach(function(c){ c.remove(); });
 
     var types = [
@@ -621,7 +641,7 @@
   }
 
   /* ============================================================
-     9) السحب والإفلات على الجوال — Custom Dashboard
+     10) touch drag
      ============================================================ */
   function installTouchDrag(){
     var dash = document.getElementById('dashboard');
@@ -631,7 +651,6 @@
     dash.addEventListener('touchstart', function(e){
       var handle = e.target.closest('.dash-handle');
       if(!handle) return;
-
       var card = handle.closest('[data-dash-id]');
       if(!card) return;
 
@@ -653,7 +672,6 @@
           card.style.opacity = '.5';
           card.style.pointerEvents = 'none';
         }
-
         if(!active) return;
 
         var el = document.elementFromPoint(t.clientX, t.clientY);
@@ -682,7 +700,6 @@
           card.style.opacity = '';
           card.style.pointerEvents = '';
 
-          /* احفظ الترتيب */
           var ids = [];
           Array.prototype.forEach.call(dash.children, function(el){
             if(el.dataset && el.dataset.dashId) ids.push(el.dataset.dashId);
@@ -701,44 +718,40 @@
   }
 
   /* ============================================================
-     10) إعادة ربط كل الأحداث بشكل آمن
+     11) safeBindAllEvents — مع فحص _boundByOriginal
      ============================================================ */
   function safeBindAllEvents(){
-    /* فلاتر المهام */
     document.querySelectorAll('[data-tf]').forEach(function(chip){
-      if(chip._safeTfBound) return;
+      if(chip._safeTfBound || chip._boundByOriginal) return;
       chip._safeTfBound = true;
       chip.addEventListener('click', function(){
         if(typeof window.filterTasks === 'function') window.filterTasks(chip.dataset.tf);
       });
     });
 
-    /* فلاتر الميزانية */
     document.querySelectorAll('[data-bt]').forEach(function(tab){
-      if(tab._safeBtBound) return;
+      if(tab._safeBtBound || tab._boundByOriginal) return;
       tab._safeBtBound = true;
       tab.addEventListener('click', function(){
         if(typeof window.filterBudget === 'function') window.filterBudget(tab.dataset.bt);
       });
     });
 
-    /* التبويبات الفرعية */
     document.querySelectorAll('[data-gc-tab]').forEach(function(btn){
-      if(btn._safeGcBound) return;
+      if(btn._safeGcBound || btn._boundByOriginal) return;
       btn._safeGcBound = true;
       btn.addEventListener('click', function(){
         if(typeof window.switchSubTab === 'function') window.switchSubTab('gradecalc', btn.dataset.gcTab);
       });
     });
     document.querySelectorAll('[data-plan-tab]').forEach(function(btn){
-      if(btn._safePtBound) return;
+      if(btn._safePtBound || btn._boundByOriginal) return;
       btn._safePtBound = true;
       btn.addEventListener('click', function(){
         if(typeof window.switchSubTab === 'function') window.switchSubTab('plan', btn.dataset.planTab);
       });
     });
 
-    /* الأزرار الرئيسية */
     var binds = [
       ['btnAddTask', 'addTask'],
       ['btnAddExam', 'addExam'],
@@ -762,7 +775,7 @@
     ];
     binds.forEach(function(pair){
       var el = document.getElementById(pair[0]);
-      if(!el || el._safeBound) return;
+      if(!el || el._safeBound || el._boundByOriginal) return;
       el._safeBound = true;
       el.addEventListener('click', function(){
         var fn = window[pair[1]];
@@ -770,50 +783,47 @@
       });
     });
 
-    /* الميزانية */
     var bi = document.getElementById('btnAddIncome');
-    if(bi && !bi._safeBound){
+    if(bi && !bi._safeBound && !bi._boundByOriginal){
       bi._safeBound = true;
       bi.addEventListener('click', function(){
         if(typeof window.addBudgetItem === 'function') window.addBudgetItem('income');
       });
     }
     var be = document.getElementById('btnAddExpense');
-    if(be && !be._safeBound){
+    if(be && !be._safeBound && !be._boundByOriginal){
       be._safeBound = true;
       be.addEventListener('click', function(){
         if(typeof window.addBudgetItem === 'function') window.addBudgetItem('expense');
       });
     }
 
-    /* أزرار الجدول */
     var bct = document.getElementById('btnClearTt');
-    if(bct && !bct._safeBound){
+    if(bct && !bct._safeBound && !bct._boundByOriginal){
       bct._safeBound = true;
       bct.addEventListener('click', function(){ window.clearTimetable(); });
     }
     var ble = document.getElementById('btnLoadExample');
-    if(ble && !ble._safeBound){
+    if(ble && !ble._safeBound && !ble._boundByOriginal){
       ble._safeBound = true;
       ble.addEventListener('click', function(){ window.loadExampleTimetable(); });
     }
     var baf = document.getElementById('btnAutoFill');
-    if(baf && !baf._safeBound){
+    if(baf && !baf._safeBound && !baf._boundByOriginal){
       baf._safeBound = true;
       baf.addEventListener('click', function(){ window.autoFillTimetable(); });
     }
     var bpt = document.getElementById('btnPrintTt');
-    if(bpt && !bpt._safeBound){
+    if(bpt && !bpt._safeBound && !bpt._boundByOriginal){
       bpt._safeBound = true;
       bpt.addEventListener('click', function(){ window.printTimetable(); });
     }
     var bac = document.getElementById('btnAddClass');
-    if(bac && !bac._safeBound){
+    if(bac && !bac._safeBound && !bac._boundByOriginal){
       bac._safeBound = true;
       bac.addEventListener('click', function(){ window.addClassSlot(); });
     }
 
-    /* زر الفتح الذكي للجدول */
     var sbtn = document.getElementById('btnOpenSmartTimetable');
     if(sbtn && !sbtn._smartTtBound){
       sbtn._smartTtBound = true;
@@ -836,9 +846,9 @@
       });
     }
 
-    /* FAB menu */
+    /* ✅ لا نربط fab-action إذا كان bindAllEvents قد ربطها */
     document.querySelectorAll('.fab-action').forEach(function(b){
-      if(b._safeFabBound) return;
+      if(b._safeFabBound || b._boundByOriginal) return;
       b._safeFabBound = true;
       b.addEventListener('click', function(){
         var type = b.dataset.fab;
@@ -871,61 +881,31 @@
   }
 
   /* ============================================================
-     11) تعطيل الـ boot القديم لو حصل خطأ
-     ============================================================ */
-  function safeBootFallback(){
-    /* لو الـ boot الأصلي فشل، نشغل النسخة الآمنة */
-    var originalBind = window.bindAllEvents;
-    if(typeof originalBind === 'function' && !window._bindAllWrapped){
-      window._bindAllWrapped = true;
-      window.bindAllEvents = function(){
-        try{
-          originalBind.apply(this, arguments);
-        }catch(e){
-          console.warn('⚠️ original bindAllEvents failed:', e.message);
-          console.info('🔄 Running safe binding fallback');
-        }
-        safeBindAllEvents();
-      };
-    }
-  }
-
-  /* ============================================================
      12) التثبيت الرئيسي
      ============================================================ */
   function install(){
-    /* 1) تأكد من today() */
-    if(typeof window.today !== 'function') window.today = localToday;
+    if(!window.today) window.today = localToday;
 
-    /* 2) AI fixes */
     if(!installAIFixes()) setTimeout(installAIFixes, 500);
 
-    /* 3) استبدل renderPlan */
-    var origRenderPlan = window.renderPlan;
-    if(typeof origRenderPlan === 'function' && !window._renderPlanReplaced){
+    if(typeof window.renderPlan === 'function' && !window._renderPlanReplaced){
       window._renderPlanReplaced = true;
+      var origRenderPlan = window.renderPlan;
       window.renderPlan = function(){
         try{
-          if(typeof window.renderPlan === 'function' && window.renderPlan !== renderPlanByType){
-            /* استدعِ النسخة الجديدة فقط */
-          }
           renderPlanByType();
           installPlanChips();
         }catch(e){
           console.error('renderPlanByType failed:', e);
-          /* fallback للنسخة الأصلية */
           try{ origRenderPlan.apply(this, arguments); }catch(e2){}
         }
       };
     }
 
-    /* 4) أعد الربط الآمن */
     safeBindAllEvents();
 
-    /* 5) السحب على الجوال */
     setTimeout(installTouchDrag, 1500);
 
-    /* 6) زيادات دورية */
     setTimeout(function(){
       safeBindAllEvents();
       installPlanChips();
@@ -935,12 +915,7 @@
       safeBindAllEvents();
       installPlanChips();
     }, 3000);
-    setTimeout(function(){
-      safeBindAllEvents();
-      installPlanChips();
-    }, 6000);
 
-    /* 7) راقب تبديل التبويبات */
     if(typeof window.switchTab === 'function' && !window._safeSwitchWrapped){
       var origSwitch = window.switchTab;
       window.switchTab = function(tab){
@@ -960,13 +935,33 @@
       window._safeSwitchWrapped = true;
     }
 
-    console.log('✅ fixes-all.js installed — all patches active');
+    console.log('✅ fixes-all v3 installed — no double-binding');
   }
 
-  /* إذا الصفحة لا تزال تحمّل، انتظر */
+  /* ============================================================
+     التسجيل
+     ============================================================ */
   if(document.readyState === 'loading'){
+    /* 1) wrapBindAll يُسجّل أولًا ليعمل قبل boot */
+    document.addEventListener('DOMContentLoaded', wrapBindAll);
+    /* 2) ثم install بعد 50ms */
     document.addEventListener('DOMContentLoaded', function(){ setTimeout(install, 50); });
   } else {
+    wrapBindAll();
     setTimeout(install, 50);
   }
+
+  /* احتياطي: حاول تغليف bindAllEvents كل 30ms حتى يظهر */
+  var wrapTries = 0;
+  var wrapTimer = setInterval(function(){
+    wrapTries++;
+    if(window._bindAllWrapped || wrapTries > 40){
+      clearInterval(wrapTimer);
+      return;
+    }
+    if(typeof window.bindAllEvents === 'function'){
+      wrapBindAll();
+      clearInterval(wrapTimer);
+    }
+  }, 30);
 })();

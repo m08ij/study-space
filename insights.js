@@ -1,6 +1,7 @@
 /* ============================================================
-   insights.js v2 - Advanced analytics
-   Fixes: Uses local date strings instead of toISOString (UTC bug)
+   insights.js v3 - Advanced analytics
+   - FIXED: GPA calculation (score out of weight, not %)
+   - FIXED: Uses local date strings
    ============================================================ */
 (function(){
   'use strict';
@@ -9,7 +10,6 @@
   function getS(){ return window.S || {get:function(k,d){return d;}}; }
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  /* ✅ Local date - يحل مشكلة UTC بعد منتصف الليل */
   function localDateStr(d){
     return d.getFullYear() + '-' +
       String(d.getMonth()+1).padStart(2,'0') + '-' +
@@ -31,12 +31,14 @@
     for(var i = 0; i < 119; i++){
       var d = new Date(startDay);
       d.setDate(d.getDate() + i);
-      var ds = localDateStr(d);   /* ✅ */
+      var ds = localDateStr(d);
       var m = log[ds] || 0;
       if(m > maxMin) maxMin = m;
       days.push({date: ds, minutes: m, day: d.getDay(), month: d.getMonth()});
     }
     if(maxMin === 0) maxMin = 60;
+
+    var colors = ['var(--bg2)', 'rgba(34,211,238,.25)', 'rgba(34,211,238,.5)', 'rgba(34,211,238,.75)', 'var(--cyan)'];
 
     var html = '<div style="display:flex;gap:3px;overflow-x:auto;padding:8px 0;direction:ltr">';
     for(var w = 0; w < 17; w++){
@@ -46,7 +48,6 @@
         if(idx >= days.length){ html += '<div style="width:13px;height:13px"></div>'; continue; }
         var day = days[idx];
         var intensity = day.minutes === 0 ? 0 : Math.min(4, Math.ceil((day.minutes / maxMin) * 4));
-        var colors = ['var(--bg2)', 'rgba(34,211,238,.25)', 'rgba(34,211,238,.5)', 'rgba(34,211,238,.75)', 'var(--cyan)'];
         var title = day.date + ' - ' + (day.minutes > 0 ? day.minutes + ' min' : 'no study');
         html += '<div title="' + title + '" style="width:13px;height:13px;border-radius:3px;background:' + colors[intensity] + ';border:1px solid rgba(255,255,255,.05)"></div>';
       }
@@ -56,8 +57,7 @@
 
     html += '<div style="display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--muted);margin-top:8px;justify-content:flex-end">';
     for(var i2 = 0; i2 < 5; i2++){
-      var colors2 = ['var(--bg2)', 'rgba(34,211,238,.25)', 'rgba(34,211,238,.5)', 'rgba(34,211,238,.75)', 'var(--cyan)'];
-      html += '<div style="width:11px;height:11px;border-radius:3px;background:' + colors2[i2] + '"></div>';
+      html += '<div style="width:11px;height:11px;border-radius:3px;background:' + colors[i2] + '"></div>';
     }
     html += '</div>';
 
@@ -79,9 +79,12 @@
     var streak = 0;
     var d = new Date();
     for(var i = 0; i < 365; i++){
-      var ds = localDateStr(d);   /* ✅ */
-      if(log[ds] && log[ds] > 0) streak++;
-      else if(i > 0) break;
+      var ds = localDateStr(d);
+      if(log[ds] && log[ds] > 0){
+        streak++;
+      } else if(i > 0){
+        break;
+      }
       d.setDate(d.getDate() - 1);
     }
     return streak;
@@ -92,12 +95,12 @@
     var thisWeek = 0, lastWeek = 0, thisWeekDays = 0, lastWeekDays = 0;
     for(var i = 0; i < 7; i++){
       var d1 = new Date(Date.now() - i * 86400000);
-      var m1 = log[localDateStr(d1)] || 0;   /* ✅ */
+      var m1 = log[localDateStr(d1)] || 0;
       thisWeek += m1;
       if(m1 > 0) thisWeekDays++;
 
       var d2 = new Date(Date.now() - (i + 7) * 86400000);
-      var m2 = log[localDateStr(d2)] || 0;   /* ✅ */
+      var m2 = log[localDateStr(d2)] || 0;
       lastWeek += m2;
       if(m2 > 0) lastWeekDays++;
     }
@@ -114,6 +117,18 @@
     if(container) container.innerHTML = html;
   }
 
+  /* ============ ✅ GPA math FIXED ============ */
+  function computeGradePercentage(g){
+    var total = 0, earned = 0;
+    (g.items || []).forEach(function(it){
+      var w = parseFloat(it.weight) || 0;
+      var s = parseFloat(it.score)  || 0;
+      total += w;
+      earned += s;   /* score is out of weight */
+    });
+    return total > 0 ? (earned / total) * 100 : 0;
+  }
+
   function renderCoursePerformance(){
     var sp = getSpace();
     var grades = sp.grades || [];
@@ -126,15 +141,11 @@
     }
 
     var data = grades.map(function(g){
-      var total = 0, earned = 0;
-      (g.items || []).forEach(function(it){
-        var w = parseFloat(it.weight) || 0;
-        var s = parseFloat(it.score) || 0;
-        total += w;
-        earned += s * w / 100;
-      });
-      var pct = total > 0 ? (earned / total) * 100 : 0;
-      return {name: g.name, pct: pct, items: (g.items || []).length};
+      return {
+        name: g.name,
+        pct: computeGradePercentage(g),
+        items: (g.items || []).length
+      };
     });
     data.sort(function(a,b){ return b.pct - a.pct; });
 
@@ -163,6 +174,7 @@
     container.innerHTML = html;
   }
 
+  /* ============ ✅ GPA forecast FIXED ============ */
   function renderGpaForecast(){
     var sp = getSpace();
     var grades = sp.grades || [];
@@ -177,16 +189,14 @@
     var courses = sp.courses || [];
     var totalPts = 0, totalHrs = 0;
     grades.forEach(function(g){
-      var total = 0, earned = 0;
-      (g.items || []).forEach(function(it){
-        total += parseFloat(it.weight) || 0;
-        earned += (parseFloat(it.score)||0) * (parseFloat(it.weight)||0) / 100;
-      });
-      var pct = total > 0 ? earned / total * 100 : 0;
+      var pct = computeGradePercentage(g);
       var hrs = 3;
       var found = courses.find(function(c){ return c.name === g.name; });
       if(found && found.hours) hrs = found.hours;
-      var gpaPoints = pct >= 90 ? 4.0 : pct >= 85 ? 3.75 : pct >= 80 ? 3.5 : pct >= 75 ? 3.0 : pct >= 70 ? 2.75 : pct >= 65 ? 2.5 : pct >= 60 ? 2.0 : pct >= 55 ? 1.75 : pct >= 50 ? 1.5 : pct >= 45 ? 1.0 : 0;
+      var gpaPoints = pct >= 90 ? 4.0 : pct >= 85 ? 3.75 : pct >= 80 ? 3.5 :
+                      pct >= 75 ? 3.0 : pct >= 70 ? 2.75 : pct >= 65 ? 2.5 :
+                      pct >= 60 ? 2.0 : pct >= 55 ? 1.75 : pct >= 50 ? 1.5 :
+                      pct >= 45 ? 1.0 : 0;
       totalPts += gpaPoints * hrs;
       totalHrs += hrs;
     });
@@ -287,8 +297,9 @@
   }
 
   window.renderInsights = renderInsights;
+  window.computeGradePercentage = computeGradePercentage;
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
-  console.log('insights.js v2 loaded');
+  console.log('insights.js v3 loaded');
 })();

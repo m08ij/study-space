@@ -1,6 +1,6 @@
 /* ============================================================
-   🧰 core-utils.js — الأدوات الموحدة
-   ⚠️ يجب تحميله قبل كل الملفات الثانية (بعد supabase مباشرة)
+   🧰 core-utils.js v2 — الأدوات الموحدة (مُنظّف)
+   - إزالة: bus, store, debounce, clone (غير مستخدمة)
    ============================================================ */
 (function(){
   'use strict';
@@ -49,60 +49,9 @@
     }, dur);
   };
 
-  /* ============ Event Bus (يحل مشكلة wrapping) ============ */
-  var listeners = {};
-  window.bus = {
-    on: function(event, fn){
-      if(!listeners[event]) listeners[event] = [];
-      listeners[event].push(fn);
-      return function(){ window.bus.off(event, fn); };
-    },
-    off: function(event, fn){
-      if(!listeners[event]) return;
-      listeners[event] = listeners[event].filter(function(f){ return f !== fn; });
-    },
-    emit: function(event, data){
-      if(!listeners[event]) return;
-      listeners[event].forEach(function(fn){
-        try{ fn(data); }catch(e){ console.warn('bus error:', event, e); }
-      });
-    }
-  };
-
-  /* ============ مساعدات ============ */
-  window.debounce = function(fn, wait){
-    var timer;
-    return function(){
-      var args = arguments, ctx = this;
-      clearTimeout(timer);
-      timer = setTimeout(function(){ fn.apply(ctx, args); }, wait || 300);
-    };
-  };
-
-  window.clone = function(obj){
-    if(obj === null || typeof obj !== 'object') return obj;
-    if(Array.isArray(obj)) return obj.map(window.clone);
-    var out = {};
-    for(var k in obj) if(obj.hasOwnProperty(k)) out[k] = window.clone(obj[k]);
-    return out;
-  };
-
-  window.store = {
-    get: function(k, def){
-      try{ var v = localStorage.getItem(k); return v === null ? def : JSON.parse(v); }
-      catch(e){ return def; }
-    },
-    set: function(k, v){
-      try{ localStorage.setItem(k, JSON.stringify(v)); return true; }
-      catch(e){ return false; }
-    },
-    remove: function(k){ try{ localStorage.removeItem(k); }catch(e){} }
-  };
-
   /* ============ أيام موحّدة (7 أيام دائماً) ============ */
   window.DAYS_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
   window.DAYS_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  // للاستخدام الأكاديمي (5 أيام فقط)
   window.WEEK_DAYS_AR = window.DAYS_AR.slice(0, 5);
   window.WEEK_DAYS_EN = window.DAYS_EN.slice(0, 5);
 

@@ -1,8 +1,8 @@
 /* ============================================================
-   🎨 custom-dashboard.js — تخصيص لوحة التحكم
+   🎨 custom-dashboard.js v2 — تخصيص لوحة التحكم
    - سحب وإفلات ترتيب البطاقات
    - إخفاء/إظهار أي بطاقة
-   - حفظ الاختيارات في localStorage
+   - ✅ حماية من تكرار المستمعات
    ============================================================ */
 (function(){
   'use strict';
@@ -25,15 +25,10 @@
   function toast(m, t, d){ if(typeof window.toast === 'function') window.toast(m, t || 'info', d || 2000); }
 
   function getCardId(card, idx){
-    // نعتمد على العنوان لو ما في id
     if(card.id) return card.id;
     var h3 = card.querySelector('h3');
     var title = h3 ? (h3.textContent || '').trim().slice(0, 30) : '';
-    if(!title){
-      // للشبكات (grid) نستخدم index
-      return 'grid_' + idx;
-    }
-    // ننظف العنوان ليصير id ثابت
+    if(!title) return 'grid_' + idx;
     return 'card_' + title.replace(/[^\u0600-\u06FFa-zA-Z0-9]/g, '_');
   }
 
@@ -43,33 +38,33 @@
     var order = getOrder();
     var hidden = getHidden();
 
-    // نجمع كل العناصر القابلة للترتيب
     var cards = Array.prototype.slice.call(dash.children).filter(function(el){
-      return el.classList && (el.classList.contains('card') || el.classList.contains('grid') || el.classList.contains('daily-quote'));
+      return el.classList && (
+        el.classList.contains('card') ||
+        el.classList.contains('grid') ||
+        el.classList.contains('daily-quote')
+      );
     });
 
     cards.forEach(function(c, idx){
       c.dataset.dashId = getCardId(c, idx);
     });
 
-    // إخفاء المخفي
     cards.forEach(function(c){
       c.style.display = hidden.indexOf(c.dataset.dashId) > -1 ? 'none' : '';
     });
 
-    // ترتيب
     if(order.length){
       order.forEach(function(id){
         var el = dash.querySelector('[data-dash-id="' + id + '"]');
         if(el) dash.appendChild(el);
       });
-      // اللي مو موجود في order ينزل آخر
       cards.forEach(function(c){
         if(order.indexOf(c.dataset.dashId) === -1) dash.appendChild(c);
       });
     }
 
-    // إضافة أزرار السحب + الإخفاء لكل card
+    /* أضف أزرار السحب + الإخفاء (مرة واحدة فقط لكل بطاقة) */
     cards.forEach(function(c){
       if(c.querySelector('.dash-handle')) return;
       c.style.position = 'relative';
@@ -80,8 +75,11 @@
       handle.title = 'اسحب لإعادة الترتيب · أو اضغط لإخفاء';
       handle.innerHTML = '⠿';
       handle.style.cssText = 'position:absolute;top:6px;left:6px;z-index:10;width:24px;height:24px;border-radius:8px;background:var(--bg2);border:1px solid var(--border);color:var(--muted);cursor:grab;font-family:inherit;font-size:.9rem;line-height:1;display:flex;align-items:center;justify-content:center;opacity:.4;transition:.2s';
+
       handle.addEventListener('mouseenter', function(){ handle.style.opacity = '1'; });
-      handle.addEventListener('mouseleave', function(){ if(!handle.classList.contains('dragging')) handle.style.opacity = '.4'; });
+      handle.addEventListener('mouseleave', function(){
+        if(!handle.classList.contains('dragging')) handle.style.opacity = '.4';
+      });
       handle.addEventListener('click', function(e){
         e.stopPropagation();
         var id = c.dataset.dashId;
@@ -96,15 +94,18 @@
       c.setAttribute('draggable', 'false');
     });
 
-    // تفعيل السحب والإفلات
     enableDragDrop(cards);
   }
 
+  /* ✅ حماية من التكرار */
   function enableDragDrop(cards){
     var dragged = null;
     var placeholder = null;
 
     cards.forEach(function(c){
+      if(c._dragBound) return;    /* ← يمنع تكرار المستمعات */
+      c._dragBound = true;
+
       var handle = c.querySelector('.dash-handle');
       if(!handle) return;
 
@@ -120,7 +121,6 @@
         dragged = c;
         c.style.opacity = '.4';
         handle.classList.add('dragging');
-        // placeholder
         placeholder = document.createElement('div');
         placeholder.style.cssText = 'height:' + c.offsetHeight + 'px;border:2px dashed var(--cyan);border-radius:12px;margin-bottom:14px';
         c.parentNode.insertBefore(placeholder, c.nextSibling);
@@ -146,22 +146,16 @@
         c.setAttribute('draggable', 'false');
         handle.classList.remove('dragging');
         handle.style.cursor = 'grab';
-        if(placeholder && dragged && dragged !== c){
-          placeholder.parentNode.insertBefore(dragged, placeholder);
-        } else if(placeholder && dragged){
-          // نفس المكان
+        if(placeholder && dragged){
           placeholder.parentNode.insertBefore(dragged, placeholder);
         }
         if(placeholder) placeholder.remove();
         placeholder = null;
-        // احفظ الترتيب
         saveCurrentOrder();
         dragged = null;
       });
 
-      c.addEventListener('drop', function(e){
-        e.preventDefault();
-      });
+      c.addEventListener('drop', function(e){ e.preventDefault(); });
     });
   }
 
@@ -184,7 +178,6 @@
   }
 
   function injectButtons(){
-    // زر في الـ settings
     var menu = document.getElementById('settingsMenu');
     if(menu && !menu.querySelector('#resetDashBtn')){
       var divider = document.createElement('div');
@@ -203,11 +196,9 @@
   }
 
   function install(){
-    // ننتظر تحميل dashboard
     setTimeout(applyOrder, 1500);
     setTimeout(injectButtons, 1800);
 
-    // نشغّل applyOrder كل ما يتحدث dashboard
     if(typeof window.renderDashboard === 'function' && !window._dashWrapped){
       var orig = window.renderDashboard;
       window.renderDashboard = function(){
@@ -223,5 +214,5 @@
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
   else install();
-  console.log('🎨 Custom Dashboard loaded');
+  console.log('🎨 Custom Dashboard v2 loaded');
 })();
