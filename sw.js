@@ -4,7 +4,7 @@
    - Network-first for HTML
    - Cache-first for assets
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v40';
+var CACHE_NAME = 'ss-cache-v41';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -30,7 +30,9 @@ var URLS_TO_CACHE = [
   './supabase-config.js',
   './supabase-client.js',
   './pwa.js',
-  './manifest.json'
+  './manifest.json',
+  './fixes-critical.js',
+  './fixes-all.js',
 ];
 
 self.addEventListener('install', function(e){
