@@ -464,12 +464,47 @@
       var DB = window.COURSES_DB || {};
       var codes = {}, dupes = [];
       Object.keys(DB).forEach(function(k){
-        var c = DB[k].code;
+        var c = String(DB[k].code || '').replace(/^0+/, '');
+        if(!c) return;
         if(codes[c]) dupes.push(c + ' (' + codes[c] + ' | ' + k + ')');
         else codes[c] = k;
       });
-      /* بعض الأكواد قد تكون شرعية للتكرار - نتسامح بـ 1 */
-      expect(dupes.length).toBeLessThanOrEqual(0);
+      expect(dupes.length).toBe(0);
+    });
+	    it('uni-c = 18 ساعة بالضبط', function(){
+      var DB = window.COURSES_DB || {};
+      var total = 0;
+      Object.keys(DB).forEach(function(k){
+        if(DB[k].t === 'uni-c') total += DB[k].h;
+      });
+      expect(total).toBe(18);
+    });
+
+    it('faculty >= 33 ساعة', function(){
+      var DB = window.COURSES_DB || {};
+      var total = 0;
+      Object.keys(DB).forEach(function(k){
+        if(DB[k].t === 'faculty') total += DB[k].h;
+      });
+      expect(total).toBeGreaterThanOrEqual(33);
+    });
+
+    it('major-c >= 88 ساعة', function(){
+      var DB = window.COURSES_DB || {};
+      var total = 0;
+      Object.keys(DB).forEach(function(k){
+        if(DB[k].t === 'major-c') total += DB[k].h;
+      });
+      expect(total).toBeGreaterThanOrEqual(88);
+    });
+
+    it('major-e >= 15 ساعة', function(){
+      var DB = window.COURSES_DB || {};
+      var total = 0;
+      Object.keys(DB).forEach(function(k){
+        if(DB[k].t === 'major-e') total += DB[k].h;
+      });
+      expect(total).toBeGreaterThanOrEqual(15);
     });
     it('findCourseByCode يعمل بالكود الكامل', function(){
       if(typeof window.findCourseByCode !== 'function') return;
