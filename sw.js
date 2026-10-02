@@ -1,7 +1,7 @@
 /* ============================================================
    sw.js v50 — Cache updated (batch 7.6)
    ============================================================ */
-var CACHE_NAME = 'ss-cache-v50';
+var CACHE_NAME = 'ss-cache-v53';
 var URLS_TO_CACHE = [
   './',
   './index.html',
@@ -33,6 +33,7 @@ var URLS_TO_CACHE = [
   './data-logic-fixes.js',
   './perf-fixes.js',
   './ux-fixes.js',
+  './tabs-consistency-fix.js',
 ];
 
 self.addEventListener('install', function(e){
